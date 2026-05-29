@@ -9,6 +9,8 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { Roles } from "../auth/decorators/roles.decorator";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import type { AuthenticatedUser } from "../auth/jwt-payload";
 import { SalesService } from "./sales.service";
@@ -47,6 +49,8 @@ export class SalesController {
   }
 
   @Post(":id/void")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
   voidSale(
     @Param("id", ParseIntPipe) id: number,
     @Body() dto: VoidSaleDto,

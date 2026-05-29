@@ -156,7 +156,20 @@ export interface Sale {
   status: "UNPAID" | "PARTIAL" | "PAID";
   notes: string | null;
   voidedAt: string | null;
+  voidReason: string | null;
   lines: SaleLine[];
+}
+
+export interface SalePaymentRow {
+  id: number;
+  amount: number;
+  paymentDate: string;
+  method: string;
+  notes: string | null;
+}
+
+export interface SaleDetail extends Sale {
+  payments: SalePaymentRow[];
 }
 
 export interface CustomerPayment {

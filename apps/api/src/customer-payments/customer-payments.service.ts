@@ -1,6 +1,12 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateCustomerPaymentDto } from "./dto/customer-payment.dto";
+
+function statusFor(grandTotal: number, paidAmount: number): "UNPAID" | "PARTIAL" | "PAID" {
+  if (paidAmount <= 0) return "UNPAID";
+  if (paidAmount >= grandTotal) return "PAID";
+  return "PARTIAL";
+}
 
 @Injectable()
 export class CustomerPaymentsService {
@@ -27,6 +33,37 @@ export class CustomerPaymentsService {
       orderBy: { paymentDate: "desc" },
       take: limit,
       include: { sale: { select: { id: true, grandTotal: true } } },
+    });
+  }
+
+  /**
+   * Void a customer payment. If it was tied to a sale, decrement that sale's
+   * cached paidAmount and recompute status (mirror of SalesService.addPayment),
+   * unless the sale is itself voided (already reset to 0).
+   */
+  async void(id: number, reason: string, voidedById: number) {
+    return this.prisma.$transaction(async (tx) => {
+      const payment = await tx.customerPayment.findUnique({ where: { id } });
+      if (!payment) throw new NotFoundException(`Payment ${id} not found`);
+      if (payment.voidedAt) throw new ConflictException("Payment is already voided");
+
+      await tx.customerPayment.update({
+        where: { id },
+        data: { voidedAt: new Date(), voidedById, voidReason: reason },
+      });
+
+      if (payment.saleId) {
+        const sale = await tx.sale.findUnique({ where: { id: payment.saleId } });
+        if (sale && !sale.voidedAt) {
+          const newPaid = Math.max(0, sale.paidAmount - payment.amount);
+          await tx.sale.update({
+            where: { id: sale.id },
+            data: { paidAmount: newPaid, status: statusFor(sale.grandTotal, newPaid) },
+          });
+        }
+      }
+
+      return tx.customerPayment.findUnique({ where: { id } });
     });
   }
 }

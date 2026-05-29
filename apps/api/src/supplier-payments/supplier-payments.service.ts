@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateSupplierPaymentDto } from "./dto/supplier-payment.dto";
 
@@ -37,6 +42,17 @@ export class SupplierPaymentsService {
       orderBy: { paymentDate: "desc" },
       take: limit,
       include: { order: { select: { id: true, expectedQty: true, expectedTotal: true } } },
+    });
+  }
+
+  /** Void a supplier payment. Balance excludes voided rows, so this reverses it. */
+  async void(id: number, reason: string, voidedById: number) {
+    const payment = await this.prisma.supplierPayment.findUnique({ where: { id } });
+    if (!payment) throw new NotFoundException(`Payment ${id} not found`);
+    if (payment.voidedAt) throw new ConflictException("Payment is already voided");
+    return this.prisma.supplierPayment.update({
+      where: { id },
+      data: { voidedAt: new Date(), voidedById, voidReason: reason },
     });
   }
 }

@@ -263,21 +263,38 @@ export class SalesService {
       if (!sale) throw new NotFoundException(`Sale ${saleId} not found`);
       if (sale.voidedAt) throw new ConflictException("Sale is already voided");
 
+      const now = new Date();
+
+      // Void the sale and reset its cached payment fields (payments are reversed below).
       await tx.sale.update({
         where: { id: sale.id },
-        data: { voidedAt: new Date(), voidedById, voidReason: reason },
+        data: {
+          voidedAt: now,
+          voidedById,
+          voidReason: reason,
+          paidAmount: 0,
+          status: "UNPAID",
+        },
       });
 
+      // Void the linked stock movement — stock is restored (aggregations skip voided).
       if (sale.inventoryEvent) {
         await tx.inventoryEvent.update({
           where: { id: sale.inventoryEvent.id },
-          data: { voidedAt: new Date(), voidedById, voidReason: reason },
+          data: { voidedAt: now, voidedById, voidReason: reason },
         });
       }
 
+      // Reverse payments recorded against this sale, so the customer's balance
+      // returns to its pre-sale value (the whole sale is treated as undone).
+      await tx.customerPayment.updateMany({
+        where: { saleId: sale.id, voidedAt: null },
+        data: { voidedAt: now, voidedById, voidReason: `Sale #${sale.id} voided: ${reason}` },
+      });
+
       return tx.sale.findUnique({
         where: { id: sale.id },
-        include: { lines: { include: { itemType: true } } },
+        include: { lines: { include: { itemType: true } }, payments: true },
       });
     });
   }

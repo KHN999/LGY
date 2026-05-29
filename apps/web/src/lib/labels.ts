@@ -162,6 +162,7 @@ export const labels = {
     transfers: "ပစ္စည်းပို့စာရင်း",
     supplierOrders: "အလိပ်မှာစာရင်း",
     closes: "နေ့ပိတ်စာရင်း",
+    sales: "အရောင်းစာရင်း",
     stockCount: "စတော့ရေတွက်",
     exceptions: "လက်ကျန်မကိုက်မှု",
     settings: "ဆက်တင်များ",
@@ -258,6 +259,20 @@ export const labels = {
     success: "စတော့ ပြန်ညှိပြီးပါပြီ",
     noChange: "ကွာခြားမှု မရှိပါ",
     empty: "ပစ္စည်းအမျိုးအစား မရှိသေးပါ",
+  },
+
+  salesAdmin: {
+    title: "အရောင်းစာရင်း",
+    empty: "အရောင်းမှတ်တမ်း မရှိသေးပါ",
+    filterAll: "အားလုံး",
+    payments: "ပေးငွေမှတ်တမ်း",
+    noPayments: "ပေးငွေ မရှိသေးပါ",
+    voidSale: "အရောင်း ပယ်ဖျက်",
+    voidSaleConfirm: "ဤအရောင်းကို ပယ်ဖျက်မလား? သက်ဆိုင်ရာ ပေးငွေများကိုပါ ပြန်ရုပ်သိမ်းမည်။",
+    voidPayment: "ပေးငွေ ပယ်ဖျက်",
+    voided: "ပယ်ဖျက်ပြီး",
+    reason: "အကြောင်းပြချက်",
+    confirm: "ပယ်ဖျက်မယ်",
   },
 
   domain: {

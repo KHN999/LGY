@@ -1,4 +1,13 @@
-import { IsDateString, IsEnum, IsInt, IsOptional, IsString, MaxLength, Min } from "class-validator";
+import {
+  IsDateString,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+  MinLength,
+} from "class-validator";
 
 export enum PaymentMethodInput {
   CASH = "CASH",
@@ -34,4 +43,11 @@ export class CreateSupplierPaymentDto {
   @IsString()
   @MaxLength(500)
   notes?: string;
+}
+
+export class VoidSupplierPaymentDto {
+  @IsString()
+  @MinLength(2)
+  @MaxLength(500)
+  reason!: string;
 }

@@ -16,6 +16,7 @@ const items = [
   { href: "/admin/supplier-orders", label: labels.admin.supplierOrders },
   { href: "/admin/transfers", label: labels.admin.transfers },
   { href: "/admin/closes", label: labels.admin.closes },
+  { href: "/admin/sales", label: labels.admin.sales },
   { href: "/admin/stock-count", label: labels.admin.stockCount },
   { href: "/admin/exceptions", label: labels.admin.exceptions },
 ];
