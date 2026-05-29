@@ -1,0 +1,50 @@
+import Link from "next/link";
+import { labels } from "@/lib/labels";
+
+const actions = [
+  { href: "/staff/sell", label: labels.staff.sell, icon: "🛍️", color: "bg-emerald-600" },
+  { href: "/staff/receive", label: labels.staff.receive, icon: "💵", color: "bg-amber-600" },
+  { href: "/staff/debts", label: labels.staff.debts, icon: "📋", color: "bg-violet-600" },
+  { href: "/staff/transfer", label: labels.staff.transfer, icon: "🚚", color: "bg-sky-600" },
+  { href: "/staff/stock", label: labels.staff.viewStock, icon: "📦", color: "bg-slate-600" },
+  { href: "/staff/close", label: labels.staff.close, icon: "🌙", color: "bg-rose-600" },
+];
+
+const savedMessages: Record<string, string> = {
+  sell: labels.sell.success,
+  receive: labels.receive.success,
+  transfer: labels.transfer.success,
+  close: labels.close.success,
+};
+
+export default async function StaffHomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ saved?: string }>;
+}) {
+  const params = await searchParams;
+  const savedKey = params.saved;
+  const flash = savedKey ? savedMessages[savedKey] : undefined;
+  return (
+    <main className="mx-auto max-w-2xl p-4 sm:p-8">
+      <h1 className="mb-6 text-center text-3xl font-bold">{labels.staff.home}</h1>
+      {flash && (
+        <p className="mb-4 rounded-lg bg-emerald-100 p-3 text-center text-emerald-900">
+          {flash}
+        </p>
+      )}
+      <div className="grid grid-cols-2 gap-4">
+        {actions.map((a) => (
+          <Link
+            key={a.href}
+            href={a.href}
+            className={`${a.color} flex aspect-square flex-col items-center justify-center gap-2 rounded-2xl p-6 text-center font-semibold text-white shadow-md active:scale-95 transition`}
+          >
+            <span className="text-5xl">{a.icon}</span>
+            <span className="text-xl leading-tight">{a.label}</span>
+          </Link>
+        ))}
+      </div>
+    </main>
+  );
+}

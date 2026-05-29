@@ -1,0 +1,64 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
+import { IsBooleanString, IsOptional, IsString, MaxLength } from "class-validator";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { Roles } from "../auth/decorators/roles.decorator";
+import { DriversService } from "./drivers.service";
+import { CreateDriverDto, UpdateDriverDto } from "./dto/driver.dto";
+import { PaginationQueryDto } from "../common/pagination.dto";
+
+class ListDriversQueryDto extends PaginationQueryDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  search?: string;
+
+  @IsOptional()
+  @IsBooleanString()
+  activeOnly?: string;
+}
+
+@Controller("drivers")
+@UseGuards(JwtAuthGuard)
+export class DriversController {
+  constructor(private readonly service: DriversService) {}
+
+  @Get()
+  list(@Query() q: ListDriversQueryDto) {
+    return this.service.list({
+      page: q.page ?? 1,
+      limit: q.limit ?? 50,
+      search: q.search,
+      activeOnly: q.activeOnly !== "false",
+    });
+  }
+
+  @Get(":id")
+  getOne(@Param("id", ParseIntPipe) id: number) {
+    return this.service.getOne(id);
+  }
+
+  @Post()
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  create(@Body() dto: CreateDriverDto) {
+    return this.service.create(dto);
+  }
+
+  @Patch(":id")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  update(@Param("id", ParseIntPipe) id: number, @Body() dto: UpdateDriverDto) {
+    return this.service.update(id, dto);
+  }
+}

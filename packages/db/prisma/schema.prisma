@@ -1,0 +1,576 @@
+// LGY V1 schema — production-pipeline aware.
+//
+// Heart of the system: an InventoryEvent ledger.
+//   InventoryEvent {kind, ...} → InventoryLine[] {direction (IN|OUT), location, tailorId?, itemTypeId, qty, unitCost?}
+//   Stock at (location, itemTypeId) = Σ IN.qty − Σ OUT.qty over non-voided events.
+//
+// Conventions:
+//   - All money columns are Int = kyat (MMK), no decimals.
+//   - Soft-delete via voidedAt/voidedById/voidReason. Voided rows are skipped in aggregations.
+//   - Every business event stamps createdById -> User for audit.
+//   - Sale and SupplierOrderReceipt (V2) own at most one InventoryEvent each — that
+//     keeps "business document" (Sale, with credit, totals) and "stock movement" cleanly paired.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth / system users ─────────────────────────────────────────
+
+model User {
+  id           Int        @id @default(autoincrement())
+  username     String     @unique
+  passwordHash String
+  displayName  String
+  photoUrl     String?
+  // Roles is a string array: 'admin' | 'staff' | 'manager'.
+  // dad is typically ['admin', 'staff'].
+  roles        String[]
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  inventoryEventsCreated  InventoryEvent[]       @relation("InvEventCreatedBy")
+  inventoryEventsVoided   InventoryEvent[]       @relation("InvEventVoidedBy")
+  salesCreated            Sale[]                 @relation("SaleCreatedBy")
+  salesVoided             Sale[]                 @relation("SaleVoidedBy")
+  customerPaymentsCreated CustomerPayment[]      @relation("CustPayCreatedBy")
+  customerPaymentsVoided  CustomerPayment[]      @relation("CustPayVoidedBy")
+  supplierPaymentsCreated SupplierPayment[]      @relation("SuppPayCreatedBy")
+  supplierPaymentsVoided  SupplierPayment[]      @relation("SuppPayVoidedBy")
+  tailorPaymentsCreated   TailorPayment[]        @relation("TailorPayCreatedBy")
+  tailorPaymentsVoided    TailorPayment[]        @relation("TailorPayVoidedBy")
+  expensesCreated         Expense[]              @relation("ExpenseCreatedBy")
+  expensesVoided          Expense[]              @relation("ExpenseVoidedBy")
+  supplierOrdersCreated   SupplierOrder[]        @relation("SupplierOrderCreatedBy")
+  supplierReceiptsCreated SupplierOrderReceipt[] @relation("SupplierReceiptCreatedBy")
+  dailyClosesCreated      DailyClose[]
+  stockExceptionsResolved StockException[]       @relation("StockExceptionResolvedBy")
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+// ─── Parties ─────────────────────────────────────────────────────
+
+model Customer {
+  id          Int         @id @default(autoincrement())
+  name        String
+  contact     String?
+  photoUrl    String?
+  // Optional ceiling on outstanding debt; null = no limit.
+  creditLimit Int?
+  // Default sale kind for this customer; staff can override per-sale.
+  defaultKind SaleKind    @default(WHOLESALE)
+  notes       String?
+  status      PartyStatus @default(ACTIVE)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  sales    Sale[]
+  payments CustomerPayment[]
+}
+
+model Supplier {
+  id        Int         @id @default(autoincrement())
+  name      String
+  contact   String?
+  photoUrl  String?
+  notes     String?
+  status    PartyStatus @default(ACTIVE)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  payments SupplierPayment[]
+  orders   SupplierOrder[]
+}
+
+/// First-class party. Holds: stock currently in their hands (computed via
+/// InventoryLine.tailorId), per-piece fee, balance owed.
+model Tailor {
+  id                 Int         @id @default(autoincrement())
+  name               String
+  contact            String?
+  photoUrl           String?
+  defaultFeePerPiece Int?
+  notes              String?
+  status             PartyStatus @default(ACTIVE)
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  payments       TailorPayment[]
+  inventoryLines InventoryLine[]
+}
+
+model Driver {
+  id         Int         @id @default(autoincrement())
+  name       String
+  contact    String?
+  photoUrl   String?
+  defaultFee Int?
+  notes      String?
+  status     PartyStatus @default(ACTIVE)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  expenses Expense[] @relation("ExpensePaidToDriver")
+}
+
+model Employee {
+  id            Int         @id @default(autoincrement())
+  name          String
+  contact       String?
+  photoUrl      String?
+  monthlySalary Int?
+  notes         String?
+  status        PartyStatus @default(ACTIVE)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  expenses Expense[] @relation("ExpensePaidToEmployee")
+}
+
+enum PartyStatus {
+  ACTIVE
+  INACTIVE
+}
+
+// ─── Inventory ledger ────────────────────────────────────────────
+
+/// Admin-editable stock category. Replaces the old Product table.
+/// Seeded with: ROLL, MIKLYO, WAMSAIK, MA_CHOOK_YA_THE, CHOK_KWIN, CHIBAUNG_THAR.
+/// Owner adds the missing 6th cut-output type when they recall it.
+model ItemType {
+  id        Int      @id @default(autoincrement())
+  // Stable internal key (unchangeable; used in seeds and any code references).
+  key       String   @unique
+  // Burmese display label (admin-editable).
+  labelMy   String
+  // Optional emoji for cash-register-feel staff screens.
+  emoji     String?
+  // Display order in pickers.
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  inventoryLines  InventoryLine[]
+  saleLines       SaleLine[]
+  supplierOrders  SupplierOrder[]
+  stockExceptions StockException[]
+
+  @@index([sortOrder])
+}
+
+/// One row per business event that moves or transforms inventory.
+/// kind controls allowed line shapes (e.g. SALE has only OUT lines, TRANSFER has
+/// matched OUT/IN at different locations, CUT has OUT rolls + IN pieces, etc.).
+model InventoryEvent {
+  id         Int                @id @default(autoincrement())
+  kind       InventoryEventKind
+  occurredAt DateTime           @default(now())
+  notes      String?
+
+  /// Optional owner-side ref. At most one of these is set per event.
+  saleId  Int?                  @unique
+  sale    Sale?                 @relation(fields: [saleId], references: [id])
+  receipt SupplierOrderReceipt?
+
+  createdById Int
+  createdBy   User     @relation("InvEventCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  voidedAt   DateTime?
+  voidedById Int?
+  voidedBy   User?     @relation("InvEventVoidedBy", fields: [voidedById], references: [id])
+  voidReason String?
+
+  lines                     InventoryLine[]
+  stockExceptionResolutions StockException[] @relation("StockExceptionResolution")
+
+  @@index([kind, occurredAt])
+  @@index([occurredAt])
+}
+
+enum InventoryEventKind {
+  OPENING_STOCK // initial bootstrap of inventory in admin
+  RECEIPT // goods arrive (V2: linked to SupplierOrderReceipt)
+  CUT // V2: ROLL → pieces
+  TAILOR_SEND // V2: warehouse → tailor
+  TAILOR_RETURN // V2: tailor → warehouse (with optional loss)
+  WASH // V2: ချုပ်ကွင်း → ချည်ပေါင်းသား
+  TRANSFER // warehouse ↔ shop
+  SALE // shop → customer (one per Sale row)
+  RETURN_FROM_CUSTOMER // shop ← customer (sale return / refund-in-kind)
+  ADJUSTMENT // manual stock correction (with reason)
+  LOSS // damaged / stolen / discarded pieces
+}
+
+model InventoryLine {
+  id         Int                @id @default(autoincrement())
+  eventId    Int
+  event      InventoryEvent     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  direction  InventoryDirection
+  // For TAILOR-typed lines, location=TAILOR and tailorId is required.
+  // Otherwise tailorId is null and location is one of WAREHOUSE / SHOP / IN_TRANSIT.
+  location   Location
+  tailorId   Int?
+  tailor     Tailor?            @relation(fields: [tailorId], references: [id])
+  itemTypeId Int
+  itemType   ItemType           @relation(fields: [itemTypeId], references: [id])
+  qty        Int
+  // Per-piece cost in kyat. Set on IN lines when known (e.g. cutting events
+  // compute it from total roll cost ÷ pieces produced). Null otherwise.
+  unitCost   Int?
+
+  @@index([eventId])
+  @@index([direction, location, itemTypeId])
+  @@index([tailorId])
+  @@index([itemTypeId])
+}
+
+enum InventoryDirection {
+  IN
+  OUT
+}
+
+enum Location {
+  WAREHOUSE
+  SHOP
+  IN_TRANSIT
+  /// Virtual; actual tailor is identified by InventoryLine.tailorId.
+  TAILOR
+}
+
+// ─── Sales ───────────────────────────────────────────────────────
+
+/// Customer-facing sale (POS). Owns lines, totals, credit. Linked to one
+/// InventoryEvent of kind=SALE that holds the actual stock-out movements.
+model Sale {
+  id         Int      @id @default(autoincrement())
+  saleDate   DateTime @default(now())
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id])
+  kind       SaleKind @default(WHOLESALE)
+
+  goodsTotal Int
+  discount   Int       @default(0)
+  grandTotal Int
+  // Cached sum of non-voided CustomerPayment.amount tied to this sale.
+  // Service maintains this on payment create/void.
+  paidAmount Int       @default(0)
+  status     TxnStatus @default(UNPAID)
+
+  notes       String?
+  createdById Int
+  createdBy   User     @relation("SaleCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  voidedAt   DateTime?
+  voidedById Int?
+  voidedBy   User?     @relation("SaleVoidedBy", fields: [voidedById], references: [id])
+  voidReason String?
+
+  lines               SaleLine[]
+  payments            CustomerPayment[]
+  inventoryEvent      InventoryEvent?
+  stockExceptionSales StockExceptionSale[]
+
+  @@index([customerId, saleDate])
+  @@index([saleDate])
+  @@index([status])
+  @@index([kind, saleDate])
+}
+
+model SaleLine {
+  id         Int      @id @default(autoincrement())
+  saleId     Int
+  sale       Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  itemTypeId Int
+  itemType   ItemType @relation(fields: [itemTypeId], references: [id])
+  qty        Int
+  unitPrice  Int
+  lineTotal  Int
+
+  @@index([saleId])
+  @@index([itemTypeId])
+}
+
+enum SaleKind {
+  WHOLESALE
+  RETAIL
+}
+
+enum TxnStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+// ─── Money in / out ──────────────────────────────────────────────
+
+model CustomerPayment {
+  id          Int           @id @default(autoincrement())
+  customerId  Int
+  customer    Customer      @relation(fields: [customerId], references: [id])
+  // Optional: pin to a specific sale. Null = general credit on the account.
+  saleId      Int?
+  sale        Sale?         @relation(fields: [saleId], references: [id])
+  amount      Int
+  paymentDate DateTime      @default(now())
+  method      PaymentMethod @default(CASH)
+  notes       String?
+  createdById Int
+  createdBy   User          @relation("CustPayCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime      @default(now())
+  voidedAt    DateTime?
+  voidedById  Int?
+  voidedBy    User?         @relation("CustPayVoidedBy", fields: [voidedById], references: [id])
+  voidReason  String?
+
+  @@index([customerId, paymentDate])
+  @@index([saleId])
+}
+
+model SupplierPayment {
+  id          Int            @id @default(autoincrement())
+  supplierId  Int
+  supplier    Supplier       @relation(fields: [supplierId], references: [id])
+  /// Optional link to a specific SupplierOrder (advance payment / on-receipt).
+  /// Null = general supplier payment that applies to overall balance.
+  orderId     Int?
+  order       SupplierOrder? @relation(fields: [orderId], references: [id])
+  amount      Int
+  paymentDate DateTime       @default(now())
+  method      PaymentMethod  @default(CASH)
+  notes       String?
+  createdById Int
+  createdBy   User           @relation("SuppPayCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime       @default(now())
+  voidedAt    DateTime?
+  voidedById  Int?
+  voidedBy    User?          @relation("SuppPayVoidedBy", fields: [voidedById], references: [id])
+  voidReason  String?
+
+  @@index([supplierId, paymentDate])
+  @@index([orderId])
+}
+
+/// Step 0 of procurement. Recorded BEFORE goods arrive. Editable until status=RECEIVED.
+/// Advance payments can be recorded against the order via SupplierPayment.orderId.
+/// Goods arrive via SupplierOrderReceipt rows (one per partial arrival), each of
+/// which creates an InventoryEvent kind=RECEIPT that adds stock at WAREHOUSE.
+model SupplierOrder {
+  id         Int                 @id @default(autoincrement())
+  supplierId Int
+  supplier   Supplier            @relation(fields: [supplierId], references: [id])
+  /// What kind of stock is expected (typically ROLL).
+  itemTypeId Int
+  itemType   ItemType            @relation(fields: [itemTypeId], references: [id])
+  orderDate  DateTime            @default(now())
+  status     SupplierOrderStatus @default(PENDING)
+
+  /// Editable while status != RECEIVED && != CANCELLED.
+  /// Number of rolls/units expected.
+  expectedQty   Int
+  /// Single agreed total cost in kyat. Per-roll pricing has no business meaning
+  /// (rolls vary in size, and each yields hundreds of pieces post-cut).
+  expectedTotal Int
+
+  notes       String?
+  createdById Int
+  createdBy   User     @relation("SupplierOrderCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  receipts SupplierOrderReceipt[]
+  payments SupplierPayment[]
+
+  @@index([supplierId, orderDate])
+  @@index([status])
+  @@index([itemTypeId])
+}
+
+enum SupplierOrderStatus {
+  PENDING
+  PARTIAL_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+/// One partial arrival of a supplier order. Each receipt creates exactly one
+/// InventoryEvent of kind=RECEIPT (with one IN line at WAREHOUSE).
+/// transportCost is the part paid to the supplier for delivery; if a third-party
+/// driver delivered, record their fee as a separate Expense and leave this 0.
+model SupplierOrderReceipt {
+  id      Int           @id @default(autoincrement())
+  orderId Int
+  order   SupplierOrder @relation(fields: [orderId], references: [id])
+
+  receivedQty   Int
+  /// Total goods cost for this batch in kyat. Single number — see SupplierOrder.expectedTotal.
+  goodsCost     Int
+  transportCost Int      @default(0)
+  receivedAt    DateTime @default(now())
+  notes         String?
+
+  /// 1:1 link to the InventoryEvent this receipt produced.
+  eventId Int            @unique
+  event   InventoryEvent @relation(fields: [eventId], references: [id])
+
+  createdById Int
+  createdBy   User     @relation("SupplierReceiptCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([orderId])
+}
+
+model TailorPayment {
+  id          Int           @id @default(autoincrement())
+  tailorId    Int
+  tailor      Tailor        @relation(fields: [tailorId], references: [id])
+  amount      Int
+  paymentDate DateTime      @default(now())
+  method      PaymentMethod @default(CASH)
+  notes       String?
+  createdById Int
+  createdBy   User          @relation("TailorPayCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime      @default(now())
+  voidedAt    DateTime?
+  voidedById  Int?
+  voidedBy    User?         @relation("TailorPayVoidedBy", fields: [voidedById], references: [id])
+  voidReason  String?
+
+  @@index([tailorId, paymentDate])
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  MOBILE_MONEY
+  OTHER
+}
+
+// ─── Operating expenses ──────────────────────────────────────────
+
+model ExpenseCategory {
+  id       Int     @id @default(autoincrement())
+  key      String  @unique
+  labelMy  String
+  isActive Boolean @default(true)
+
+  expenses Expense[]
+}
+
+model Expense {
+  id               Int             @id @default(autoincrement())
+  expenseDate      DateTime        @default(now())
+  categoryId       Int
+  category         ExpenseCategory @relation(fields: [categoryId], references: [id])
+  amount           Int
+  paidTo           String?
+  paidToEmployeeId Int?
+  paidToEmployee   Employee?       @relation("ExpensePaidToEmployee", fields: [paidToEmployeeId], references: [id])
+  paidToDriverId   Int?
+  paidToDriver     Driver?         @relation("ExpensePaidToDriver", fields: [paidToDriverId], references: [id])
+  notes            String?
+  createdById      Int
+  createdBy        User            @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+  createdAt        DateTime        @default(now())
+  voidedAt         DateTime?
+  voidedById       Int?
+  voidedBy         User?           @relation("ExpenseVoidedBy", fields: [voidedById], references: [id])
+  voidReason       String?
+
+  @@index([expenseDate])
+  @@index([categoryId, expenseDate])
+  @@index([paidToEmployeeId])
+  @@index([paidToDriverId])
+}
+
+// ─── Daily cash closing ──────────────────────────────────────────
+
+/// Snapshot taken at end-of-day. Values are frozen at close time so they don't
+/// drift if older transactions are edited/voided after the close.
+model DailyClose {
+  id            Int      @id @default(autoincrement())
+  /// Yangon-local business day (normalized to midnight Yangon, stored as UTC).
+  closeDate     DateTime @unique
+  openingCash   Int
+  receivedTotal Int
+  paidOutTotal  Int
+  expectedCash  Int
+  countedCash   Int
+  /// countedCash − expectedCash. Signed; positive = surplus, negative = shortfall.
+  difference    Int
+  notes         String?
+  closedById    Int
+  closedBy      User     @relation(fields: [closedById], references: [id])
+  closedAt      DateTime @default(now())
+
+  @@index([closeDate])
+}
+
+// ─── Stock exceptions (launch "physical-is-truth" reconciliation) ──
+
+/// Worklist flag raised when a SHOP sale is allowed to proceed past available
+/// stock (SHOP_OVERSELL=allow). The authoritative quantity stays in the ledger
+/// (computed stock simply goes negative); THIS row only tracks status + audit,
+/// never a stock number. One OPEN row per (itemType, location), maintained inside
+/// the SalesService transaction — later oversells bump lastDetectedAt and add a
+/// StockExceptionSale link. Resolved by a physical count → ADJUSTMENT event.
+model StockException {
+  id         Int                  @id @default(autoincrement())
+  itemTypeId Int
+  itemType   ItemType             @relation(fields: [itemTypeId], references: [id])
+  location   Location             @default(SHOP)
+  status     StockExceptionStatus @default(OPEN)
+
+  firstDetectedAt DateTime @default(now())
+  lastDetectedAt  DateTime @default(now())
+
+  /// Set when an admin resolves it.
+  resolvedAt        DateTime?
+  resolvedById      Int?
+  resolvedBy        User?           @relation("StockExceptionResolvedBy", fields: [resolvedById], references: [id])
+  /// The ADJUSTMENT event posted to true-up stock (null if closed without a count).
+  resolutionEventId Int?
+  resolutionEvent   InventoryEvent? @relation("StockExceptionResolution", fields: [resolutionEventId], references: [id])
+  notes             String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sales StockExceptionSale[]
+
+  @@index([status, location])
+  @@index([itemTypeId])
+}
+
+/// Links an oversold SHOP Sale to the StockException it contributed to, with how
+/// many units it sold beyond what was available at sale time (drill-down / audit).
+model StockExceptionSale {
+  id          Int            @id @default(autoincrement())
+  exceptionId Int
+  exception   StockException @relation(fields: [exceptionId], references: [id], onDelete: Cascade)
+  saleId      Int
+  sale        Sale           @relation(fields: [saleId], references: [id])
+  qtyBeyond   Int
+  createdAt   DateTime       @default(now())
+
+  @@index([exceptionId])
+  @@index([saleId])
+}
+
+enum StockExceptionStatus {
+  OPEN
+  RESOLVED
+}

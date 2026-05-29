@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lgy-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lgy
+      POSTGRES_PASSWORD: lgy_dev_password
+      POSTGRES_DB: lgy
+    ports:
+      # Host port 5433 → container 5432 to avoid clashing with any
+      # already-running Postgres on the host.
+      - "5433:5432"
+    volumes:
+      - lgy_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lgy -d lgy"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  lgy_pgdata:

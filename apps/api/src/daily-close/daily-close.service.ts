@@ -1,0 +1,127 @@
+import { ConflictException, Injectable } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
+import { addDays, startOfTodayYangon, ymdToYangonStart } from "../common/yangon-time";
+import { CreateDailyCloseDto } from "./dto/daily-close.dto";
+
+export interface DailyClosePreview {
+  date: string; // YYYY-MM-DD Yangon
+  openingCash: number;
+  receivedTotal: number;
+  paidOutTotal: number;
+  expectedCash: number;
+  receivedBreakdown: { customerPayments: number; salePaidNow: number };
+  paidOutBreakdown: {
+    supplierPayments: number;
+    tailorPayments: number;
+    expenses: number;
+  };
+  alreadyClosed: boolean;
+}
+
+@Injectable()
+export class DailyCloseService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Compute (but do NOT persist) what a close on a given Yangon day would look like.
+   * Frozen at compute time so callers can show "expected vs counted" before saving.
+   */
+  async preview(date?: string): Promise<DailyClosePreview> {
+    const dayStart = date ? ymdToYangonStart(date) : startOfTodayYangon();
+    const dayEnd = addDays(dayStart, 1);
+    const ymd = (date ?? dayStart.toISOString().slice(0, 10));
+
+    const existing = await this.prisma.dailyClose.findUnique({ where: { closeDate: dayStart } });
+    const previousClose = await this.prisma.dailyClose.findFirst({
+      where: { closeDate: { lt: dayStart } },
+      orderBy: { closeDate: "desc" },
+    });
+    const openingCash = previousClose?.countedCash ?? 0;
+
+    // Customer payments NOT tied to a sale (general debt-reduction payments) +
+    // sale paid-now amounts (recorded as customer payments with saleId set).
+    // We just sum *all* non-voided CustomerPayment in the window; this naturally
+    // includes both flavours because POST /sales also creates a CustomerPayment.
+    const [custPay, suppPay, tailorPay, expenses] = await Promise.all([
+      this.prisma.customerPayment.aggregate({
+        where: { voidedAt: null, paymentDate: { gte: dayStart, lt: dayEnd } },
+        _sum: { amount: true },
+      }),
+      this.prisma.supplierPayment.aggregate({
+        where: { voidedAt: null, paymentDate: { gte: dayStart, lt: dayEnd } },
+        _sum: { amount: true },
+      }),
+      this.prisma.tailorPayment.aggregate({
+        where: { voidedAt: null, paymentDate: { gte: dayStart, lt: dayEnd } },
+        _sum: { amount: true },
+      }),
+      this.prisma.expense.aggregate({
+        where: { voidedAt: null, expenseDate: { gte: dayStart, lt: dayEnd } },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const customerPayments = custPay._sum.amount ?? 0;
+    const supplierPayments = suppPay._sum.amount ?? 0;
+    const tailorPayments = tailorPay._sum.amount ?? 0;
+    const expenseTotal = expenses._sum.amount ?? 0;
+
+    const receivedTotal = customerPayments;
+    const paidOutTotal = supplierPayments + tailorPayments + expenseTotal;
+    const expectedCash = openingCash + receivedTotal - paidOutTotal;
+
+    return {
+      date: ymd,
+      openingCash,
+      receivedTotal,
+      paidOutTotal,
+      expectedCash,
+      receivedBreakdown: {
+        customerPayments,
+        // V1: sale paid-now is rolled into customerPayments (since /sales creates
+        // one) so we surface 0 here. Kept as a field for clarity / future use.
+        salePaidNow: 0,
+      },
+      paidOutBreakdown: {
+        supplierPayments,
+        tailorPayments,
+        expenses: expenseTotal,
+      },
+      alreadyClosed: !!existing,
+    };
+  }
+
+  async create(dto: CreateDailyCloseDto, closedById: number) {
+    const dayStart = ymdToYangonStart(dto.date);
+
+    const existing = await this.prisma.dailyClose.findUnique({ where: { closeDate: dayStart } });
+    if (existing) {
+      throw new ConflictException(`A close already exists for ${dto.date}`);
+    }
+
+    const preview = await this.preview(dto.date);
+    const difference = dto.countedCash - preview.expectedCash;
+
+    return this.prisma.dailyClose.create({
+      data: {
+        closeDate: dayStart,
+        openingCash: preview.openingCash,
+        receivedTotal: preview.receivedTotal,
+        paidOutTotal: preview.paidOutTotal,
+        expectedCash: preview.expectedCash,
+        countedCash: dto.countedCash,
+        difference,
+        notes: dto.notes,
+        closedById,
+      },
+    });
+  }
+
+  async list(limit = 30) {
+    return this.prisma.dailyClose.findMany({
+      orderBy: { closeDate: "desc" },
+      take: limit,
+      include: { closedBy: { select: { id: true, displayName: true } } },
+    });
+  }
+}
