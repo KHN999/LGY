@@ -19,6 +19,9 @@ import { SupplierPaymentsModule } from "./supplier-payments/supplier-payments.mo
 import { DailyCloseModule } from "./daily-close/daily-close.module";
 import { AdjustmentsModule } from "./adjustments/adjustments.module";
 import { StockExceptionsModule } from "./stock-exceptions/stock-exceptions.module";
+import { ReturnsModule } from "./returns/returns.module";
+import { SettingsModule } from "./settings/settings.module";
+import { ShopModule } from "./shop/shop.module";
 
 @Module({
   imports: [
@@ -44,6 +47,9 @@ import { StockExceptionsModule } from "./stock-exceptions/stock-exceptions.modul
     DailyCloseModule,
     AdjustmentsModule,
     StockExceptionsModule,
+    ReturnsModule,
+    SettingsModule,
+    ShopModule,
   ],
   controllers: [HealthController],
 })

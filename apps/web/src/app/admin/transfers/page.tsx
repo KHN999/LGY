@@ -1,6 +1,7 @@
 import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
 import type { InventoryEvent } from "@/lib/api-client";
+import { PageHeader, EmptyState } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -9,11 +10,9 @@ export default async function TransfersPage() {
   const rows = transfers ?? [];
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-bold">{labels.admin.transfers}</h1>
+      <PageHeader title={labels.admin.transfers} />
       {rows.length === 0 ? (
-        <div className="rounded-2xl border bg-card p-8 text-center text-muted-foreground">
-          {labels.admin.empty.transfers}
-        </div>
+        <EmptyState>{labels.admin.empty.transfers}</EmptyState>
       ) : (
         <ul className="flex flex-col divide-y rounded-2xl border bg-card">
           {rows.map((e) => {

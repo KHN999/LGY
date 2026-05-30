@@ -28,6 +28,7 @@ export class ItemTypesService {
           emoji: dto.emoji,
           sortOrder: dto.sortOrder ?? 0,
           isActive: dto.isActive ?? true,
+          sellable: dto.sellable ?? true,
         },
       });
     } catch (e: unknown) {
@@ -49,6 +50,7 @@ export class ItemTypesService {
         ...(dto.emoji !== undefined ? { emoji: dto.emoji } : {}),
         ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+        ...(dto.sellable !== undefined ? { sellable: dto.sellable } : {}),
       },
     });
   }

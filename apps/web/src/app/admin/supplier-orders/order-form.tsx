@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api, ApiError, type Supplier, type ItemType, type SupplierOrder } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 import { Field, inputClass } from "@/components/admin/form-field";
+import { Button } from "@/components/ui";
 
 interface Props {
   suppliers: Supplier[];
@@ -113,7 +114,7 @@ export function OrderForm({ suppliers, itemTypes, initial }: Props) {
         </Field>
         <Field
           label={labels.admin.order.totalExpected + " (" + labels.units.kyat + ")"}
-          hint="တစ်ခုချင်းမတွက်ဘဲ စုစုပေါင်းပိုက်ဆံ"
+          hint={labels.admin.order.totalHint}
         >
           <input
             required
@@ -150,13 +151,9 @@ export function OrderForm({ suppliers, itemTypes, initial }: Props) {
         >
           {labels.common.cancel}
         </button>
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-lg bg-primary px-6 py-2 font-semibold text-primary-foreground disabled:opacity-50"
-        >
+        <Button type="submit" size="lg" disabled={submitting}>
           {submitting ? labels.common.saving : labels.common.save}
-        </button>
+        </Button>
       </div>
     </form>
   );

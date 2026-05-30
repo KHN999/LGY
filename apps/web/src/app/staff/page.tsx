@@ -1,8 +1,11 @@
 import Link from "next/link";
+import { getCurrentUser } from "@/lib/auth-server";
+import { UserMenu } from "@/components/user-menu";
 import { labels } from "@/lib/labels";
 
 const actions = [
   { href: "/staff/sell", label: labels.staff.sell, icon: "🛍️", color: "bg-emerald-600" },
+  { href: "/staff/sales", label: labels.history.title, icon: "🧾", color: "bg-cyan-700" },
   { href: "/staff/receive", label: labels.staff.receive, icon: "💵", color: "bg-amber-600" },
   { href: "/staff/debts", label: labels.staff.debts, icon: "📋", color: "bg-violet-600" },
   { href: "/staff/transfer", label: labels.staff.transfer, icon: "🚚", color: "bg-sky-600" },
@@ -25,9 +28,13 @@ export default async function StaffHomePage({
   const params = await searchParams;
   const savedKey = params.saved;
   const flash = savedKey ? savedMessages[savedKey] : undefined;
+  const user = await getCurrentUser();
   return (
     <main className="mx-auto max-w-2xl p-4 sm:p-8">
-      <h1 className="mb-6 text-center text-3xl font-bold">{labels.staff.home}</h1>
+      <div className="mb-6 flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">{labels.staff.home}</h1>
+        {user && <UserMenu user={user} />}
+      </div>
       {flash && (
         <p className="mb-4 rounded-lg bg-emerald-100 p-3 text-center text-emerald-900">
           {flash}

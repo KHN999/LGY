@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
 import { formatKyat } from "@/lib/utils";
 import type { SupplierOrder } from "@/lib/api-client";
 import { OrderDetail } from "./order-detail";
+import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -46,12 +46,16 @@ export default async function OrderDetailPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <Link
-        href="/admin/supplier-orders"
-        className="text-sm text-muted-foreground hover:underline"
-      >
-        ← {labels.admin.supplierOrders}
-      </Link>
+      <PageHeader
+        backHref="/admin/supplier-orders"
+        backLabel={labels.admin.supplierOrders}
+        title={order.supplier?.name ?? ""}
+        action={
+          <span className={"rounded px-2 py-0.5 text-xs " + STATUS_TONE[order.status]}>
+            {STATUS_LABEL[order.status]}
+          </span>
+        }
+      />
 
       {sp.saved && (
         <p className="rounded-lg bg-emerald-100 px-3 py-2 text-emerald-900">
@@ -59,18 +63,10 @@ export default async function OrderDetailPage({
         </p>
       )}
 
-      <div>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-bold">{order.supplier?.name}</h1>
-          <span className={"rounded px-2 py-0.5 text-xs " + STATUS_TONE[order.status]}>
-            {STATUS_LABEL[order.status]}
-          </span>
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {order.itemType?.emoji} {order.itemType?.labelMy} ·{" "}
-          {new Date(order.orderDate).toLocaleDateString("en-US")}
-        </p>
-      </div>
+      <p className="-mt-2 text-sm text-muted-foreground">
+        {order.itemType?.emoji} {order.itemType?.labelMy} ·{" "}
+        {new Date(order.orderDate).toLocaleDateString("en-US")}
+      </p>
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label={labels.admin.order.expectedQty} value={String(order.expectedQty)} />

@@ -13,6 +13,7 @@ interface Props {
 export function CloseFlow({ preview }: Props) {
   const router = useRouter();
   const [counted, setCounted] = useState<number>(preview.expectedCash);
+  const [keep, setKeep] = useState<number>(0);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +31,7 @@ export function CloseFlow({ preview }: Props) {
       await api.post("/daily-close", {
         date: preview.date,
         countedCash: counted,
+        carryForward: Math.min(keep, counted),
         notes: notes.trim() || undefined,
       });
       router.push("/staff?saved=close");
@@ -88,6 +90,22 @@ export function CloseFlow({ preview }: Props) {
           {difference > 0 && (
             <span className="ml-2 text-base font-normal">({labels.close.differenceSurplus})</span>
           )}
+        </p>
+      </div>
+
+      <div className="rounded-2xl border bg-card p-4">
+        <p className="mb-2 text-sm text-muted-foreground">{labels.close.keepForTomorrow}</p>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={counted}
+          value={keep || ""}
+          onChange={(e) => setKeep(Math.max(0, Number(e.target.value) || 0))}
+          className="w-full rounded-xl border bg-background px-4 py-3 text-center text-2xl font-bold tabular-nums outline-none focus:ring-2 focus:ring-ring"
+        />
+        <p className="mt-2 text-sm text-muted-foreground">
+          {labels.close.takeHome}: {formatKyat(Math.max(0, counted - keep))}
         </p>
       </div>
 

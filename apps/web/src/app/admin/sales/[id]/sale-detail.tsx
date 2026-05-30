@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api, ApiError, type SaleDetail } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 import { formatKyat } from "@/lib/utils";
+import { Button } from "@/components/ui";
 
 export function SaleDetailActions({ sale }: { sale: SaleDetail }) {
   const router = useRouter();
@@ -103,16 +104,15 @@ function VoidButton({
 
   if (!open) {
     return (
-      <button
+      <Button
         type="button"
+        variant="destructive"
+        size={big ? "lg" : "sm"}
         onClick={() => setOpen(true)}
-        className={
-          "rounded-lg border border-destructive text-destructive " +
-          (big ? "self-start px-6 py-2 font-semibold" : "px-3 py-1 text-xs")
-        }
+        className={big ? "self-start" : undefined}
       >
         {label}
-      </button>
+      </Button>
     );
   }
 
@@ -129,23 +129,23 @@ function VoidButton({
         className="rounded-lg border bg-background px-3 py-2 text-base outline-none focus:ring-2 focus:ring-ring"
       />
       <div className="flex gap-2">
-        <button
+        <Button
           type="submit"
+          variant="destructive"
           disabled={busy || reason.trim().length < 2}
-          className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
           {busy ? labels.common.saving : labels.salesAdmin.confirm}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="outline"
           onClick={() => {
             setOpen(false);
             setReason("");
           }}
-          className="rounded-lg border px-4 py-2 text-sm"
         >
           {labels.common.cancel}
-        </button>
+        </Button>
       </div>
     </form>
   );

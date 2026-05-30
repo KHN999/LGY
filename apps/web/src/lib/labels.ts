@@ -1,309 +1,39 @@
 /**
- * Single source of truth for Burmese UI strings.
- * Rule: NEVER inline Burmese in components. Add it here and import.
+ * Active UI dictionary, chosen by NEXT_PUBLIC_LOCALE.
+ *
+ *   - Development:  NEXT_PUBLIC_LOCALE=en  → English (the source language in code)
+ *   - Production:   unset / "my"           → Burmese (labels.my.ts)
+ *
+ * English is the source of truth (labels.en.ts). Burmese (labels.my.ts) is a
+ * partial dictionary: any key not yet translated falls back to its English value,
+ * so the app never shows a blank/missing string. Translate Burmese manually over time.
+ *
+ * Call sites are unchanged: `import { labels } from "@/lib/labels"; labels.sell.submit`.
  */
+import { en, type Labels } from "./labels.en";
+import { my } from "./labels.my";
 
-export const labels = {
-  common: {
-    appName: "LGY",
-    save: "သိမ်းမယ်",
-    saving: "သိမ်းနေပါသည်...",
-    cancel: "မလုပ်တော့ပါ",
-    back: "နောက်ပြန်",
-    next: "ရှေ့ဆက်",
-    confirm: "အတည်ပြု",
-    yes: "ဟုတ်ကဲ့",
-    no: "မဟုတ်ပါ",
-    delete: "ဖျက်မယ်",
-    edit: "ပြင်မယ်",
-    add: "ထပ်ထည့်မယ်",
-    addNew: "အသစ်ထည့်မယ်",
-    search: "ရှာမယ်",
-    loading: "ခဏစောင့်ပါ...",
-    today: "ဒီနေ့",
-    total: "စုစုပေါင်း",
-    noData: "အချက်အလက်မရှိသေးပါ",
-    photo: "ဓာတ်ပုံ",
-    saved: "သိမ်းပြီးပါပြီ",
-    done: "ပြီးပြီ",
-    undo: "ပြန်ဖျက်မယ်",
-    finish: "ပြီးဆုံး",
-    optional: "လိုရင်ဖြည့်ပါ",
-  },
+export type { Labels };
 
-  units: {
-    htee: "ထည်",
-    kyat: "ကျပ်",
-  },
+type AnyObj = Record<string, unknown>;
 
-  auth: {
-    login: "ဝင်မယ်",
-    logout: "ထွက်မယ်",
-    logoutConfirmTitle: "အကောင့်မှ ထွက်ရန်သေချာလား?",
-    logoutConfirmYes: "ဟုတ်၊ ထွက်မယ်",
-    username: "အသုံးပြုသူအမည်",
-    password: "စကားဝှက်",
-    loginTitle: "အကောင့်ဝင်ရန်",
-    loginFailed: "အသုံးပြုသူအမည် (သို့) စကားဝှက် မှားနေပါသည်။",
-    sessionExpired: "ပြန်ဝင်ရန်လိုအပ်သည်။",
-    roleAdmin: "Admin",
-    roleStaff: "ဆိုင်စတပ်",
-    roleManager: "Manager",
-  },
+function isPlainObject(v: unknown): v is AnyObj {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
 
-  nav: {
-    staff: "ဆိုင်စတပ်",
-    admin: "Admin",
-  },
+/** Overlay `override` on top of `base`, recursing into plain objects only.
+ *  Strings, arrays and functions are treated as leaves (override wins if present). */
+function deepMerge<T>(base: T, override: unknown): T {
+  if (!isPlainObject(override)) return base;
+  const out: AnyObj = { ...(base as AnyObj) };
+  for (const key of Object.keys(override)) {
+    const o = override[key];
+    if (o === undefined) continue;
+    out[key] = isPlainObject(o) ? deepMerge(out[key], o) : o;
+  }
+  return out as T;
+}
 
-  staff: {
-    home: "LGY ဆိုင်",
-    sell: "ရောင်းမယ်",
-    receive: "ငွေလက်ခံမယ်",
-    debts: "အကြွေးကြည့်မယ်",
-    transfer: "ဆိုင်သို့ ပစ္စည်းပို့",
-    viewStock: "ဆိုင်စတော့",
-    close: "နေ့စဉ်ငွေတွက်",
-  },
+const locale = process.env.NEXT_PUBLIC_LOCALE ?? "my";
 
-  sell: {
-    title: "ပစ္စည်းရောင်းရန်",
-    pickCustomer: "ဖောက်သည်ရွေးပါ",
-    changeCustomer: "ဖောက်သည်ပြောင်းရန်",
-    pickItem: "ဘာရောင်းမလဲ?",
-    chooseQty: "ဘယ်လောက်?",
-    choosePrice: "တစ်ထည် ကျပ်ဘယ်လောက်?",
-    cartEmpty: "ပစ္စည်းတစ်ခုမှ မထည့်ရသေးပါ",
-    cartHas: "ထည့်ထားသော",
-    addAnother: "နောက်တစ်ခုထပ်ထည့်",
-    review: "စစ်ဆေးမယ်",
-    paidNow: "ယခုရရှိငွေ",
-    grandTotal: "စုစုပေါင်းငွေ",
-    remaining: "ကျန်ငွေ",
-    submit: "ရောင်းမယ်",
-    success: "အရောင်းသိမ်းပြီးပါပြီ",
-    voicePiecesSold: (n: number, label: string) => `${label} ${n} ထည် ရောင်းပြီးပါပြီ`,
-    inStock: "လက်ကျန်",
-    notEnough: "လက်ကျန် မလုံလောက်ပါ",
-    noItems: "ပစ္စည်းတစ်ခုမှ မထည့်ရသေးပါ",
-    noCustomer: "ဖောက်သည်ကို အရင်ရွေးပါ",
-    cantPayMore: "ပေးငွေက စုစုပေါင်းငွေထက်များနေသည်",
-    searchCustomer: "ဖောက်သည်ရှာရန်...",
-    noResults: "ရှာဖွေမှုနှင့်ကိုက်ညီသော အချက်အလက်မရှိပါ",
-    line: "လိုင်း",
-    removeLine: "ဖျက်မယ်",
-    creditLimit: "အကြွေးကန့်သတ်ချက်",
-    currentDebt: "ယခုအကြွေးကျန်",
-    typeChoose: "အရောင်းအမျိုးအစား",
-    wholesale: "လက်ကား",
-    retail: "လက်လီ",
-    notes: "မှတ်ချက်",
-    asCredit: "အကြွေး",
-    oversellNote: "လက်ကျန်ထက် ပိုရောင်းနေသည် — ရောင်းနိုင်ပါသည်။ မှတ်တမ်းတင်ပြီး နောက်မှ ပြန်ညှိနိုင်သည်။",
-  },
-
-  receive: {
-    title: "ငွေလက်ခံမယ်",
-    chooseCustomer: "ဖောက်သည်ရွေးပါ",
-    amount: "လက်ခံသည့် ငွေပမာဏ",
-    success: "ငွေလက်ခံပြီးပါပြီ",
-    voiceReceived: (amount: string) => `${amount} ကျပ် လက်ခံပြီးပါပြီ`,
-    notes: "မှတ်ချက်",
-    payAll: "အကုန်",
-  },
-
-  debts: {
-    title: "အကြွေးစာရင်း",
-    none: "အကြွေးကျန်ရှိသူ မရှိပါ",
-    clickToReceive: "ငွေလက်ခံရန် နှိပ်ပါ",
-  },
-
-  transfer: {
-    title: "ဆိုင်သို့ ပစ္စည်းပို့",
-    fromLocation: "မှ",
-    toLocation: "သို့",
-    addItem: "ပစ္စည်းထပ်ထည့်",
-    success: "ပစ္စည်းပို့ပြီးပါပြီ",
-    notes: "မှတ်ချက်",
-    locWarehouse: "ဂိုဒေါင်",
-    locShop: "ဆိုင်",
-    locInTransit: "ကားပေါ်",
-    notEnough: "ပို့မယ့်နေရာတွင် လက်ကျန် မလုံလောက်ပါ",
-  },
-
-  close: {
-    title: "နေ့စဉ်ငွေတွက်",
-    today: "ဒီနေ့",
-    openingCash: "ပွင့်ငွေ (မနေ့က ပိတ်ငွေ)",
-    received: "ဒီနေ့ ရငွေ",
-    paidOut: "ဒီနေ့ ပေးငွေ",
-    expectedCash: "ရှိရမည့် ငွေ",
-    countedCash: "ရေတွက်တွေ့ရှိ ငွေ",
-    difference: "ခြားနားချက်",
-    differenceShortfall: "လိုငွေ",
-    differenceSurplus: "ပိုငွေ",
-    save: "ပိတ်မယ်",
-    success: "နေ့ပိတ်သိမ်းပြီးပါပြီ",
-    alreadyClosed: "ဒီနေ့ ပိတ်ပြီးသား ဖြစ်နေပါပြီ",
-    history: "မှတ်တမ်း",
-  },
-
-  admin: {
-    home: "Admin",
-    dashboard: "ခြုံငုံကြည့်ရှု",
-    itemTypes: "ပစ္စည်းအမျိုးအစားများ",
-    customers: "ဖောက်သည်များ",
-    suppliers: "ပစ္စည်းရှင်များ",
-    tailors: "ချုပ်သမားများ",
-    drivers: "ကားသမားများ",
-    employees: "ဝန်ထမ်းများ",
-    inventory: "လက်ကျန်စာရင်း",
-    openingStock: "အစစတော့ထည့်",
-    transfers: "ပစ္စည်းပို့စာရင်း",
-    supplierOrders: "အလိပ်မှာစာရင်း",
-    closes: "နေ့ပိတ်စာရင်း",
-    sales: "အရောင်းစာရင်း",
-    stockCount: "စတော့ရေတွက်",
-    exceptions: "လက်ကျန်မကိုက်မှု",
-    settings: "ဆက်တင်များ",
-    saved: "သိမ်းပြီးပါပြီ",
-    activeOnly: "သုံးနေသူများသာ",
-    showInactive: "ရပ်ထားသူများ ပြပါ",
-    inactive: "ရပ်ထား",
-    fields: {
-      name: "အမည်",
-      contact: "ဆက်သွယ်ရန်",
-      photoUrl: "ဓာတ်ပုံ URL",
-      notes: "မှတ်ချက်",
-      status: "အခြေအနေ",
-      creditLimit: "အကြွေးကန့်သတ်ချက် (ကျပ်)",
-      defaultKind: "မူရင်းအရောင်းအမျိုးအစား",
-      defaultFeePerPiece: "တစ်ထည်ချင်းခ (ကျပ်)",
-      defaultFee: "တစ်ခေါက်ခ (ကျပ်)",
-      monthlySalary: "လစဉ်လစာ (ကျပ်)",
-      itemTypeKey: "ကုဒ် (UPPER_SNAKE)",
-      itemTypeLabel: "မြန်မာအမည်",
-      itemTypeEmoji: "ပုံ (emoji)",
-      itemTypeSortOrder: "အစီအစဉ်",
-      itemTypeIsActive: "သုံးနေသည်",
-      qty: "အရေအတွက်",
-      unitCost: "တစ်ထည်ဈေး (ဝယ်ဈေး)",
-      location: "နေရာ",
-    },
-    actions: {
-      active: "သုံးနေသည်",
-      inactive: "ရပ်ထား",
-    },
-    empty: {
-      itemTypes: "ပစ္စည်းအမျိုးအစား မရှိသေးပါ",
-      customers: "ဖောက်သည်တစ်ယောက်မှ မရှိသေးပါ",
-      suppliers: "ပစ္စည်းရှင်တစ်ယောက်မှ မရှိသေးပါ",
-      tailors: "ချုပ်သမားတစ်ယောက်မှ မရှိသေးပါ",
-      drivers: "ကားသမားတစ်ယောက်မှ မရှိသေးပါ",
-      employees: "ဝန်ထမ်းတစ်ယောက်မှ မရှိသေးပါ",
-      transfers: "ပစ္စည်းပို့မှု မရှိသေးပါ",
-      closes: "နေ့ပိတ်မှတ်တမ်း မရှိသေးပါ",
-      supplierOrders: "မှာထားသော အလိပ်/ပစ္စည်း မရှိသေးပါ",
-    },
-    openingStockHelp:
-      "စတော့လက်ကျန်စာရင်း အစသိမ်းရန်။ ဂိုဒေါင် (သို့) ဆိုင်တွင် လက်ကျန်ရှိသမျှကို ဤနေရာတွင် တစ်ကြိမ်တည်း ထည့်နိုင်သည်။",
-
-    order: {
-      pending: "မှာထားဆဲ",
-      partialReceived: "တစ်ပိုင်းရောက်",
-      received: "ရောက်ပြီး",
-      cancelled: "ပယ်ဖျက်",
-      expectedQty: "မှာထားသော အရေအတွက်",
-      receivedQty: "ရောက်ပြီး",
-      remainingQty: "ကျန်",
-      expectedUnitPrice: "တစ်ထည်ဈေး",
-      totalExpected: "စုစုပေါင်း ထင်ထားသော",
-      paid: "ပေးပြီး",
-      remaining: "ပေးရန်ကျန်",
-      cancel: "ပယ်ဖျက်မယ်",
-      reopen: "ပြန်ဖွင့်မယ်",
-      recordPayment: "ငွေသွင်းမယ်",
-      recordReceipt: "ရောက်ပြီ မှတ်မယ်",
-      transportCost: "သယ်ခ",
-      paymentMethod: "ငွေပေးဆောင်နည်း",
-      paymentAmount: "ငွေပမာဏ",
-    },
-  },
-
-  exceptions: {
-    title: "လက်ကျန် မကိုက်ညီမှုများ",
-    help:
-      "ဆိုင်တွင် စာရင်းလက်ကျန်ထက် ပိုရောင်းခဲ့သော ပစ္စည်းများ။ စာရင်းနှင့် လက်တွေ့ မကိုက်သေးပါ — လက်တွေ့ရေတွက်ပြီး ပြန်ညှိပါ။",
-    none: "မကိုက်ညီမှု မရှိပါ 👍",
-    systemStock: "စာရင်းအရ လက်ကျန်",
-    soldBeyond: "ပိုရောင်းခဲ့",
-    lastSeen: "နောက်ဆုံးတွေ့",
-    contributingSales: "သက်ဆိုင်သော အရောင်းများ",
-    resolve: "ပြန်ညှိမယ်",
-    countedQty: "လက်တွေ့ ရေတွက်ရရှိ အရေအတွက်",
-    countedQtyHint: "မဖြည့်ပါက ပစ္စည်းကိုသာ ပိတ်မည် (စာရင်းမပြင်ပါ)",
-    reason: "အကြောင်းပြချက်",
-    resolveSubmit: "ညှိပြီး ပိတ်မယ်",
-    voided: "ပယ်ဖျက်ထား",
-  },
-
-  stockCount: {
-    title: "စတော့ ရေတွက် / ပြန်ညှိ",
-    help:
-      "နေရာတစ်ခုရှိ လက်တွေ့လက်ကျန်ကို ရေတွက်ပြီး စာရင်းနှင့် ပြန်ညှိရန်။ ကွာသွားသည့် ပစ္စည်းများကိုသာ ပြင်ပါ။",
-    location: "နေရာ",
-    systemQty: "စာရင်း",
-    countedQty: "ရေတွက်ရရှိ",
-    reason: "အကြောင်းပြချက်",
-    submit: "ပြန်ညှိမယ်",
-    success: "စတော့ ပြန်ညှိပြီးပါပြီ",
-    noChange: "ကွာခြားမှု မရှိပါ",
-    empty: "ပစ္စည်းအမျိုးအစား မရှိသေးပါ",
-  },
-
-  salesAdmin: {
-    title: "အရောင်းစာရင်း",
-    empty: "အရောင်းမှတ်တမ်း မရှိသေးပါ",
-    filterAll: "အားလုံး",
-    payments: "ပေးငွေမှတ်တမ်း",
-    noPayments: "ပေးငွေ မရှိသေးပါ",
-    voidSale: "အရောင်း ပယ်ဖျက်",
-    voidSaleConfirm: "ဤအရောင်းကို ပယ်ဖျက်မလား? သက်ဆိုင်ရာ ပေးငွေများကိုပါ ပြန်ရုပ်သိမ်းမည်။",
-    voidPayment: "ပေးငွေ ပယ်ဖျက်",
-    voided: "ပယ်ဖျက်ပြီး",
-    reason: "အကြောင်းပြချက်",
-    confirm: "ပယ်ဖျက်မယ်",
-  },
-
-  domain: {
-    sale: "အရောင်း",
-    purchase: "အဝယ်",
-    customer: "ဖောက်သည်",
-    supplier: "ပစ္စည်းရှင်",
-    tailor: "ချုပ်သမား",
-    employee: "ဝန်ထမ်း",
-    driver: "ကားသမား",
-    itemType: "ပစ္စည်းအမျိုးအစား",
-    quantity: "အရေအတွက်",
-    unitPrice: "တစ်ထည်ဈေး",
-    grandTotal: "စုစုပေါင်းငွေ",
-    paid: "ပေးပြီး",
-    remaining: "ပေးရန်ကျန်",
-    debt: "အကြွေး",
-    discount: "လျှော့ဈေး",
-    note: "မှတ်ချက်",
-    statusUnpaid: "ငွေမရသေး",
-    statusPartial: "တစ်ပိုင်းရ",
-    statusPaid: "ငွေရပြီး",
-    wholesale: "လက်ကား",
-    retail: "လက်လီ",
-  },
-
-  errors: {
-    required: "ဖြည့်ရန်လိုသည်",
-    networkError: "ချိတ်ဆက်မှု အဆင်မပြေပါ။ နောက်တစ်ခါပြန်ကြိုးစားပါ။",
-    unknown: "တစ်ခုခု မှားနေပါသည်။",
-  },
-} as const;
-
-export type Labels = typeof labels;
+export const labels: Labels = locale === "en" ? en : deepMerge(en, my);

@@ -5,6 +5,7 @@ import { LoginDto } from "./dto/login.dto";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { CurrentUser } from "./decorators/current-user.decorator";
 import type { AuthenticatedUser } from "./jwt-payload";
+import { SHOP_COOKIE } from "../prisma/shop-context";
 
 const COOKIE_NAME = "lgy_session";
 const COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -21,6 +22,9 @@ export class AuthController {
   ) {
     const { token, user } = await this.auth.login(dto.username, dto.password);
     res.cookie(COOKIE_NAME, token, this.cookieOptions());
+    // Always start a fresh session in the real shop — never inherit a leftover
+    // "playground" selection from a previous user of this browser.
+    res.cookie(SHOP_COOKIE, "main", this.cookieOptions());
     return { user };
   }
 
@@ -28,6 +32,7 @@ export class AuthController {
   @HttpCode(204)
   async logout(@Res({ passthrough: true }) res: Response) {
     res.clearCookie(COOKIE_NAME, this.cookieOptions());
+    res.clearCookie(SHOP_COOKIE, this.cookieOptions());
   }
 
   @Get("me")

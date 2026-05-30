@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { addDays, startOfTodayYangon, ymdToYangonStart } from "../common/yangon-time";
 import { CreateDailyCloseDto } from "./dto/daily-close.dto";
@@ -14,6 +14,7 @@ export interface DailyClosePreview {
     supplierPayments: number;
     tailorPayments: number;
     expenses: number;
+    refunds: number;
   };
   alreadyClosed: boolean;
 }
@@ -36,13 +37,15 @@ export class DailyCloseService {
       where: { closeDate: { lt: dayStart } },
       orderBy: { closeDate: "desc" },
     });
-    const openingCash = previousClose?.countedCash ?? 0;
+    // Opening = what was deliberately kept in the drawer at the previous close
+    // (the rest was taken home). Defaults to 0 when nothing was kept / no prior close.
+    const openingCash = previousClose?.carryForward ?? 0;
 
     // Customer payments NOT tied to a sale (general debt-reduction payments) +
     // sale paid-now amounts (recorded as customer payments with saleId set).
     // We just sum *all* non-voided CustomerPayment in the window; this naturally
     // includes both flavours because POST /sales also creates a CustomerPayment.
-    const [custPay, suppPay, tailorPay, expenses] = await Promise.all([
+    const [custPay, suppPay, tailorPay, expenses, refundsAgg] = await Promise.all([
       this.prisma.customerPayment.aggregate({
         where: { voidedAt: null, paymentDate: { gte: dayStart, lt: dayEnd } },
         _sum: { amount: true },
@@ -59,15 +62,20 @@ export class DailyCloseService {
         where: { voidedAt: null, expenseDate: { gte: dayStart, lt: dayEnd } },
         _sum: { amount: true },
       }),
+      this.prisma.saleReturn.aggregate({
+        where: { voidedAt: null, returnDate: { gte: dayStart, lt: dayEnd } },
+        _sum: { refundAmount: true },
+      }),
     ]);
 
     const customerPayments = custPay._sum.amount ?? 0;
     const supplierPayments = suppPay._sum.amount ?? 0;
     const tailorPayments = tailorPay._sum.amount ?? 0;
     const expenseTotal = expenses._sum.amount ?? 0;
+    const refunds = refundsAgg._sum.refundAmount ?? 0;
 
     const receivedTotal = customerPayments;
-    const paidOutTotal = supplierPayments + tailorPayments + expenseTotal;
+    const paidOutTotal = supplierPayments + tailorPayments + expenseTotal + refunds;
     const expectedCash = openingCash + receivedTotal - paidOutTotal;
 
     return {
@@ -86,6 +94,7 @@ export class DailyCloseService {
         supplierPayments,
         tailorPayments,
         expenses: expenseTotal,
+        refunds,
       },
       alreadyClosed: !!existing,
     };
@@ -101,6 +110,10 @@ export class DailyCloseService {
 
     const preview = await this.preview(dto.date);
     const difference = dto.countedCash - preview.expectedCash;
+    const carryForward = dto.carryForward ?? 0;
+    if (carryForward > dto.countedCash) {
+      throw new BadRequestException("Cannot keep more than the counted cash");
+    }
 
     return this.prisma.dailyClose.create({
       data: {
@@ -110,6 +123,7 @@ export class DailyCloseService {
         paidOutTotal: preview.paidOutTotal,
         expectedCash: preview.expectedCash,
         countedCash: dto.countedCash,
+        carryForward,
         difference,
         notes: dto.notes,
         closedById,

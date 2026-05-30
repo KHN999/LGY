@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api, ApiError, type ItemType } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 import { Field, inputClass } from "@/components/admin/form-field";
+import { Button } from "@/components/ui";
 
 interface Props {
   initial?: ItemType;
@@ -18,6 +19,7 @@ export function ItemTypeForm({ initial }: Props) {
   const [emoji, setEmoji] = useState(initial?.emoji ?? "");
   const [sortOrder, setSortOrder] = useState<string>(String(initial?.sortOrder ?? 0));
   const [isActive, setIsActive] = useState(initial?.isActive ?? true);
+  const [sellable, setSellable] = useState(initial?.sellable ?? true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,6 +33,7 @@ export function ItemTypeForm({ initial }: Props) {
       emoji: emoji.trim() || undefined,
       sortOrder: Number(sortOrder) || 0,
       isActive,
+      sellable,
     };
     try {
       if (isEdit) {
@@ -97,6 +100,15 @@ export function ItemTypeForm({ initial }: Props) {
         />
         <span>{labels.admin.fields.itemTypeIsActive}</span>
       </label>
+      <label className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={sellable}
+          onChange={(e) => setSellable(e.target.checked)}
+          className="h-5 w-5"
+        />
+        <span>{labels.admin.fields.itemTypeSellable}</span>
+      </label>
 
       {error && (
         <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
@@ -112,13 +124,9 @@ export function ItemTypeForm({ initial }: Props) {
         >
           {labels.common.cancel}
         </button>
-        <button
-          type="submit"
-          disabled={submitting || !key.trim() || !labelMy.trim()}
-          className="rounded-lg bg-primary px-6 py-2 font-semibold text-primary-foreground disabled:opacity-50"
-        >
+        <Button type="submit" size="lg" disabled={submitting || !key.trim() || !labelMy.trim()}>
           {submitting ? labels.common.saving : labels.common.save}
-        </button>
+        </Button>
       </div>
     </form>
   );

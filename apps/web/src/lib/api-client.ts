@@ -58,6 +58,13 @@ export type SaleKind = "WHOLESALE" | "RETAIL";
 export type PartyStatus = "ACTIVE" | "INACTIVE";
 export type Location = "WAREHOUSE" | "SHOP" | "IN_TRANSIT";
 
+/** Isolated data spaces: the real shop vs the test/training sandbox. */
+export type ShopId = "main" | "playground";
+export interface ShopState {
+  shop: ShopId;
+  shops: ShopId[];
+}
+
 export interface Page<T> {
   data: T[];
   page: number;
@@ -72,6 +79,7 @@ export interface ItemType {
   emoji: string | null;
   sortOrder: number;
   isActive: boolean;
+  sellable: boolean;
 }
 
 export interface Customer {
@@ -136,18 +144,21 @@ export interface StockRow {
 
 export interface SaleLine {
   id: number;
-  itemTypeId: number;
+  itemTypeId: number | null;
+  itemName: string | null;
   itemType?: ItemType;
   qty: number;
   unitPrice: number;
   lineTotal: number;
+  note: string | null;
 }
 
 export interface Sale {
   id: number;
   saleDate: string;
-  customerId: number;
+  customerId: number | null;
   customer?: Customer;
+  customerName: string | null;
   kind: SaleKind;
   goodsTotal: number;
   discount: number;
@@ -172,9 +183,37 @@ export interface SaleDetail extends Sale {
   payments: SalePaymentRow[];
 }
 
+export interface SaleReturnLineRow {
+  id: number;
+  itemTypeId: number | null;
+  itemName: string | null;
+  itemType?: ItemType;
+  qty: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+export interface SaleReturnRow {
+  id: number;
+  returnDate: string;
+  returnTotal: number;
+  refundAmount: number;
+  notes: string | null;
+  lines: SaleReturnLineRow[];
+}
+
+export interface ShopSettings {
+  shopName: string;
+  addressLine: string | null;
+  phone: string | null;
+  social: string | null;
+  receiptHeader: string | null;
+  receiptFooter: string | null;
+}
+
 export interface CustomerPayment {
   id: number;
-  customerId: number;
+  customerId: number | null;
   saleId: number | null;
   amount: number;
   paymentDate: string;
@@ -193,6 +232,7 @@ export interface DailyClosePreview {
     supplierPayments: number;
     tailorPayments: number;
     expenses: number;
+    refunds: number;
   };
   alreadyClosed: boolean;
 }
@@ -205,6 +245,7 @@ export interface DailyClose {
   paidOutTotal: number;
   expectedCash: number;
   countedCash: number;
+  carryForward: number;
   difference: number;
   notes: string | null;
   closedAt: string;
@@ -274,7 +315,7 @@ export interface StockExceptionSaleRef {
   qtyBeyond: number;
   saleDate: string;
   voided: boolean;
-  customerName: string;
+  customerName: string | null;
 }
 
 export interface StockExceptionRow {

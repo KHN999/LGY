@@ -2,11 +2,13 @@ import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import cookieParser from "cookie-parser";
 import { AppModule } from "./app.module";
+import { shopMiddleware } from "./prisma/shop.middleware";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.use(cookieParser());
+  app.use(shopMiddleware);
   app.setGlobalPrefix("api");
   app.useGlobalPipes(
     new ValidationPipe({

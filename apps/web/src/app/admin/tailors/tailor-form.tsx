@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api, ApiError, type Tailor } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 import { Field, inputClass } from "@/components/admin/form-field";
+import { Button } from "@/components/ui";
 
 interface Props { initial?: Tailor; }
 type Status = "ACTIVE" | "INACTIVE";
@@ -75,13 +76,9 @@ export function TailorForm({ initial }: Props) {
       {error && <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
       <div className="flex gap-3">
         <button type="button" onClick={() => router.push("/admin/tailors")} className="rounded-lg border px-4 py-2">{labels.common.cancel}</button>
-        <button
-          type="submit"
-          disabled={submitting || !name.trim()}
-          className="rounded-lg bg-primary px-6 py-2 font-semibold text-primary-foreground disabled:opacity-50"
-        >
+        <Button type="submit" size="lg" disabled={submitting || !name.trim()}>
           {submitting ? labels.common.saving : labels.common.save}
-        </button>
+        </Button>
       </div>
     </form>
   );

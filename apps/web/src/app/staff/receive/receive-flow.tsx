@@ -122,7 +122,7 @@ export function ReceiveMoneyFlow() {
               onClick={() => setAmount(customer.balance)}
               className="rounded-lg border bg-card px-3 py-1 text-sm"
             >
-              အကုန် ({formatKyat(customer.balance)})
+              {labels.receive.payAll} ({formatKyat(customer.balance)})
             </button>
             {[10000, 50000, 100000, 500000].map((v) => (
               <button

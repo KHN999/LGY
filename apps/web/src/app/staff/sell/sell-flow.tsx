@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -9,21 +10,25 @@ import {
   type Customer,
   type ItemType,
   type SaleKind,
+  type ShopSettings,
 } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 import { formatKyat } from "@/lib/utils";
 import { speak } from "@/lib/speech";
 import { CustomerPicker } from "@/components/staff/customer-picker";
 import { ItemTypeGrid } from "@/components/staff/item-type-grid";
-import { QtyStepper } from "@/components/staff/qty-stepper";
+import { NumberPad } from "@/components/staff/number-pad";
+import { Receipt, type ReceiptData } from "@/components/staff/receipt";
 
 type Step = "customer" | "items" | "review" | "done";
 
 interface CartLine {
-  itemType: ItemType;
+  itemType: ItemType | null; // null = ad-hoc free-text line
+  itemName: string | null; // set for ad-hoc lines
   qty: number;
   unitPrice: number;
   stock: number;
+  note: string | null; // reason for a free / replacement line
 }
 
 /**
@@ -31,47 +36,130 @@ interface CartLine {
  *   customer → items (loop: pick type → qty → price) → review (paid) → save
  *   no typing required for happy path; voice confirms on save.
  */
-export function SellFlow() {
+export function SellFlow({ shop }: { shop?: ShopSettings }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("customer");
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [kind, setKind] = useState<SaleKind>("WHOLESALE");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [draft, setDraft] = useState<{
-    type: ItemType;
+    type: ItemType | null; // null = ad-hoc (use `name`)
+    name: string;
     stock: number;
     qty: number;
     price: number;
+    note: string;
   } | null>(null);
   const [paid, setPaid] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [walkIn, setWalkIn] = useState(false); // one-time buyer (no account, cash only)
+  const [saveAsNew, setSaveAsNew] = useState(false); // create a new customer on submit
+  const [newName, setNewName] = useState("");
+  const [custMode, setCustMode] = useState<"choose" | "new">("choose");
+  const [activeField, setActiveField] = useState<"qty" | "price">("qty");
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const [savedSale, setSavedSale] = useState<{ id: number; date: string } | null>(null);
+  const wantPrintRef = useRef(false);
+  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    // After a "Save & Print", the receipt has re-rendered with the real number — print, then go home.
+    if (savedSale && wantPrintRef.current) {
+      wantPrintRef.current = false;
+      window.print();
+      router.push("/staff?saved=sell");
+      router.refresh();
+    }
+  }, [savedSale, router]);
 
   const goodsTotal = cart.reduce((s, l) => s + l.qty * l.unitPrice, 0);
   const remaining = goodsTotal - paid;
 
   function startAddItem(type: ItemType, stock: number) {
-    setDraft({ type, stock, qty: 1, price: 0 });
+    setDraft({ type, name: type.labelMy, stock, qty: 0, price: 0, note: "" });
+    setActiveField("qty");
+    setEditingIndex(null);
+  }
+  function startAddManual() {
+    setDraft({ type: null, name: "", stock: 0, qty: 0, price: 0, note: "" });
+    setActiveField("qty");
+    setEditingIndex(null);
+  }
+  function editLine(i: number) {
+    const l = cart[i];
+    if (!l) return;
+    setDraft({
+      type: l.itemType,
+      name: l.itemType ? l.itemType.labelMy : l.itemName ?? "",
+      stock: l.stock,
+      qty: l.qty,
+      price: l.unitPrice,
+      note: l.note ?? "",
+    });
+    setEditingIndex(i);
+    setActiveField("qty");
+    setError(null);
+  }
+  // Number keypad edits whichever field (qty / price) is highlighted.
+  function padDigit(d: number) {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      if (activeField === "qty") return { ...prev, qty: Math.min(999999, prev.qty * 10 + d) };
+      return { ...prev, price: Math.min(99999999, prev.price * 10 + d) };
+    });
+  }
+  function padBackspace() {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      if (activeField === "qty") return { ...prev, qty: Math.floor(prev.qty / 10) };
+      return { ...prev, price: Math.floor(prev.price / 10) };
+    });
+  }
+  function padClear() {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      return activeField === "qty" ? { ...prev, qty: 0 } : { ...prev, price: 0 };
+    });
   }
   function commitDraft() {
     if (!draft) return;
     // Shop sales never block on stock (physical-is-truth). Overselling is allowed;
     // the backend records a StockException for back-office reconciliation.
     if (draft.qty <= 0) return;
+    if (!draft.type && !draft.name.trim()) {
+      setError(labels.sell.itemNameRequired);
+      return;
+    }
+    // Price 0 = free/replacement → a note is required (also guards accidental presses).
+    if (draft.price === 0 && !draft.note.trim()) {
+      setError(labels.sell.noteRequired);
+      return;
+    }
     setError(null);
-    setCart((prev) => [
-      ...prev,
-      { itemType: draft.type, qty: draft.qty, unitPrice: draft.price, stock: draft.stock },
-    ]);
+    const line: CartLine = {
+      itemType: draft.type,
+      itemName: draft.type ? null : draft.name.trim(),
+      qty: draft.qty,
+      unitPrice: draft.price,
+      stock: draft.stock,
+      note: draft.note.trim() || null,
+    };
+    setCart((prev) =>
+      editingIndex !== null
+        ? prev.map((l, idx) => (idx === editingIndex ? line : l))
+        : [...prev, line],
+    );
     setDraft(null);
+    setEditingIndex(null);
   }
   function removeLine(i: number) {
     setCart((prev) => prev.filter((_, idx) => idx !== i));
   }
 
-  async function onSubmit() {
-    if (!customer) {
+  async function onSubmit(print: boolean) {
+    if (!customer && !saveAsNew && !walkIn) {
       setError(labels.sell.noCustomer);
       return;
     }
@@ -79,30 +167,41 @@ export function SellFlow() {
       setError(labels.sell.noItems);
       return;
     }
-    if (paid > goodsTotal) {
+    if (!walkIn && paid > goodsTotal) {
       setError(labels.sell.cantPayMore);
       return;
     }
     setError(null);
     setSubmitting(true);
     try {
-      await api.post("/sales", {
-        customerId: customer.id,
+      // One-time buyer = cash sale, paid in full. Existing/saved buyers can use credit.
+      const paidAmount = walkIn ? goodsTotal : paid;
+      const sale = await api.post<{ id: number; saleDate: string }>("/sales", {
+        customerId: customer?.id,
+        customerName: !customer ? newName.trim() || undefined : undefined,
+        saveCustomer: saveAsNew || undefined,
         kind,
         items: cart.map((l) => ({
-          itemTypeId: l.itemType.id,
+          ...(l.itemType ? { itemTypeId: l.itemType.id } : { itemName: l.itemName }),
           qty: l.qty,
           unitPrice: l.unitPrice,
+          ...(l.note ? { note: l.note } : {}),
         })),
-        paidAmount: paid > 0 ? paid : undefined,
-        paymentMethod: paid > 0 ? "CASH" : undefined,
+        paidAmount: paidAmount > 0 ? paidAmount : undefined,
+        paymentMethod: paidAmount > 0 ? "CASH" : undefined,
       });
       // Voice confirmation — best-effort, silent on devices without my-MM.
       const totalPieces = cart.reduce((s, l) => s + l.qty, 0);
-      const firstLabel = cart[0]?.itemType.labelMy ?? labels.units.htee;
+      const firstLabel = cart[0]?.itemType?.labelMy ?? cart[0]?.itemName ?? labels.units.htee;
       speak(labels.sell.voicePiecesSold(totalPieces, firstLabel));
-      router.push("/staff?saved=sell");
-      router.refresh();
+      if (print) {
+        // Re-render the receipt with the real sale number, then print + go home (see effect).
+        wantPrintRef.current = true;
+        setSavedSale({ id: sale.id, date: sale.saleDate });
+      } else {
+        router.push("/staff?saved=sell");
+        router.refresh();
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : labels.errors.unknown);
     } finally {
@@ -110,24 +209,95 @@ export function SellFlow() {
     }
   }
 
-  // ─── STEP 1: Pick customer ────────────────────────────────────────
+  // ─── STEP 1: Choose buyer (existing / new → save or one-time) ─────
   if (step === "customer") {
     return (
       <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 p-4 sm:p-6">
         <BackLink href="/staff" />
-        <h1 className="text-center text-2xl font-bold">{labels.sell.pickCustomer}</h1>
-        <div className="flex justify-center">
-          <button
-            type="button"
-            onClick={() => setPickerOpen(true)}
-            className="rounded-2xl bg-primary px-8 py-6 text-2xl font-bold text-primary-foreground shadow-lg active:scale-[0.98]"
-          >
-            {customer ? customer.name : labels.sell.pickCustomer}
-          </button>
-        </div>
+        <h1 className="text-center text-2xl font-bold">{labels.sell.whoBuyer}</h1>
+
+        {custMode === "choose" && !customer && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              className="flex flex-col items-center gap-2 rounded-2xl bg-primary px-6 py-8 text-xl font-bold text-primary-foreground shadow-lg active:scale-[0.98]"
+            >
+              <span className="text-4xl">👤</span>
+              {labels.sell.existingBuyer}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCustMode("new");
+                setError(null);
+              }}
+              className="flex flex-col items-center gap-2 rounded-2xl border-2 border-primary/40 px-6 py-8 text-xl font-bold text-primary active:scale-[0.98]"
+            >
+              <span className="text-4xl">➕</span>
+              {labels.sell.newBuyer}
+            </button>
+          </div>
+        )}
+
+        {custMode === "new" && !customer && (
+          <div className="flex flex-col gap-4">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium">{labels.sell.buyerName}</span>
+              <input
+                type="text"
+                autoFocus
+                value={newName}
+                maxLength={100}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder={labels.sell.buyerNamePlaceholder}
+                className="w-full rounded-xl border bg-background px-4 py-3 text-xl outline-none focus:ring-2 focus:ring-ring"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={!newName.trim()}
+              onClick={() => {
+                setSaveAsNew(true);
+                setWalkIn(false);
+                setCustomer(null);
+                setKind("WHOLESALE");
+                setStep("items");
+              }}
+              className="rounded-xl bg-emerald-600 py-4 text-lg font-semibold text-white shadow disabled:opacity-50 active:scale-[0.98]"
+            >
+              {labels.sell.saveBuyer}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setWalkIn(true);
+                setSaveAsNew(false);
+                setCustomer(null);
+                setKind("RETAIL");
+                setStep("items");
+              }}
+              className="rounded-xl border py-4 text-lg font-semibold active:scale-[0.98]"
+            >
+              {labels.sell.oneTimeBuyer}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCustMode("choose");
+                setNewName("");
+              }}
+              className="self-center text-sm text-muted-foreground"
+            >
+              ← {labels.common.back}
+            </button>
+          </div>
+        )}
+
         {customer && (
           <div className="rounded-2xl border bg-card p-4 text-center">
-            <p className="text-sm text-muted-foreground">{labels.sell.currentDebt}</p>
+            <p className="text-lg font-bold">{customer.name}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{labels.sell.currentDebt}</p>
             <p className={"text-xl font-semibold " + (customer.balance > 0 ? "text-rose-600" : "")}>
               {formatKyat(customer.balance)}
             </p>
@@ -141,14 +311,28 @@ export function SellFlow() {
             >
               {labels.common.next}
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCustomer(null);
+                setCustMode("choose");
+              }}
+              className="mt-2 text-sm text-muted-foreground"
+            >
+              {labels.sell.changeCustomer}
+            </button>
           </div>
         )}
+
         <CustomerPicker
           open={pickerOpen}
           onClose={() => setPickerOpen(false)}
           onPick={(c) => {
             setCustomer(c);
             setKind(c.defaultKind);
+            setWalkIn(false);
+            setSaveAsNew(false);
+            setCustMode("choose");
           }}
         />
       </main>
@@ -159,73 +343,134 @@ export function SellFlow() {
   if (step === "items") {
     if (draft) {
       return (
-        <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 p-4 sm:p-6">
+        <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-3 p-3 sm:gap-4 sm:p-6">
           <button
             type="button"
             onClick={() => {
               setDraft(null);
               setError(null);
+              setEditingIndex(null);
             }}
-            className="self-start rounded-lg border px-4 py-2"
+            className="self-start rounded-lg border px-3 py-1.5 text-sm"
           >
             ← {labels.common.back}
           </button>
-          <div className="rounded-2xl border bg-card p-4 text-center">
-            <span className="text-5xl">{draft.type.emoji}</span>
-            <h2 className="mt-2 text-xl font-bold">{draft.type.labelMy}</h2>
-            <p className="text-xs text-muted-foreground">
-              {labels.sell.inStock}: {draft.stock}
-            </p>
-          </div>
-
-          <div>
-            <p className="mb-3 text-center text-base text-muted-foreground">{labels.sell.chooseQty}</p>
-            <QtyStepper
-              value={draft.qty}
-              onChange={(qty) => setDraft({ ...draft, qty })}
-              showJumps
-            />
-          </div>
-
-          <div>
-            <p className="mb-3 text-center text-base text-muted-foreground">{labels.sell.choosePrice}</p>
-            <div className="flex items-center justify-center gap-3">
-              <input
-                type="number"
-                inputMode="numeric"
-                min={0}
-                value={draft.price || ""}
-                onChange={(e) => setDraft({ ...draft, price: Number(e.target.value) || 0 })}
-                placeholder="0"
-                className="w-48 rounded-xl border bg-background px-4 py-3 text-center text-3xl font-bold tabular-nums outline-none focus:ring-2 focus:ring-ring"
-              />
-              <span className="text-lg text-muted-foreground">{labels.units.kyat}</span>
+          {draft.type ? (
+            <div className="flex items-center gap-3 rounded-2xl border bg-card px-4 py-3">
+              <span className="text-3xl">{draft.type.emoji}</span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-lg font-bold leading-tight">{draft.type.labelMy}</p>
+                <p className="text-xs text-muted-foreground">
+                  {labels.sell.inStock}: {draft.stock}
+                </p>
+              </div>
             </div>
-            <p className="mt-2 text-center text-sm text-muted-foreground">
-              {labels.common.total}: {formatKyat(draft.qty * draft.price)}
-            </p>
+          ) : (
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium">{labels.sell.itemName}</span>
+              <input
+                type="text"
+                autoFocus
+                value={draft.name}
+                maxLength={100}
+                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                placeholder={labels.sell.itemNamePlaceholder}
+                className="w-full rounded-xl border bg-background px-4 py-3 text-xl outline-none focus:ring-2 focus:ring-ring"
+              />
+            </label>
+          )}
+
+          <div className="flex flex-col gap-3">
+            <button
+              type="button"
+              onClick={() => setActiveField("qty")}
+              className={
+                "flex items-center justify-between rounded-2xl border bg-card px-5 py-3 text-left transition " +
+                (activeField === "qty" ? "ring-2 ring-primary" : "")
+              }
+            >
+              <span className="text-base text-muted-foreground">{labels.sell.chooseQty}</span>
+              <span
+                className={
+                  "text-4xl font-bold tabular-nums " +
+                  (draft.qty === 0 ? "text-muted-foreground/40" : "")
+                }
+              >
+                {draft.qty}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveField("price")}
+              className={
+                "flex items-center justify-between rounded-2xl border bg-card px-5 py-3 text-left transition " +
+                (activeField === "price" ? "ring-2 ring-primary" : "")
+              }
+            >
+              <span className="text-base text-muted-foreground">{labels.sell.choosePrice}</span>
+              <span className="flex items-baseline gap-1">
+                <span
+                  className={
+                    "text-4xl font-bold tabular-nums " +
+                    (draft.price === 0 ? "text-muted-foreground/40" : "")
+                  }
+                >
+                  {draft.price}
+                </span>
+                <span className="text-lg text-muted-foreground">{labels.units.kyat}</span>
+              </span>
+            </button>
           </div>
 
-          {draft.qty > draft.stock && (
-            <p className="rounded-lg bg-amber-100 p-3 text-center text-sm text-amber-900">
+          <div className="rounded-2xl bg-muted/50 px-5 py-3 text-center">
+            <span className="text-base text-muted-foreground">{labels.common.total}: </span>
+            <span className="text-2xl font-bold">{formatKyat(draft.qty * draft.price)}</span>
+          </div>
+
+          {draft.price === 0 && (
+            <input
+              type="text"
+              value={draft.note}
+              maxLength={200}
+              onChange={(e) => setDraft({ ...draft, note: e.target.value })}
+              placeholder={labels.sell.freeNotePlaceholder}
+              className="w-full rounded-2xl border bg-background px-4 py-3 text-base outline-none focus:ring-2 focus:ring-ring"
+            />
+          )}
+
+          {draft.type && draft.qty > draft.stock && (
+            <p className="rounded-lg bg-amber-100 px-3 py-2 text-center text-xs text-amber-900">
               {labels.sell.oversellNote}
             </p>
           )}
 
           {error && (
-            <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-center text-destructive">
+            <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-center text-sm text-destructive">
               {error}
             </p>
           )}
 
-          <button
-            type="button"
-            onClick={commitDraft}
-            disabled={draft.qty <= 0 || draft.price < 0}
-            className="rounded-2xl bg-emerald-600 py-5 text-2xl font-bold text-white shadow-lg disabled:opacity-50 active:scale-[0.98]"
-          >
-            {labels.common.add}
-          </button>
+          <div className="mt-auto flex flex-col gap-3 pt-1">
+            <NumberPad onDigit={padDigit} onBackspace={padBackspace} onClear={padClear} />
+            <button
+              type="button"
+              onClick={() => {
+                // qty → Next → price → Add. Price 0 is allowed (free / replacement),
+                // so Add becomes available once you're on the price field.
+                if (draft.qty > 0 && activeField === "price") commitDraft();
+                else setActiveField(draft.qty === 0 ? "qty" : "price");
+              }}
+              disabled={!draft.type && !draft.name.trim()}
+              className="rounded-2xl bg-emerald-600 py-4 text-2xl font-bold text-white shadow-lg disabled:opacity-50 active:scale-[0.98]"
+            >
+              {draft.qty > 0 && activeField === "price"
+                ? editingIndex !== null
+                  ? labels.common.save
+                  : labels.common.add
+                : labels.common.next}
+            </button>
+          </div>
         </main>
       );
     }
@@ -242,36 +487,55 @@ export function SellFlow() {
 
         <div className="rounded-2xl border bg-card p-3 text-sm">
           <span className="text-muted-foreground">{labels.domain.customer}: </span>
-          <span className="font-semibold">{customer?.name}</span>
+          <span className="font-semibold">
+            {customer?.name ?? (newName.trim() || labels.sell.walkInCustomer)}
+          </span>
           <span className="ml-2 rounded bg-muted px-2 py-0.5 text-xs">
             {kind === "WHOLESALE" ? labels.sell.wholesale : labels.sell.retail}
           </span>
         </div>
 
         <h1 className="text-center text-xl font-bold">{labels.sell.pickItem}</h1>
-        <ItemTypeGrid locationForStock="SHOP" hideZeroStock onPick={startAddItem} minStock={1} />
+        <ItemTypeGrid locationForStock="SHOP" onPick={startAddItem} allowOversell sellableOnly />
+        <button
+          type="button"
+          onClick={startAddManual}
+          className="self-center rounded-xl border-2 border-dashed border-primary/40 px-5 py-2 text-sm font-semibold text-primary active:scale-[0.98]"
+        >
+          ✏️ {labels.sell.manualItem}
+        </button>
 
         {cart.length > 0 && (
           <section className="rounded-2xl border bg-card p-3">
-            <p className="mb-2 text-sm font-semibold">{labels.sell.cartEmpty.replace("မထည့်", "ထည့်")} ({cart.length})</p>
+            <p className="mb-2 text-sm font-semibold">{labels.sell.cartHas} ({cart.length})</p>
             <ul className="flex flex-col divide-y">
               {cart.map((l, i) => (
                 <li key={i} className="flex items-center justify-between gap-2 py-2">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">
-                      {l.itemType.emoji} {l.itemType.labelMy} × {l.qty}
+                      {l.itemType?.emoji ?? "🧾"} {l.itemType?.labelMy ?? l.itemName} × {l.qty}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {formatKyat(l.unitPrice)} × {l.qty} = {formatKyat(l.qty * l.unitPrice)}
                     </p>
+                    {l.note && <p className="text-xs text-muted-foreground">📝 {l.note}</p>}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeLine(i)}
-                    className="rounded-lg border px-3 py-1 text-xs text-destructive"
-                  >
-                    {labels.sell.removeLine}
-                  </button>
+                  <div className="flex shrink-0 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => editLine(i)}
+                      className="rounded-lg border px-3 py-1 text-xs"
+                    >
+                      {labels.common.edit}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeLine(i)}
+                      className="rounded-lg border px-3 py-1 text-xs text-destructive"
+                    >
+                      {labels.sell.removeLine}
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -303,9 +567,24 @@ export function SellFlow() {
     );
   }
 
-  // ─── STEP 3: Review + payment ─────────────────────────────────────
+  // ─── STEP 3: Review = receipt preview + save / save & print ───────
+  const receiptData: ReceiptData = {
+    saleId: savedSale?.id ?? null,
+    date: savedSale?.date ?? new Date().toISOString(),
+    customerName: customer?.name ?? (newName.trim() || null),
+    lines: cart.map((l) => ({
+      label: l.itemType?.labelMy ?? l.itemName ?? "",
+      qty: l.qty,
+      unitPrice: l.unitPrice,
+      lineTotal: l.qty * l.unitPrice,
+      note: l.note,
+    })),
+    grandTotal: goodsTotal,
+    paid: walkIn ? goodsTotal : paid,
+  };
+
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 p-4 pb-32 sm:p-6">
+    <main className="mx-auto flex min-h-dvh max-w-2xl flex-col gap-4 p-3 pb-40 sm:p-6">
       <button
         type="button"
         onClick={() => setStep("items")}
@@ -314,78 +593,56 @@ export function SellFlow() {
         ← {labels.common.back}
       </button>
 
-      <h1 className="text-center text-xl font-bold">{labels.sell.review}</h1>
+      {/* Receipt preview — exactly what prints on A5 */}
+      <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+        <Receipt data={receiptData} shop={shop} />
+      </div>
 
-      <section className="rounded-2xl border bg-card p-4">
-        <p className="text-sm text-muted-foreground">{labels.domain.customer}</p>
-        <p className="text-lg font-semibold">{customer?.name}</p>
-      </section>
-
-      <section className="rounded-2xl border bg-card p-4">
-        <ul className="flex flex-col divide-y">
-          {cart.map((l, i) => (
-            <li key={i} className="flex items-center justify-between py-2">
-              <div>
-                <p className="text-base font-medium">
-                  {l.itemType.emoji} {l.itemType.labelMy}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {l.qty} × {formatKyat(l.unitPrice)}
-                </p>
-              </div>
-              <p className="font-semibold">{formatKyat(l.qty * l.unitPrice)}</p>
-            </li>
-          ))}
-        </ul>
-        <div className="mt-3 flex items-center justify-between border-t pt-2">
-          <span className="text-base font-semibold">{labels.sell.grandTotal}</span>
-          <span className="text-2xl font-bold">{formatKyat(goodsTotal)}</span>
-        </div>
-      </section>
-
-      <section className="rounded-2xl border bg-card p-4">
-        <p className="mb-2 text-sm text-muted-foreground">{labels.sell.paidNow}</p>
-        <div className="flex items-center justify-center gap-3">
-          <input
-            type="number"
-            inputMode="numeric"
-            min={0}
-            max={goodsTotal}
-            value={paid || ""}
-            onChange={(e) => setPaid(Math.max(0, Number(e.target.value) || 0))}
-            placeholder="0"
-            className="w-48 rounded-xl border bg-background px-4 py-3 text-center text-3xl font-bold tabular-nums outline-none focus:ring-2 focus:ring-ring"
-          />
-          <span className="text-lg text-muted-foreground">{labels.units.kyat}</span>
-        </div>
-        <div className="mt-3 flex flex-wrap justify-center gap-2">
-          {[goodsTotal, Math.round(goodsTotal / 2), 50000, 100000, 500000].map((v) =>
-            v > 0 && v <= goodsTotal ? (
-              <button
-                key={v}
-                type="button"
-                onClick={() => setPaid(v)}
-                className="rounded-lg border bg-card px-3 py-1 text-sm"
-              >
-                {formatKyat(v)}
-              </button>
-            ) : null,
-          )}
-          <button
-            type="button"
-            onClick={() => setPaid(0)}
-            className="rounded-lg border bg-card px-3 py-1 text-sm"
-          >
-            အကြွေး
-          </button>
-        </div>
-        <div className="mt-3 flex items-center justify-between text-base">
-          <span className="text-muted-foreground">{labels.sell.remaining}</span>
-          <span className={remaining > 0 ? "font-semibold text-rose-600" : ""}>
-            {formatKyat(remaining)}
-          </span>
-        </div>
-      </section>
+      {!walkIn && (
+        <section className="rounded-2xl border bg-card p-4">
+          <p className="mb-2 text-sm text-muted-foreground">{labels.sell.paidNow}</p>
+          <div className="flex items-center justify-center gap-3">
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={goodsTotal}
+              value={paid || ""}
+              onChange={(e) => setPaid(Math.max(0, Number(e.target.value) || 0))}
+              placeholder="0"
+              className="w-48 rounded-xl border bg-background px-4 py-3 text-center text-3xl font-bold tabular-nums outline-none focus:ring-2 focus:ring-ring"
+            />
+            <span className="text-lg text-muted-foreground">{labels.units.kyat}</span>
+          </div>
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            {[goodsTotal, Math.round(goodsTotal / 2), 50000, 100000, 500000].map((v) =>
+              v > 0 && v <= goodsTotal ? (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setPaid(v)}
+                  className="rounded-lg border bg-card px-3 py-1 text-sm"
+                >
+                  {formatKyat(v)}
+                </button>
+              ) : null,
+            )}
+            <button
+              type="button"
+              onClick={() => setPaid(0)}
+              className="rounded-lg border bg-card px-3 py-1 text-sm"
+            >
+              {labels.sell.asCredit}
+            </button>
+          </div>
+          <div className="mt-3 flex items-center justify-between text-base">
+            <span className="text-muted-foreground">{labels.sell.remaining}</span>
+            <span className={remaining > 0 ? "font-semibold text-rose-600" : ""}>
+              {formatKyat(remaining)}
+            </span>
+          </div>
+        </section>
+      )}
 
       {error && (
         <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-center text-destructive">
@@ -397,14 +654,30 @@ export function SellFlow() {
         <div className="mx-auto flex max-w-2xl gap-3">
           <button
             type="button"
-            onClick={onSubmit}
+            onClick={() => onSubmit(false)}
             disabled={submitting || cart.length === 0}
-            className="flex-1 rounded-2xl bg-emerald-600 py-5 text-2xl font-bold text-white shadow disabled:opacity-50 active:scale-[0.98]"
+            className="flex-1 rounded-2xl border-2 border-emerald-600 py-4 text-lg font-bold text-emerald-700 disabled:opacity-50 active:scale-[0.98]"
           >
-            {submitting ? labels.common.saving : labels.sell.submit}
+            {submitting ? labels.common.saving : labels.common.save}
+          </button>
+          <button
+            type="button"
+            onClick={() => onSubmit(true)}
+            disabled={submitting || cart.length === 0}
+            className="flex-1 rounded-2xl bg-emerald-600 py-4 text-lg font-bold text-white shadow disabled:opacity-50 active:scale-[0.98]"
+          >
+            🖨 {labels.sell.savePrint}
           </button>
         </div>
       </div>
+
+      {mounted &&
+        createPortal(
+          <div id="print-receipt" className="hidden print:block">
+            <Receipt data={receiptData} shop={shop} />
+          </div>,
+          document.body,
+        )}
     </main>
   );
 }

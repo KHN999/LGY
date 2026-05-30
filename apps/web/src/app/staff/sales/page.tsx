@@ -1,0 +1,58 @@
+import Link from "next/link";
+import { serverFetch } from "@/lib/auth-server";
+import { labels } from "@/lib/labels";
+import { formatKyat } from "@/lib/utils";
+import type { Page, Sale } from "@/lib/api-client";
+
+export const dynamic = "force-dynamic";
+
+export default async function StaffSalesHistoryPage() {
+  const page = await serverFetch<Page<Sale>>("/api/sales?limit=50");
+  const rows = page?.data ?? [];
+
+  return (
+    <main className="mx-auto flex min-h-dvh max-w-2xl flex-col gap-4 p-3 sm:p-6">
+      <Link href="/staff" className="self-start rounded-lg border px-3 py-1.5 text-sm">
+        ← {labels.common.back}
+      </Link>
+      <h1 className="text-xl font-bold">{labels.history.title}</h1>
+
+      {rows.length === 0 ? (
+        <div className="rounded-2xl border bg-card p-8 text-center text-muted-foreground">
+          {labels.history.empty}
+        </div>
+      ) : (
+        <ul className="flex flex-col divide-y rounded-2xl border bg-card">
+          {rows.map((s) => (
+            <li key={s.id}>
+              <Link
+                href={`/staff/sales/${s.id}`}
+                className="flex items-center justify-between gap-3 p-4 hover:bg-accent"
+              >
+                <div className="min-w-0">
+                  <p className="font-semibold">
+                    #{s.id} {s.customer?.name ?? s.customerName ?? labels.sell.walkInCustomer}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(s.saleDate).toLocaleString("en-GB", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    })}
+                    {s.voidedAt && ` · ${labels.salesAdmin.voided}`}
+                  </p>
+                </div>
+                <span
+                  className={
+                    "shrink-0 font-medium " + (s.voidedAt ? "text-muted-foreground line-through" : "")
+                  }
+                >
+                  {formatKyat(s.grandTotal)}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </main>
+  );
+}

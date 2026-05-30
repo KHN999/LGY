@@ -51,10 +51,10 @@ export function QtyStepper({ value, onChange, min = 0, max, showJumps = true }: 
           </button>
           <button
             type="button"
-            onClick={() => bump(-1)}
+            onClick={() => bump(-100)}
             className="rounded-lg border bg-card px-3 py-2 text-sm font-medium"
           >
-            −1
+            −100
           </button>
         </div>
       )}
@@ -73,6 +73,7 @@ export function QtyStepper({ value, onChange, min = 0, max, showJumps = true }: 
             type="number"
             inputMode="numeric"
             value={draft}
+            placeholder="0"
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commitDraft}
             onKeyDown={(e) => {
@@ -85,10 +86,13 @@ export function QtyStepper({ value, onChange, min = 0, max, showJumps = true }: 
           <button
             type="button"
             onClick={() => {
-              setDraft(String(value));
+              setDraft(value ? String(value) : "");
               setEditing(true);
             }}
-            className="w-32 rounded-xl border bg-card px-4 py-3 text-center text-4xl font-bold tabular-nums"
+            className={
+              "w-32 rounded-xl border bg-card px-4 py-3 text-center text-4xl font-bold tabular-nums" +
+              (value === 0 ? " text-muted-foreground/40" : "")
+            }
           >
             {value}
           </button>

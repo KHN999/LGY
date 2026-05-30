@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, hasRole } from "@/lib/auth-server";
-import { UserMenu } from "@/components/user-menu";
+import { ShopBanner } from "@/components/shop/shop-banner";
 
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
@@ -9,13 +9,12 @@ export default async function StaffLayout({ children }: { children: React.ReactN
     redirect("/login?redirect=/staff");
   }
 
+  // No app-bar on staff screens — each flow has its own Back, and the cash-register
+  // pages need the full height. The account/logout menu lives on the staff home.
   return (
     <div className="min-h-screen bg-background">
-      <header className="flex items-center justify-between border-b bg-card px-4 py-3">
-        <span className="text-base font-semibold">LGY</span>
-        <UserMenu user={user} />
-      </header>
-      <div>{children}</div>
+      <ShopBanner isAdmin={hasRole(user, "admin")} />
+      {children}
     </div>
   );
 }

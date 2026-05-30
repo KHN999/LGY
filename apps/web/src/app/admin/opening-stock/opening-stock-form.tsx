@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api, ApiError, type ItemType } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 import { Field, inputClass } from "@/components/admin/form-field";
+import { Button } from "@/components/ui";
 
 interface Props {
   itemTypes: ItemType[];
@@ -47,7 +48,7 @@ export function OpeningStockForm({ itemTypes }: Props) {
     setError(null);
     const filled = lines.filter((l) => l.qty > 0);
     if (filled.length === 0) {
-      setError("အရေအတွက်အနည်းဆုံး တစ်ခု ဖြည့်ပါ");
+      setError(labels.admin.atLeastOneQty);
       return;
     }
     setSubmitting(true);
@@ -82,12 +83,12 @@ export function OpeningStockForm({ itemTypes }: Props) {
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <ul className="flex flex-col gap-3">
         {lines.map((l, i) => (
-          <li key={i} className="flex flex-col gap-3 rounded-2xl border bg-card p-3 sm:flex-row sm:items-end">
+          <li key={i} className="flex flex-col gap-3 rounded-2xl border bg-card p-3 sm:flex-row sm:items-start">
             <Field label={labels.admin.fields.itemTypeLabel}>
               <select
                 value={l.itemTypeId}
                 onChange={(ev) => update(i, { itemTypeId: Number(ev.target.value) })}
-                className={inputClass}
+                className={inputClass + " h-11"}
               >
                 {itemTypes.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -100,7 +101,7 @@ export function OpeningStockForm({ itemTypes }: Props) {
               <select
                 value={l.location}
                 onChange={(ev) => update(i, { location: ev.target.value as "WAREHOUSE" | "SHOP" })}
-                className={inputClass}
+                className={inputClass + " h-11"}
               >
                 <option value="WAREHOUSE">{labels.transfer.locWarehouse}</option>
                 <option value="SHOP">{labels.transfer.locShop}</option>
@@ -113,7 +114,7 @@ export function OpeningStockForm({ itemTypes }: Props) {
                 min={0}
                 value={l.qty}
                 onChange={(ev) => update(i, { qty: Math.max(0, Number(ev.target.value) || 0) })}
-                className={inputClass}
+                className={inputClass + " h-11"}
               />
             </Field>
             <Field label={labels.admin.fields.unitCost} hint={labels.common.optional}>
@@ -123,14 +124,14 @@ export function OpeningStockForm({ itemTypes }: Props) {
                 min={0}
                 value={l.unitCost}
                 onChange={(ev) => update(i, { unitCost: ev.target.value })}
-                className={inputClass}
+                className={inputClass + " h-11"}
               />
             </Field>
             {lines.length > 1 && (
               <button
                 type="button"
                 onClick={() => remove(i)}
-                className="rounded-lg border px-3 py-2 text-sm text-destructive sm:self-end"
+                className="rounded-lg border px-3 py-2 text-sm text-destructive h-11 sm:mt-[26px]"
               >
                 {labels.common.delete}
               </button>
@@ -154,13 +155,9 @@ export function OpeningStockForm({ itemTypes }: Props) {
 
       {error && <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="self-start rounded-lg bg-primary px-6 py-2 font-semibold text-primary-foreground disabled:opacity-50"
-      >
+      <Button type="submit" size="lg" disabled={submitting} className="self-start">
         {submitting ? labels.common.saving : labels.common.save}
-      </button>
+      </Button>
     </form>
   );
 }

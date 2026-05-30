@@ -51,6 +51,9 @@ model User {
   supplierReceiptsCreated SupplierOrderReceipt[] @relation("SupplierReceiptCreatedBy")
   dailyClosesCreated      DailyClose[]
   stockExceptionsResolved StockException[]       @relation("StockExceptionResolvedBy")
+  saleReturnsCreated      SaleReturn[]           @relation("SaleReturnCreatedBy")
+  saleReturnsVoided       SaleReturn[]           @relation("SaleReturnVoidedBy")
+  shopSettingsUpdated     ShopSetting[]          @relation("ShopSettingUpdatedBy")
 }
 
 enum UserStatus {
@@ -76,6 +79,7 @@ model Customer {
 
   sales    Sale[]
   payments CustomerPayment[]
+  returns  SaleReturn[]
 }
 
 model Supplier {
@@ -158,6 +162,8 @@ model ItemType {
   // Display order in pickers.
   sortOrder Int      @default(0)
   isActive  Boolean  @default(true)
+  // Shown in the shop sell screen. False = warehouse-only / raw material (e.g. ROLL).
+  sellable  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -165,6 +171,7 @@ model ItemType {
   saleLines       SaleLine[]
   supplierOrders  SupplierOrder[]
   stockExceptions StockException[]
+  saleReturnLines SaleReturnLine[]
 
   @@index([sortOrder])
 }
@@ -194,6 +201,7 @@ model InventoryEvent {
 
   lines                     InventoryLine[]
   stockExceptionResolutions StockException[] @relation("StockExceptionResolution")
+  saleReturn                SaleReturn?      @relation("SaleReturnEvent")
 
   @@index([kind, occurredAt])
   @@index([occurredAt])
@@ -254,11 +262,14 @@ enum Location {
 /// Customer-facing sale (POS). Owns lines, totals, credit. Linked to one
 /// InventoryEvent of kind=SALE that holds the actual stock-out movements.
 model Sale {
-  id         Int      @id @default(autoincrement())
-  saleDate   DateTime @default(now())
-  customerId Int
-  customer   Customer @relation(fields: [customerId], references: [id])
-  kind       SaleKind @default(WHOLESALE)
+  id           Int       @id @default(autoincrement())
+  saleDate     DateTime  @default(now())
+  // Null = walk-in / one-time cash sale (no customer account, no debt tracked).
+  customerId   Int?
+  customer     Customer? @relation(fields: [customerId], references: [id])
+  // Display name for a one-time buyer when customerId is null (shown on receipt).
+  customerName String?
+  kind         SaleKind  @default(WHOLESALE)
 
   goodsTotal Int
   discount   Int       @default(0)
@@ -283,6 +294,7 @@ model Sale {
   payments            CustomerPayment[]
   inventoryEvent      InventoryEvent?
   stockExceptionSales StockExceptionSale[]
+  returns             SaleReturn[]
 
   @@index([customerId, saleDate])
   @@index([saleDate])
@@ -291,14 +303,19 @@ model Sale {
 }
 
 model SaleLine {
-  id         Int      @id @default(autoincrement())
+  id         Int       @id @default(autoincrement())
   saleId     Int
-  sale       Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  itemTypeId Int
-  itemType   ItemType @relation(fields: [itemTypeId], references: [id])
+  sale       Sale      @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  // Null = one-off ad-hoc line (free-text, not a catalog item, not stock-tracked).
+  itemTypeId Int?
+  itemType   ItemType? @relation(fields: [itemTypeId], references: [id])
+  // Display name for an ad-hoc line when itemTypeId is null.
+  itemName   String?
   qty        Int
   unitPrice  Int
   lineTotal  Int
+  // Optional per-line note — e.g. why a line is free (price 0) or a replacement.
+  note       String?
 
   @@index([saleId])
   @@index([itemTypeId])
@@ -319,8 +336,9 @@ enum TxnStatus {
 
 model CustomerPayment {
   id          Int           @id @default(autoincrement())
-  customerId  Int
-  customer    Customer      @relation(fields: [customerId], references: [id])
+  // Null = payment on a walk-in sale (tied via saleId, not to a customer account).
+  customerId  Int?
+  customer    Customer?     @relation(fields: [customerId], references: [id])
   // Optional: pin to a specific sale. Null = general credit on the account.
   saleId      Int?
   sale        Sale?         @relation(fields: [saleId], references: [id])
@@ -509,6 +527,9 @@ model DailyClose {
   paidOutTotal  Int
   expectedCash  Int
   countedCash   Int
+  /// Cash kept in the drawer for the next day (the rest is taken home). Becomes the
+  /// next close's openingCash. Default 0 = took everything home / start fresh.
+  carryForward  Int      @default(0)
   /// countedCash − expectedCash. Signed; positive = surplus, negative = shortfall.
   difference    Int
   notes         String?
@@ -573,4 +594,70 @@ model StockExceptionSale {
 enum StockExceptionStatus {
   OPEN
   RESOLVED
+}
+
+// ─── Returns / refunds (separate minus transactions; never edit a posted sale) ──
+
+/// A return against a posted Sale. Goods go back into stock via a
+/// RETURN_FROM_CUSTOMER InventoryEvent; refundAmount is cash given back.
+/// balance = Σsales − Σreturns.returnTotal − (Σpayments − Σreturns.refundAmount)
+model SaleReturn {
+  id           Int             @id @default(autoincrement())
+  saleId       Int
+  sale         Sale            @relation(fields: [saleId], references: [id])
+  /// Denormalized from the sale for balance aggregation (null = walk-in sale).
+  customerId   Int?
+  customer     Customer?       @relation(fields: [customerId], references: [id])
+  returnDate   DateTime        @default(now())
+  /// Σ of return line totals — value of goods returned (reduces the receivable).
+  returnTotal  Int
+  /// Cash refunded to the buyer (0 = store credit / no cash back).
+  refundAmount Int             @default(0)
+  notes        String?
+  /// 1:1 link to the RETURN_FROM_CUSTOMER event that put stock back (null if all ad-hoc).
+  eventId      Int?            @unique
+  event        InventoryEvent? @relation("SaleReturnEvent", fields: [eventId], references: [id])
+  createdById  Int
+  createdBy    User            @relation("SaleReturnCreatedBy", fields: [createdById], references: [id])
+  createdAt    DateTime        @default(now())
+  voidedAt     DateTime?
+  voidedById   Int?
+  voidedBy     User?           @relation("SaleReturnVoidedBy", fields: [voidedById], references: [id])
+  voidReason   String?
+
+  lines SaleReturnLine[]
+
+  @@index([saleId])
+  @@index([customerId])
+  @@index([returnDate])
+}
+
+model SaleReturnLine {
+  id         Int        @id @default(autoincrement())
+  returnId   Int
+  return     SaleReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  itemTypeId Int?
+  itemType   ItemType?  @relation(fields: [itemTypeId], references: [id])
+  itemName   String?
+  qty        Int
+  unitPrice  Int
+  lineTotal  Int
+
+  @@index([returnId])
+}
+
+// ─── Shop settings (singleton, id = 1) ───────────────────────────
+// Editable from the admin app; drives the printed receipt header/footer.
+// Empty/null fields fall back to the built-in label defaults.
+model ShopSetting {
+  id            Int      @id @default(1)
+  shopName      String   @default("LGY")
+  addressLine   String?
+  phone         String?
+  social        String? // facebook / viber / etc. line
+  receiptHeader String? // subtitle under the shop name (defaults to "Receipt")
+  receiptFooter String? // footer / thank-you line
+  updatedAt     DateTime @updatedAt
+  updatedById   Int?
+  updatedBy     User?    @relation("ShopSettingUpdatedBy", fields: [updatedById], references: [id])
 }

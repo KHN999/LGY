@@ -99,7 +99,7 @@ export class CustomersService {
     customerId: number,
     tx: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<number> {
-    const [sales, payments] = await Promise.all([
+    const [sales, payments, returns] = await Promise.all([
       tx.sale.aggregate({
         where: { customerId, voidedAt: null },
         _sum: { grandTotal: true },
@@ -108,8 +108,18 @@ export class CustomersService {
         where: { customerId, voidedAt: null },
         _sum: { amount: true },
       }),
+      tx.saleReturn.aggregate({
+        where: { customerId, voidedAt: null },
+        _sum: { returnTotal: true, refundAmount: true },
+      }),
     ]);
-    return (sales._sum.grandTotal ?? 0) - (payments._sum.amount ?? 0);
+    // balance = Σsales − Σreturns − (Σpayments − Σrefunds)
+    return (
+      (sales._sum.grandTotal ?? 0) -
+      (returns._sum.returnTotal ?? 0) -
+      (payments._sum.amount ?? 0) +
+      (returns._sum.refundAmount ?? 0)
+    );
   }
 
   async balancesFor(
@@ -117,7 +127,7 @@ export class CustomersService {
     tx: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<Map<number, number>> {
     if (customerIds.length === 0) return new Map();
-    const [sales, payments] = await Promise.all([
+    const [sales, payments, returns] = await Promise.all([
       tx.sale.groupBy({
         by: ["customerId"],
         where: { customerId: { in: customerIds }, voidedAt: null },
@@ -128,11 +138,29 @@ export class CustomersService {
         where: { customerId: { in: customerIds }, voidedAt: null },
         _sum: { amount: true },
       }),
+      tx.saleReturn.groupBy({
+        by: ["customerId"],
+        where: { customerId: { in: customerIds }, voidedAt: null },
+        _sum: { returnTotal: true, refundAmount: true },
+      }),
     ]);
     const map = new Map<number, number>();
     for (const id of customerIds) map.set(id, 0);
-    for (const r of sales) map.set(r.customerId, (map.get(r.customerId) ?? 0) + (r._sum.grandTotal ?? 0));
-    for (const r of payments) map.set(r.customerId, (map.get(r.customerId) ?? 0) - (r._sum.amount ?? 0));
+    for (const r of sales) {
+      if (r.customerId == null) continue; // walk-in sales belong to no customer
+      map.set(r.customerId, (map.get(r.customerId) ?? 0) + (r._sum.grandTotal ?? 0));
+    }
+    for (const r of payments) {
+      if (r.customerId == null) continue;
+      map.set(r.customerId, (map.get(r.customerId) ?? 0) - (r._sum.amount ?? 0));
+    }
+    for (const r of returns) {
+      if (r.customerId == null) continue;
+      map.set(
+        r.customerId,
+        (map.get(r.customerId) ?? 0) - (r._sum.returnTotal ?? 0) + (r._sum.refundAmount ?? 0),
+      );
+    }
     return map;
   }
 }

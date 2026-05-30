@@ -35,3 +35,18 @@
     line-height: 1.55;
   }
 }
+
+/* Print only the receipt (rendered into a body-level #print-receipt portal),
+   sized for A5 paper. Everything else in the document is hidden when printing. */
+@media print {
+  @page {
+    size: A5;
+    margin: 12mm;
+  }
+  body > :not(#print-receipt) {
+    display: none !important;
+  }
+  #print-receipt {
+    display: block !important;
+  }
+}

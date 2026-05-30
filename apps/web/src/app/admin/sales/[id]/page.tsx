@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
 import { formatKyat } from "@/lib/utils";
 import type { SaleDetail } from "@/lib/api-client";
 import { SaleDetailActions } from "./sale-detail";
+import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -21,20 +21,18 @@ export default async function SaleDetailPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/admin/sales" className="text-sm text-muted-foreground hover:underline">
-        ← {labels.salesAdmin.title}
-      </Link>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-bold">
-          #{sale.id} {sale.customer?.name}
-        </h1>
-        {sale.voidedAt && (
-          <span className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-            {labels.salesAdmin.voided}
-          </span>
-        )}
-      </div>
+      <PageHeader
+        backHref="/admin/sales"
+        backLabel={labels.salesAdmin.title}
+        title={`#${sale.id} ${sale.customer?.name ?? labels.salesAdmin.walkIn}`}
+        action={
+          sale.voidedAt ? (
+            <span className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+              {labels.salesAdmin.voided}
+            </span>
+          ) : undefined
+        }
+      />
       <p className="-mt-2 text-sm text-muted-foreground">
         {new Date(sale.saleDate).toLocaleString("en-US", { hour12: true })}
       </p>
@@ -42,11 +40,14 @@ export default async function SaleDetailPage({
       <section className="rounded-2xl border bg-card p-4">
         <ul className="flex flex-col divide-y">
           {sale.lines.map((l) => (
-            <li key={l.id} className="flex items-center justify-between py-2">
-              <span>
-                {l.itemType?.emoji} {l.itemType?.labelMy} × {l.qty}{" "}
-                <span className="text-xs text-muted-foreground">@ {formatKyat(l.unitPrice)}</span>
-              </span>
+            <li key={l.id} className="flex items-start justify-between gap-3 py-2">
+              <div>
+                <span>
+                  {l.itemType?.emoji ?? "🧾"} {l.itemType?.labelMy ?? l.itemName} × {l.qty}{" "}
+                  <span className="text-xs text-muted-foreground">@ {formatKyat(l.unitPrice)}</span>
+                </span>
+                {l.note && <p className="text-xs text-muted-foreground">📝 {l.note}</p>}
+              </div>
               <span className="font-medium">{formatKyat(l.lineTotal)}</span>
             </li>
           ))}

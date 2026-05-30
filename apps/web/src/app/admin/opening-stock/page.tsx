@@ -3,6 +3,7 @@ import { labels } from "@/lib/labels";
 import type { ItemType, InventoryEvent } from "@/lib/api-client";
 import { OpeningStockForm } from "./opening-stock-form";
 import { formatKyat } from "@/lib/utils";
+import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -19,10 +20,7 @@ export default async function OpeningStockPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold">{labels.admin.openingStock}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{labels.admin.openingStockHelp}</p>
-      </div>
+      <PageHeader title={labels.admin.openingStock} subtitle={labels.admin.openingStockHelp} />
 
       {params.saved && (
         <p className="rounded-lg bg-emerald-100 px-3 py-2 text-emerald-900">
@@ -34,7 +32,7 @@ export default async function OpeningStockPage({
 
       {history && history.length > 0 && (
         <section className="rounded-2xl border bg-card p-4">
-          <h2 className="mb-3 text-base font-semibold">အစတော့ မှတ်တမ်း</h2>
+          <h2 className="mb-3 text-base font-semibold">{labels.admin.openingStockHistory}</h2>
           <ul className="flex flex-col divide-y">
             {history.slice(0, 10).map((e) => (
               <li key={e.id} className="py-3">

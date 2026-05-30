@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { Prisma, TxnStatus } from "@lgy/db";
+import type { Customer, Prisma, TxnStatus } from "@lgy/db";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryService } from "../inventory/inventory.service";
 import { CustomersService } from "../customers/customers.service";
@@ -43,29 +43,58 @@ export class SalesService {
     if (discount < 0) throw new BadRequestException("Discount cannot be negative");
     if (discount > goodsTotal) throw new BadRequestException("Discount cannot exceed goods total");
     if (paidAmount > grandTotal) throw new BadRequestException("Paid amount cannot exceed grand total");
+    // Buyer resolves to one of: existing customer | newly-saved customer | one-time
+    // (no account). A one-time sale has no account to carry debt, so it must be
+    // paid in full — save the buyer to sell on credit.
+    const willCreateCustomer = dto.customerId === undefined && !!dto.saveCustomer;
+    const isOneTime = dto.customerId === undefined && !willCreateCustomer;
+    if (isOneTime && paidAmount !== grandTotal) {
+      throw new BadRequestException(
+        "One-time / walk-in sale must be paid in full — save the buyer to sell on credit",
+      );
+    }
+    if (willCreateCustomer && !dto.customerName?.trim()) {
+      throw new BadRequestException("Buyer name is required to save the customer");
+    }
 
     return this.prisma.$transaction(async (tx) => {
-      const customer = await tx.customer.findUnique({ where: { id: dto.customerId } });
-      if (!customer || customer.status !== "ACTIVE") {
-        throw new NotFoundException(`Customer ${dto.customerId} not found or inactive`);
+      let customer: Customer | null = null;
+      if (dto.customerId !== undefined) {
+        customer = await tx.customer.findUnique({ where: { id: dto.customerId } });
+        if (!customer || customer.status !== "ACTIVE") {
+          throw new NotFoundException(`Customer ${dto.customerId} not found or inactive`);
+        }
+      } else if (willCreateCustomer) {
+        customer = await tx.customer.create({ data: { name: dto.customerName!.trim() } });
       }
+      // One-time buyer: keep the typed name on the sale (no customer record).
+      const oneTimeName = customer ? null : dto.customerName?.trim() || null;
 
-      const ids = [...new Set(dto.items.map((i) => i.itemTypeId))];
+      // Each item is either a catalog item (itemTypeId, stock-tracked) or a one-off
+      // ad-hoc line (itemName, free-text, not in the catalog, not stock-tracked).
+      for (const it of dto.items) {
+        if (it.itemTypeId === undefined && !it.itemName?.trim()) {
+          throw new BadRequestException("Each item needs a catalog itemTypeId or an itemName");
+        }
+      }
+      const catalogItems = dto.items.filter((i) => i.itemTypeId !== undefined);
+
+      const ids = [...new Set(catalogItems.map((i) => i.itemTypeId!))];
       const types = await tx.itemType.findMany({
         where: { id: { in: ids } },
         select: { id: true, key: true, labelMy: true, isActive: true },
       });
       const typeMap = new Map(types.map((t) => [t.id, t]));
-      for (const it of dto.items) {
-        const t = typeMap.get(it.itemTypeId);
+      for (const it of catalogItems) {
+        const t = typeMap.get(it.itemTypeId!);
         if (!t) throw new NotFoundException(`ItemType ${it.itemTypeId} not found`);
         if (!t.isActive) throw new BadRequestException(`ItemType ${t.key} is inactive`);
       }
 
-      // Shop stock check (sum requested per item to handle duplicate lines).
+      // Shop stock check — catalog items only (ad-hoc items are not stock-tracked).
       const requested = new Map<number, number>();
-      for (const it of dto.items) {
-        requested.set(it.itemTypeId, (requested.get(it.itemTypeId) ?? 0) + it.qty);
+      for (const it of catalogItems) {
+        requested.set(it.itemTypeId!, (requested.get(it.itemTypeId!) ?? 0) + it.qty);
       }
       // Stock policy (launch default): SHOP sales NEVER block — physical stock is
       // the source of truth and the ledger is corrected later. We still record the
@@ -89,14 +118,15 @@ export class SalesService {
         }
       }
 
-      const kind = dto.kind ?? customer.defaultKind;
+      const kind = dto.kind ?? customer?.defaultKind ?? "RETAIL";
       const status = statusFor(grandTotal, paidAmount);
       const saleDate = dto.saleDate ? new Date(dto.saleDate) : new Date();
 
       const sale = await tx.sale.create({
         data: {
           saleDate,
-          customerId: customer.id,
+          customerId: customer?.id ?? null,
+          customerName: oneTimeName,
           kind,
           goodsTotal,
           discount,
@@ -107,38 +137,43 @@ export class SalesService {
           createdById,
           lines: {
             create: dto.items.map((i) => ({
-              itemTypeId: i.itemTypeId,
+              itemTypeId: i.itemTypeId ?? null,
+              itemName: i.itemTypeId !== undefined ? null : i.itemName?.trim() || null,
               qty: i.qty,
               unitPrice: i.unitPrice,
               lineTotal: i.unitPrice * i.qty,
+              note: i.note?.trim() || null,
             })),
           },
         },
         include: { lines: { include: { itemType: true } }, customer: true },
       });
 
-      // Linked InventoryEvent of kind=SALE with one OUT line per requested item.
-      await tx.inventoryEvent.create({
-        data: {
-          kind: "SALE",
-          occurredAt: saleDate,
-          saleId: sale.id,
-          createdById,
-          lines: {
-            create: [...requested.entries()].map(([itemTypeId, qty]) => ({
-              direction: "OUT" as const,
-              location: "SHOP" as const,
-              itemTypeId,
-              qty,
-            })),
+      // Linked InventoryEvent of kind=SALE with one OUT line per catalog item.
+      // A sale of only ad-hoc items touches no stock, so no event is created.
+      if (requested.size > 0) {
+        await tx.inventoryEvent.create({
+          data: {
+            kind: "SALE",
+            occurredAt: saleDate,
+            saleId: sale.id,
+            createdById,
+            lines: {
+              create: [...requested.entries()].map(([itemTypeId, qty]) => ({
+                direction: "OUT" as const,
+                location: "SHOP" as const,
+                itemTypeId,
+                qty,
+              })),
+            },
           },
-        },
-      });
+        });
+      }
 
       if (paidAmount > 0) {
         await tx.customerPayment.create({
           data: {
-            customerId: customer.id,
+            customerId: customer?.id ?? null,
             saleId: sale.id,
             amount: paidAmount,
             method: dto.paymentMethod ?? "CASH",

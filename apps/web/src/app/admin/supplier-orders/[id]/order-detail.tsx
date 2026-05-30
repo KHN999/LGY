@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api, ApiError, type SupplierOrder } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 import { formatKyat } from "@/lib/utils";
+import { Button } from "@/components/ui";
 
 interface Props {
   order: SupplierOrder;
@@ -115,38 +116,39 @@ export function OrderDetail({ order }: Props) {
       <div className="flex flex-wrap gap-2">
         {editable && (
           <>
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={() => setOpenPanel(openPanel === "edit" ? "none" : "edit")}
-              className="rounded-lg border bg-card px-3 py-2 text-sm hover:bg-accent"
             >
               {labels.common.edit}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="primary"
               onClick={() => setOpenPanel(openPanel === "receipt" ? "none" : "receipt")}
-              className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground"
             >
               {labels.admin.order.recordReceipt}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="primary"
+              className="!bg-amber-600 text-white"
               onClick={() => setOpenPanel(openPanel === "payment" ? "none" : "payment")}
-              className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white"
             >
               {labels.admin.order.recordPayment}
-            </button>
+            </Button>
             {canCancel && (
-              <button
+              <Button
                 type="button"
+                variant="destructive"
                 onClick={() => {
                   if (confirm("Cancel this order?")) cancelOrder();
                 }}
                 disabled={submitting}
-                className="rounded-lg border border-destructive px-3 py-2 text-sm text-destructive disabled:opacity-50"
               >
                 {labels.admin.order.cancel}
-              </button>
+              </Button>
             )}
           </>
         )}
@@ -239,7 +241,7 @@ export function OrderDetail({ order }: Props) {
                 className={inp}
               />
             </Field>
-            <Field label={"ဈေး (ကျပ်)"}>
+            <Field label={labels.admin.order.price}>
               <input
                 type="number"
                 inputMode="numeric"
@@ -282,7 +284,7 @@ export function OrderDetail({ order }: Props) {
                     {labels.units.htee}
                     {" — "}
                     {formatKyat(r.goodsCost)}
-                    {r.transportCost > 0 && ` + ${formatKyat(r.transportCost)} သယ်ခ`}
+                    {r.transportCost > 0 && ` + ${formatKyat(r.transportCost)} ${labels.admin.order.transportShort}`}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {new Date(r.receivedAt).toLocaleString("en-US", { hour12: true })}
@@ -360,17 +362,17 @@ function Actions({
 }) {
   return (
     <div className="flex justify-end gap-2">
-      <button type="button" onClick={onCancel} className="rounded-lg border px-4 py-2 text-sm">
+      <Button type="button" variant="outline" onClick={onCancel}>
         {labels.common.cancel}
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="primary"
         onClick={onSave}
         disabled={submitting || disabled}
-        className="rounded-lg bg-primary px-6 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
       >
         {submitting ? labels.common.saving : labels.common.save}
-      </button>
+      </Button>
     </div>
   );
 }

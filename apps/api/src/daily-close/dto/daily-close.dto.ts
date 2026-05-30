@@ -19,6 +19,14 @@ export class CreateDailyCloseDto {
   @Min(0)
   countedCash!: number;
 
+  /** Cash kept in the drawer for tomorrow (the rest is taken home). Default 0.
+   *  Becomes the next day's opening cash. Must be ≤ countedCash. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  carryForward?: number;
+
   @IsOptional()
   @IsString()
   @MaxLength(500)

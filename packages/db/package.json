@@ -9,6 +9,7 @@
     "build": "prisma generate && tsc",
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
+    "setup:shop": "node scripts/setup-shop.mjs",
     "studio": "prisma studio",
     "seed": "tsx prisma/seed.ts",
     "format": "prisma format",

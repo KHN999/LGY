@@ -77,6 +77,7 @@ export class StockExceptionsService {
                 id: true,
                 saleDate: true,
                 voidedAt: true,
+                customerName: true,
                 customer: { select: { id: true, name: true } },
               },
             },
@@ -107,7 +108,7 @@ export class StockExceptionsService {
         qtyBeyond: x.qtyBeyond,
         saleDate: x.sale.saleDate,
         voided: x.sale.voidedAt != null,
-        customerName: x.sale.customer.name,
+        customerName: x.sale.customer?.name ?? x.sale.customerName ?? null, // null = anonymous
       })),
     }));
   }

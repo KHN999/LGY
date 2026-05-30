@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { serverFetch } from "@/lib/auth-server";
 import { ItemTypeForm } from "../item-type-form";
 import { labels } from "@/lib/labels";
 import type { ItemType } from "@/lib/api-client";
+import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -17,13 +17,11 @@ export default async function EditItemTypePage({
   if (!t) notFound();
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/admin/item-types" className="text-sm text-muted-foreground hover:underline">
-        ← {labels.admin.itemTypes}
-      </Link>
-      <div className="flex items-center gap-3">
-        {t.emoji && <span className="text-4xl">{t.emoji}</span>}
-        <h1 className="text-2xl font-bold">{t.labelMy}</h1>
-      </div>
+      <PageHeader
+        backHref="/admin/item-types"
+        backLabel={labels.admin.itemTypes}
+        title={t.emoji ? `${t.emoji} ${t.labelMy}` : t.labelMy}
+      />
       <ItemTypeForm initial={t} />
     </div>
   );

@@ -11,6 +11,7 @@ import type {
   StockRow,
   DailyClosePreview,
 } from "@/lib/api-client";
+import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ export default async function AdminHomePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold">{labels.admin.dashboard}</h1>
+      <PageHeader title={labels.admin.dashboard} />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard

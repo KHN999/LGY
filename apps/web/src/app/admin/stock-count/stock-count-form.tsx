@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api, ApiError, type StockRow } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 import { Field, inputClass } from "@/components/admin/form-field";
+import { Button } from "@/components/ui";
 
 type Loc = "WAREHOUSE" | "SHOP";
 
@@ -101,34 +102,39 @@ export function StockCountForm() {
             const counted = counts[r.itemTypeId] ?? String(r.qty);
             const diff = (Number(counted) || 0) - r.qty;
             return (
-              <li key={r.itemTypeId} className="flex items-center justify-between gap-3 p-3">
-                <span className="flex-1">
+              <li
+                key={r.itemTypeId}
+                className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:gap-3"
+              >
+                <span className="font-medium sm:flex-1">
                   {r.emoji ? r.emoji + " " : ""}
                   {r.labelMy}
                 </span>
-                <span className="w-24 text-right text-sm text-muted-foreground">
-                  {labels.stockCount.systemQty}: {r.qty}
-                </span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  value={counted}
-                  onChange={(e) =>
-                    setCounts((p) => ({ ...p, [r.itemTypeId]: e.target.value }))
-                  }
-                  className={inputClass + " w-24 text-right"}
-                  aria-label={`${r.labelMy} — ${labels.stockCount.countedQty}`}
-                />
-                <span
-                  className={
-                    "w-12 text-right text-sm font-semibold " +
-                    (diff > 0 ? "text-emerald-600" : diff < 0 ? "text-rose-600" : "text-transparent")
-                  }
-                >
-                  {diff > 0 ? "+" : ""}
-                  {diff}
-                </span>
+                <div className="flex items-center justify-between gap-3 sm:justify-end">
+                  <span className="text-sm text-muted-foreground">
+                    {labels.stockCount.systemQty}: {r.qty}
+                  </span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    value={counted}
+                    onChange={(e) =>
+                      setCounts((p) => ({ ...p, [r.itemTypeId]: e.target.value }))
+                    }
+                    className={inputClass + " w-24 text-right"}
+                    aria-label={`${r.labelMy} — ${labels.stockCount.countedQty}`}
+                  />
+                  <span
+                    className={
+                      "w-12 shrink-0 text-right text-sm font-semibold " +
+                      (diff > 0 ? "text-emerald-600" : diff < 0 ? "text-rose-600" : "text-transparent")
+                    }
+                  >
+                    {diff > 0 ? "+" : ""}
+                    {diff}
+                  </span>
+                </div>
               </li>
             );
           })}
@@ -160,13 +166,9 @@ export function StockCountForm() {
         <p className="rounded-lg bg-emerald-100 p-3 text-sm text-emerald-900">{info}</p>
       )}
 
-      <button
-        type="submit"
-        disabled={submitting || loading}
-        className="self-start rounded-lg bg-primary px-6 py-2 font-semibold text-primary-foreground disabled:opacity-50"
-      >
+      <Button type="submit" size="lg" disabled={submitting || loading} className="self-start">
         {submitting ? labels.common.saving : labels.stockCount.submit}
-      </button>
+      </Button>
     </form>
   );
 }

@@ -3,6 +3,7 @@ import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
 import { formatKyat } from "@/lib/utils";
 import type { SupplierOrder } from "@/lib/api-client";
+import { PageHeader, EmptyState, buttonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -31,15 +32,14 @@ export default async function SupplierOrdersPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">{labels.admin.supplierOrders}</h1>
-        <Link
-          href="/admin/supplier-orders/new"
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
-        >
-          + {labels.common.addNew}
-        </Link>
-      </div>
+      <PageHeader
+        title={labels.admin.supplierOrders}
+        action={
+          <Link href="/admin/supplier-orders/new" className={buttonClass("primary", "md")}>
+            + {labels.common.addNew}
+          </Link>
+        }
+      />
 
       {params.saved && (
         <p className="rounded-lg bg-emerald-100 px-3 py-2 text-emerald-900">
@@ -48,9 +48,7 @@ export default async function SupplierOrdersPage({
       )}
 
       {rows.length === 0 ? (
-        <div className="rounded-2xl border bg-card p-8 text-center text-muted-foreground">
-          {labels.admin.empty.supplierOrders}
-        </div>
+        <EmptyState>{labels.admin.empty.supplierOrders}</EmptyState>
       ) : (
         <ul className="flex flex-col divide-y rounded-2xl border bg-card">
           {rows.map((o) => {
@@ -87,18 +85,18 @@ export default async function SupplierOrdersPage({
                       {new Date(o.orderDate).toLocaleDateString("en-US")}
                     </p>
                   </div>
-                  <div className="text-right">
+                  <div className="shrink-0 text-right">
                     <p className="text-sm font-medium">
                       {formatKyat(totalActual)}
                     </p>
                     {remainingPay > 0 && (
-                      <p className="text-xs text-rose-600">
-                        ပေးရန်ကျန်: {formatKyat(remainingPay)}
+                      <p className="text-sm text-rose-600">
+                        {labels.admin.order.remaining}: {formatKyat(remainingPay)}
                       </p>
                     )}
                     {remainingPay < 0 && (
-                      <p className="text-xs text-emerald-600">
-                        ကျော်ပေး: {formatKyat(-remainingPay)}
+                      <p className="text-sm text-emerald-600">
+                        {labels.admin.order.overpaid}: {formatKyat(-remainingPay)}
                       </p>
                     )}
                   </div>

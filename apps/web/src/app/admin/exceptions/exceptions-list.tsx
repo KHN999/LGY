@@ -5,14 +5,11 @@ import { useRouter } from "next/navigation";
 import { api, ApiError, type StockExceptionRow } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 import { Field, inputClass } from "@/components/admin/form-field";
+import { Button, EmptyState } from "@/components/ui";
 
 export function ExceptionsList({ rows }: { rows: StockExceptionRow[] }) {
   if (rows.length === 0) {
-    return (
-      <p className="rounded-2xl border bg-card p-8 text-center text-muted-foreground">
-        {labels.exceptions.none}
-      </p>
-    );
+    return <EmptyState>{labels.exceptions.none}</EmptyState>;
   }
   return (
     <ul className="flex flex-col gap-3">
@@ -76,13 +73,9 @@ function ExceptionCard({ row }: { row: StockExceptionRow }) {
             {new Date(row.lastDetectedAt).toLocaleString("en-US", { hour12: true })}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
-        >
+        <Button type="button" onClick={() => setOpen((v) => !v)} className="shrink-0">
           {labels.exceptions.resolve}
-        </button>
+        </Button>
       </div>
 
       {row.sales.length > 0 && (
@@ -94,7 +87,7 @@ function ExceptionCard({ row }: { row: StockExceptionRow }) {
             {row.sales.map((s) => (
               <li key={s.saleId} className="flex items-center justify-between gap-2 py-1.5">
                 <span>
-                  #{s.saleId} · {s.customerName}
+                  #{s.saleId} · {s.customerName ?? labels.sell.walkInCustomer}
                   {s.voided && <span className="ml-1 text-rose-600">({labels.exceptions.voided})</span>}
                 </span>
                 <span className="text-muted-foreground">
@@ -132,13 +125,9 @@ function ExceptionCard({ row }: { row: StockExceptionRow }) {
               {error}
             </p>
           )}
-          <button
-            type="submit"
-            disabled={submitting}
-            className="self-start rounded-lg bg-primary px-6 py-2 font-semibold text-primary-foreground disabled:opacity-50"
-          >
+          <Button type="submit" size="lg" disabled={submitting} className="self-start">
             {submitting ? labels.common.saving : labels.exceptions.resolveSubmit}
-          </button>
+          </Button>
         </form>
       )}
     </li>

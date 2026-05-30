@@ -15,6 +15,8 @@ interface Props {
   /** Allow tapping every item regardless of stock (shop oversell). Still shows
    *  the stock count (red when ≤0), but never hides or disables. */
   allowOversell?: boolean;
+  /** Only show item types marked sellable in the shop (hides warehouse-only items). */
+  sellableOnly?: boolean;
 }
 
 /**
@@ -27,6 +29,7 @@ export function ItemTypeGrid({
   onPick,
   minStock = 0,
   allowOversell = false,
+  sellableOnly = false,
 }: Props) {
   const [types, setTypes] = useState<ItemType[]>([]);
   const [stockByItem, setStockByItem] = useState<Map<number, number>>(new Map());
@@ -59,9 +62,13 @@ export function ItemTypeGrid({
   }, [locationForStock]);
 
   const visible = useMemo(() => {
-    if (!hideZeroStock || allowOversell) return types;
-    return types.filter((t) => (stockByItem.get(t.id) ?? 0) > 0);
-  }, [types, stockByItem, hideZeroStock, allowOversell]);
+    let list = types;
+    if (sellableOnly) list = list.filter((t) => t.sellable);
+    if (hideZeroStock && !allowOversell) {
+      list = list.filter((t) => (stockByItem.get(t.id) ?? 0) > 0);
+    }
+    return list;
+  }, [types, stockByItem, hideZeroStock, allowOversell, sellableOnly]);
 
   if (loading) {
     return (

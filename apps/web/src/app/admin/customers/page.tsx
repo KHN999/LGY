@@ -3,6 +3,7 @@ import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
 import { formatKyat } from "@/lib/utils";
 import type { Page, Customer } from "@/lib/api-client";
+import { PageHeader, EmptyState, buttonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -20,15 +21,14 @@ export default async function CustomersPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">{labels.admin.customers}</h1>
-        <Link
-          href="/admin/customers/new"
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
-        >
-          + {labels.common.addNew}
-        </Link>
-      </div>
+      <PageHeader
+        title={labels.admin.customers}
+        action={
+          <Link href="/admin/customers/new" className={buttonClass("primary", "md")}>
+            + {labels.common.addNew}
+          </Link>
+        }
+      />
 
       {params.saved && (
         <p className="rounded-lg bg-emerald-100 px-3 py-2 text-emerald-900">
@@ -58,9 +58,7 @@ export default async function CustomersPage({
       </div>
 
       {rows.length === 0 ? (
-        <div className="rounded-2xl border bg-card p-8 text-center text-muted-foreground">
-          {labels.admin.empty.customers}
-        </div>
+        <EmptyState>{labels.admin.empty.customers}</EmptyState>
       ) : (
         <ul className="flex flex-col divide-y rounded-2xl border bg-card">
           {rows.map((c) => (

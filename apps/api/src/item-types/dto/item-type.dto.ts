@@ -38,6 +38,11 @@ export class CreateItemTypeDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  /** Shown in the shop sell screen. False = warehouse-only (e.g. ROLL). */
+  @IsOptional()
+  @IsBoolean()
+  sellable?: boolean;
 }
 
 export class UpdateItemTypeDto extends PartialType(CreateItemTypeDto) {}

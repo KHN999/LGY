@@ -23,7 +23,8 @@ export class AuthService {
   ) {}
 
   async login(username: string, password: string): Promise<LoginResult> {
-    const user = await this.prisma.user.findUnique({ where: { username } });
+    // Accounts are canonical in the main schema — auth never follows the active shop.
+    const user = await this.prisma.main.user.findUnique({ where: { username } });
     if (!user || user.status !== "ACTIVE") {
       throw new UnauthorizedException("Invalid credentials");
     }
@@ -54,7 +55,7 @@ export class AuthService {
   }
 
   async getCurrentUser(userId: number) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const user = await this.prisma.main.user.findUnique({ where: { id: userId } });
     if (!user || user.status !== "ACTIVE") {
       throw new UnauthorizedException("User not found or disabled");
     }

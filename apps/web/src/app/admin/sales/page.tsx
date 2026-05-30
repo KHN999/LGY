@@ -3,6 +3,7 @@ import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
 import { formatKyat } from "@/lib/utils";
 import type { Page, Sale } from "@/lib/api-client";
+import { PageHeader, EmptyState } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export default async function SalesPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-bold">{labels.salesAdmin.title}</h1>
+      <PageHeader title={labels.salesAdmin.title} />
 
       <nav className="flex flex-wrap gap-2">
         {FILTERS.map((f) => {
@@ -57,9 +58,7 @@ export default async function SalesPage({
       </nav>
 
       {rows.length === 0 ? (
-        <div className="rounded-2xl border bg-card p-8 text-center text-muted-foreground">
-          {labels.salesAdmin.empty}
-        </div>
+        <EmptyState>{labels.salesAdmin.empty}</EmptyState>
       ) : (
         <ul className="flex flex-col divide-y rounded-2xl border bg-card">
           {rows.map((s) => {
@@ -73,7 +72,7 @@ export default async function SalesPage({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold">
-                        #{s.id} {s.customer?.name}
+                        #{s.id} {s.customer?.name ?? labels.salesAdmin.walkIn}
                       </span>
                       {s.voidedAt ? (
                         <span className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
@@ -90,7 +89,7 @@ export default async function SalesPage({
                       {new Date(s.saleDate).toLocaleDateString("en-US")}
                     </p>
                   </div>
-                  <div className="text-right">
+                  <div className="shrink-0 text-right">
                     <p
                       className={
                         "text-sm font-medium " +
@@ -100,7 +99,7 @@ export default async function SalesPage({
                       {formatKyat(s.grandTotal)}
                     </p>
                     {!s.voidedAt && remaining > 0 && (
-                      <p className="text-xs text-rose-600">
+                      <p className="text-sm text-rose-600">
                         {labels.domain.remaining}: {formatKyat(remaining)}
                       </p>
                     )}
