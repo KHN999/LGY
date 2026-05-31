@@ -70,7 +70,7 @@ export class TransfersService {
         });
       }
 
-      return tx.inventoryEvent.create({
+      const event = await tx.inventoryEvent.create({
         data: {
           kind: "TRANSFER",
           notes: dto.notes,
@@ -79,6 +79,26 @@ export class TransfersService {
         },
         include: { lines: { include: { itemType: true } } },
       });
+
+      // Optional delivery fee → a transport Expense (shows in driver activity
+      // when a tracked driver is chosen; a one-off taxi is free-text).
+      if (dto.driverFee && dto.driverFee > 0) {
+        const category = await tx.expenseCategory.findUnique({ where: { key: "transport" } });
+        if (category) {
+          await tx.expense.create({
+            data: {
+              categoryId: category.id,
+              amount: dto.driverFee,
+              paidToDriverId: dto.driverId ?? null,
+              paidTo: dto.driverId ? null : dto.driverName?.trim() || "Taxi",
+              notes: `Transfer #${event.id}`,
+              createdById,
+            },
+          });
+        }
+      }
+
+      return event;
     });
   }
 

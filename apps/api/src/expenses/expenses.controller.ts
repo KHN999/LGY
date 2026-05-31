@@ -6,7 +6,7 @@ import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import type { AuthenticatedUser } from "../auth/jwt-payload";
 import { ExpensesService } from "./expenses.service";
 import { CreateExpenseDto, VoidExpenseDto } from "./dto/create-expense.dto";
-import { DateRangeQueryDto } from "../common/date-range.query.dto";
+import { ListExpensesQueryDto } from "./dto/list-expenses.query.dto";
 
 @Controller("expenses")
 @UseGuards(JwtAuthGuard)
@@ -14,7 +14,7 @@ export class ExpensesController {
   constructor(private readonly service: ExpensesService) {}
 
   @Get()
-  list(@Query() q: DateRangeQueryDto) {
+  list(@Query() q: ListExpensesQueryDto) {
     return this.service.list(q);
   }
 

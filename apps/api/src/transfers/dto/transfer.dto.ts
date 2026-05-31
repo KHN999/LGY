@@ -44,4 +44,21 @@ export class CreateTransferDto {
   @IsString()
   @MaxLength(500)
   notes?: string;
+
+  // ── Optional delivery / driver (records a transport expense) ──────
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  driverId?: number;
+
+  /** Free-text driver name when not a tracked driver (e.g. a taxi). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  driverName?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  driverFee?: number;
 }

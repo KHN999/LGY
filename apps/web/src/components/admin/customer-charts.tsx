@@ -40,6 +40,24 @@ export function CustomerActivityChart({
   );
 }
 
+/** Single-series "paid over time" bars — for employees/drivers/suppliers. */
+export function PaidTrendChart({ data }: { data: { date: string; paid: number }[] }) {
+  if (data.length === 0) {
+    return <p className="py-12 text-center text-sm text-muted-foreground">{labels.common.noData}</p>;
+  }
+  return (
+    <ResponsiveContainer width="100%" height={240}>
+      <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+        <XAxis dataKey="date" tick={{ fontSize: 11 }} interval="preserveStartEnd" minTickGap={16} />
+        <YAxis tickFormatter={axisK} tick={{ fontSize: 11 }} width={36} />
+        <Tooltip formatter={money} />
+        <Bar dataKey="paid" name={labels.customerDetail.paid} fill="#10b981" radius={[3, 3, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
 /** Comparison across customers: who owes the most (horizontal bars). */
 export function DebtComparisonChart({ data }: { data: { name: string; debt: number }[] }) {
   if (data.length === 0) {

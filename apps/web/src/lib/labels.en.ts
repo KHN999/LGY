@@ -151,6 +151,11 @@ export const en = {
     totalPieces: "Total pieces",
     savePrint: "Save & Print",
     empty: "No transfers yet",
+    deliveryBy: "Delivery (optional)",
+    driver: "Driver",
+    driverFee: "Fee",
+    otherDriver: "Other / taxi",
+    noDriver: "— none —",
   },
 
   close: {
@@ -202,6 +207,8 @@ export const en = {
     empty: "No expenses yet",
     void: "Void",
     total: "Total (shown)",
+    paySalary: "Pay salary",
+    pay: "Pay",
   },
 
   tailorLedger: {

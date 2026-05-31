@@ -6,15 +6,17 @@ import { CreateExpenseDto } from "./dto/create-expense.dto";
 export class ExpensesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(range: { from?: string; to?: string } = {}) {
+  list(opts: { from?: string; to?: string; employeeId?: number; driverId?: number } = {}) {
     return this.prisma.expense.findMany({
       where: {
         voidedAt: null,
-        ...(range.from || range.to
+        ...(opts.employeeId ? { paidToEmployeeId: opts.employeeId } : {}),
+        ...(opts.driverId ? { paidToDriverId: opts.driverId } : {}),
+        ...(opts.from || opts.to
           ? {
               expenseDate: {
-                ...(range.from ? { gte: new Date(range.from) } : {}),
-                ...(range.to ? { lte: new Date(range.to) } : {}),
+                ...(opts.from ? { gte: new Date(opts.from) } : {}),
+                ...(opts.to ? { lte: new Date(opts.to) } : {}),
               },
             }
           : {}),

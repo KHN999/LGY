@@ -153,6 +153,11 @@ export const my: DeepPartial<Labels> = {
     totalPieces: "စုစုပေါင်း",
     savePrint: "သိမ်း & ပုံနှိပ်",
     empty: "ပို့ဆောင်မှု မရှိသေးပါ",
+    deliveryBy: "ပို့ဆောင်မှု (လိုရင်)",
+    driver: "ကားသမား",
+    driverFee: "ကားခ",
+    otherDriver: "အခြား / တက္ကစီ",
+    noDriver: "— မရှိ —",
   },
 
   close: {
@@ -204,6 +209,8 @@ export const my: DeepPartial<Labels> = {
     empty: "ကုန်ကျစရိတ် မရှိသေးပါ",
     void: "ပယ်ဖျက်",
     total: "စုစုပေါင်း (ပြထား)",
+    paySalary: "လစာပေးမယ်",
+    pay: "ပေးမယ်",
   },
 
   tailorLedger: {
