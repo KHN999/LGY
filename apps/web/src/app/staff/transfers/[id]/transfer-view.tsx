@@ -39,6 +39,15 @@ export function TransferView({
       qty: l.qty,
     })),
     totalPieces: outLines.reduce((s, l) => s + l.qty, 0),
+    delivery: transfer.expenses?.[0]
+      ? {
+          by:
+            transfer.expenses[0].paidToDriver?.name ??
+            transfer.expenses[0].paidTo ??
+            labels.transfer.driver,
+          fee: transfer.expenses[0].amount,
+        }
+      : null,
     by: transfer.createdBy?.displayName ?? null,
   };
 

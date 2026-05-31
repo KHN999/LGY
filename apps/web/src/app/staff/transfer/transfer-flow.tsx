@@ -124,7 +124,10 @@ export function TransferFlow({ drivers }: { drivers: Driver[] }) {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 p-4 pb-32 sm:p-6">
+    <main
+      className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 p-4 sm:p-6"
+      style={{ paddingBottom: "12rem" }}
+    >
       <div className="flex items-center justify-between gap-2">
         <Link href="/staff" className="rounded-lg border px-3 py-2 text-sm">
           ← {labels.common.back}

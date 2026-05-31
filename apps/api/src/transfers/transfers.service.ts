@@ -91,6 +91,7 @@ export class TransfersService {
               amount: dto.driverFee,
               paidToDriverId: dto.driverId ?? null,
               paidTo: dto.driverId ? null : dto.driverName?.trim() || "Taxi",
+              eventId: event.id,
               notes: `Transfer #${event.id}`,
               createdById,
             },
@@ -120,6 +121,10 @@ export class TransfersService {
       include: {
         lines: { include: { itemType: true } },
         createdBy: { select: { id: true, username: true, displayName: true } },
+        expenses: {
+          where: { voidedAt: null },
+          include: { paidToDriver: { select: { id: true, name: true } } },
+        },
       },
     });
   }
@@ -130,6 +135,10 @@ export class TransfersService {
       include: {
         lines: { include: { itemType: true } },
         createdBy: { select: { id: true, username: true, displayName: true } },
+        expenses: {
+          where: { voidedAt: null },
+          include: { paidToDriver: { select: { id: true, name: true } } },
+        },
       },
     });
     if (!event) throw new NotFoundException(`Transfer ${id} not found`);

@@ -1,6 +1,7 @@
 "use client";
 
 import { labels } from "@/lib/labels";
+import { formatKyat } from "@/lib/utils";
 import type { ShopSettings } from "@/lib/api-client";
 
 export interface TransferSlip {
@@ -10,6 +11,7 @@ export interface TransferSlip {
   toLabel: string;
   lines: { label: string; qty: number }[];
   totalPieces: number;
+  delivery?: { by: string; fee: number } | null;
   by?: string | null;
 }
 
@@ -62,6 +64,15 @@ export function TransferReceipt({ data, shop }: { data: TransferSlip; shop?: Sho
           {data.totalPieces} {labels.units.htee}
         </span>
       </div>
+
+      {data.delivery && (
+        <div className="mt-3 flex justify-between text-sm">
+          <span>
+            🚚 {labels.transfer.driver}: {data.delivery.by}
+          </span>
+          <span className="tabular-nums">{formatKyat(data.delivery.fee)}</span>
+        </div>
+      )}
 
       {data.by && <p className="mt-8 text-sm text-neutral-600">— {data.by}</p>}
     </div>

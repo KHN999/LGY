@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
+import { formatKyat } from "@/lib/utils";
 import type { InventoryEvent } from "@/lib/api-client";
 import { EmptyState } from "@/components/ui";
 
@@ -55,6 +56,12 @@ export default async function StaffTransfersPage() {
                       {new Date(e.occurredAt).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}
                       {e.voidedAt ? ` · ${labels.salesAdmin.voided}` : ""}
                     </p>
+                    {e.expenses?.[0] && (
+                      <p className="text-xs text-muted-foreground">
+                        🚚 {e.expenses[0].paidToDriver?.name ?? e.expenses[0].paidTo ?? labels.transfer.driver}{" "}
+                        · {formatKyat(e.expenses[0].amount)}
+                      </p>
+                    )}
                   </div>
                   <span className="shrink-0 text-sm text-muted-foreground">
                     {total} {labels.units.htee}

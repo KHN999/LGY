@@ -351,6 +351,13 @@ export interface InventoryEvent {
     unitCost: number | null;
   }>;
   createdBy?: { id: number; username: string; displayName: string };
+  /** Linked expenses (e.g. a transfer's delivery fee). */
+  expenses?: Array<{
+    id: number;
+    amount: number;
+    paidTo: string | null;
+    paidToDriver: { id: number; name: string } | null;
+  }>;
 }
 
 export interface StockExceptionSaleRef {

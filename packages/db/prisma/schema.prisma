@@ -205,6 +205,7 @@ model InventoryEvent {
   lines                     InventoryLine[]
   stockExceptionResolutions StockException[] @relation("StockExceptionResolution")
   saleReturn                SaleReturn?      @relation("SaleReturnEvent")
+  expenses                  Expense[]        @relation("ExpenseEvent")
 
   @@index([kind, occurredAt])
   @@index([occurredAt])
@@ -525,6 +526,9 @@ model Expense {
   paidToEmployee   Employee?       @relation("ExpensePaidToEmployee", fields: [paidToEmployeeId], references: [id])
   paidToDriverId   Int?
   paidToDriver     Driver?         @relation("ExpensePaidToDriver", fields: [paidToDriverId], references: [id])
+  /// Optional link to an inventory event (e.g. a transfer's delivery fee).
+  eventId          Int?
+  event            InventoryEvent? @relation("ExpenseEvent", fields: [eventId], references: [id])
   notes            String?
   createdById      Int
   createdBy        User            @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
@@ -538,6 +542,7 @@ model Expense {
   @@index([categoryId, expenseDate])
   @@index([paidToEmployeeId])
   @@index([paidToDriverId])
+  @@index([eventId])
 }
 
 // ─── Daily cash closing ──────────────────────────────────────────
