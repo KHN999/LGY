@@ -22,6 +22,7 @@ import { StockExceptionsModule } from "./stock-exceptions/stock-exceptions.modul
 import { ReturnsModule } from "./returns/returns.module";
 import { SettingsModule } from "./settings/settings.module";
 import { ShopModule } from "./shop/shop.module";
+import { ExpensesModule } from "./expenses/expenses.module";
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { ShopModule } from "./shop/shop.module";
     ReturnsModule,
     SettingsModule,
     ShopModule,
+    ExpensesModule,
   ],
   controllers: [HealthController],
 })

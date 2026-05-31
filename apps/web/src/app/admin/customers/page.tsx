@@ -3,7 +3,8 @@ import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
 import { formatKyat } from "@/lib/utils";
 import type { Page, Customer } from "@/lib/api-client";
-import { PageHeader, EmptyState, buttonClass } from "@/components/ui";
+import { PageHeader, EmptyState, Card, buttonClass } from "@/components/ui";
+import { DebtComparisonChart } from "@/components/admin/customer-charts";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,12 @@ export default async function CustomersPage({
     `/api/customers?limit=200${showInactive ? "&activeOnly=false" : ""}`,
   );
   const rows = data?.data ?? [];
+
+  const topDebtors = rows
+    .filter((c) => c.balance > 0)
+    .sort((a, b) => b.balance - a.balance)
+    .slice(0, 8)
+    .map((c) => ({ name: c.name, debt: c.balance }));
 
   return (
     <div className="flex flex-col gap-4">
@@ -56,6 +63,13 @@ export default async function CustomersPage({
           {labels.admin.showInactive}
         </Link>
       </div>
+
+      {topDebtors.length > 0 && (
+        <Card className="p-4">
+          <h2 className="mb-2 text-sm font-semibold">{labels.customerDetail.topDebtors}</h2>
+          <DebtComparisonChart data={topDebtors} />
+        </Card>
+      )}
 
       {rows.length === 0 ? (
         <EmptyState>{labels.admin.empty.customers}</EmptyState>

@@ -4,6 +4,7 @@ import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import type { AuthenticatedUser } from "../auth/jwt-payload";
 import { DailyCloseService } from "./daily-close.service";
 import { CreateDailyCloseDto, PreviewDailyCloseQueryDto } from "./dto/daily-close.dto";
+import { DateRangeQueryDto } from "../common/date-range.query.dto";
 
 @Controller("daily-close")
 @UseGuards(JwtAuthGuard)
@@ -21,7 +22,7 @@ export class DailyCloseController {
   }
 
   @Get()
-  list() {
-    return this.service.list();
+  list(@Query() q: DateRangeQueryDto) {
+    return this.service.list(q);
   }
 }

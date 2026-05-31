@@ -1,20 +1,17 @@
-import { serverFetch } from "@/lib/auth-server";
-import type { ShopState } from "@/lib/api-client";
+import type { ShopId } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 import { ShopSwitchButton } from "./shop-switch-button";
 
 /**
  * Loud, always-visible banner shown to EVERY user whenever the browser is in
  * the test/playground shop — so staff can never mistake practice for real work.
- * Admins also get a one-tap way back to the real shop. Renders nothing in the
- * main shop.
+ * Admins also get a one-tap way back to the real shop. Renders nothing in main.
  */
-export async function ShopBanner({ isAdmin }: { isAdmin: boolean }) {
-  const data = await serverFetch<ShopState>("/api/shop");
-  if (!data || data.shop !== "playground") return null;
+export function ShopBanner({ shop, isAdmin }: { shop: ShopId; isAdmin: boolean }) {
+  if (shop !== "playground") return null;
 
   return (
-    <div className="sticky top-0 z-50 flex items-center justify-center gap-3 border-b-2 border-amber-500 bg-amber-400 px-4 py-2 text-center text-amber-950">
+    <div className="flex items-center justify-center gap-3 border-b-2 border-amber-500 bg-amber-400 px-4 py-2 text-center text-amber-950">
       <span className="text-sm font-bold sm:text-base">
         🧪 {labels.shop.bannerTitle}
         <span className="ml-2 hidden font-normal sm:inline">{labels.shop.bannerNote}</span>

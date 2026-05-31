@@ -30,7 +30,7 @@ export function TransferFlow() {
   const [error, setError] = useState<string | null>(null);
 
   function add(t: ItemType, stock: number) {
-    setDraft({ itemType: t, qty: 1, stock });
+    setDraft({ itemType: t, qty: 0, stock });
   }
   function commit() {
     if (!draft) return;
@@ -46,7 +46,7 @@ export function TransferFlow() {
     setLines((prev) => prev.filter((_, idx) => idx !== i));
   }
 
-  async function onSubmit() {
+  async function onSubmit(print: boolean) {
     if (lines.length === 0) {
       setError(labels.sell.noItems);
       return;
@@ -54,12 +54,13 @@ export function TransferFlow() {
     setError(null);
     setSubmitting(true);
     try {
-      await api.post("/transfers", {
+      const ev = await api.post<{ id: number }>("/transfers", {
         fromLocation: from,
         toLocation: to,
         items: lines.map((l) => ({ itemTypeId: l.itemType.id, qty: l.qty })),
       });
-      router.push("/staff?saved=transfer");
+      // Land on the printable transfer slip (also the history detail).
+      router.push(`/staff/transfers/${ev.id}${print ? "?print=1" : ""}`);
       router.refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : labels.errors.unknown);
@@ -110,10 +111,15 @@ export function TransferFlow() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 p-4 pb-32 sm:p-6">
-      <Link href="/staff" className="self-start rounded-lg border px-4 py-2">
-        ← {labels.common.back}
-      </Link>
-      <h1 className="text-center text-xl font-bold">{labels.transfer.title}</h1>
+      <div className="flex items-center justify-between gap-2">
+        <Link href="/staff" className="rounded-lg border px-3 py-2 text-sm">
+          ← {labels.common.back}
+        </Link>
+        <h1 className="text-xl font-bold">{labels.transfer.title}</h1>
+        <Link href="/staff/transfers" className="rounded-lg border px-3 py-2 text-sm">
+          {labels.transfer.history}
+        </Link>
+      </div>
 
       <div className="rounded-2xl border bg-card p-4">
         <div className="grid grid-cols-2 gap-3">
@@ -177,11 +183,19 @@ export function TransferFlow() {
         <div className="mx-auto flex max-w-2xl gap-3">
           <button
             type="button"
-            onClick={onSubmit}
+            onClick={() => onSubmit(false)}
             disabled={submitting || lines.length === 0 || from === to}
-            className="flex-1 rounded-2xl bg-emerald-600 py-5 text-2xl font-bold text-white shadow disabled:opacity-50"
+            className="flex-1 rounded-2xl border-2 border-emerald-600 py-4 text-lg font-bold text-emerald-700 disabled:opacity-50"
           >
             {submitting ? labels.common.saving : labels.common.save}
+          </button>
+          <button
+            type="button"
+            onClick={() => onSubmit(true)}
+            disabled={submitting || lines.length === 0 || from === to}
+            className="flex-1 rounded-2xl bg-emerald-600 py-4 text-lg font-bold text-white shadow disabled:opacity-50"
+          >
+            🖨 {labels.transfer.savePrint}
           </button>
         </div>
       </div>

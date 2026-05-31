@@ -10,12 +10,29 @@ import type {
   ItemType,
   StockRow,
   DailyClosePreview,
+  Sale,
+  ExpenseRow,
 } from "@/lib/api-client";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, Card } from "@/components/ui";
+import { DateFilter } from "@/components/admin/date-filter";
+import { SalesExpenseBars, ExpenseBreakdownPie } from "@/components/admin/dashboard-charts";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminHomePage() {
+export default async function AdminHomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  const { from, to } = await searchParams;
+  const range = new URLSearchParams();
+  if (from) range.set("from", from);
+  if (to) range.set("to", to);
+  const rangeQs = range.toString();
+  const salesQs = new URLSearchParams({ limit: "1000" });
+  if (from) salesQs.set("fromDate", from);
+  if (to) salesQs.set("toDate", to);
+
   const [
     customers,
     suppliers,
@@ -24,6 +41,8 @@ export default async function AdminHomePage() {
     warehouseStock,
     shopStock,
     todayPreview,
+    salesPage,
+    expenses,
   ] = await Promise.all([
     serverFetch<Page<Customer>>("/api/customers?limit=200"),
     serverFetch<Page<Supplier>>("/api/suppliers?limit=200"),
@@ -32,6 +51,8 @@ export default async function AdminHomePage() {
     serverFetch<StockRow[]>("/api/inventory/stock?location=WAREHOUSE"),
     serverFetch<StockRow[]>("/api/inventory/stock?location=SHOP"),
     serverFetch<DailyClosePreview>("/api/daily-close/preview"),
+    serverFetch<Page<Sale>>(`/api/sales?${salesQs.toString()}`),
+    serverFetch<ExpenseRow[]>(`/api/expenses${rangeQs ? `?${rangeQs}` : ""}`),
   ]);
 
   const customerDebt = (customers?.data ?? []).reduce(
@@ -43,9 +64,33 @@ export default async function AdminHomePage() {
     0,
   );
 
+  // ── Aggregate for charts ──────────────────────────────────────────
+  const dayMap = new Map<string, { sales: number; expenses: number }>();
+  const bucket = (key: string) => dayMap.get(key) ?? dayMap.set(key, { sales: 0, expenses: 0 }).get(key)!;
+  for (const s of salesPage?.data ?? []) {
+    bucket(new Date(s.saleDate).toLocaleDateString("en-CA")).sales += s.grandTotal;
+  }
+  for (const e of expenses ?? []) {
+    bucket(new Date(e.expenseDate).toLocaleDateString("en-CA")).expenses += e.amount;
+  }
+  const trend = [...dayMap.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([d, v]) => ({ date: d.slice(5), sales: v.sales, expenses: v.expenses }));
+
+  const catMap = new Map<string, number>();
+  for (const e of expenses ?? []) catMap.set(e.category.labelMy, (catMap.get(e.category.labelMy) ?? 0) + e.amount);
+  const expenseBreakdown = [...catMap.entries()]
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+
+  const rangeSalesTotal = (salesPage?.data ?? []).reduce((s, x) => s + x.grandTotal, 0);
+  const rangeExpenseTotal = (expenses ?? []).reduce((s, x) => s + x.amount, 0);
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={labels.admin.dashboard} />
+
+      <DateFilter />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
@@ -66,6 +111,25 @@ export default async function AdminHomePage() {
           value={formatKyat(supplierDebt)}
           tone={supplierDebt > 0 ? "warn" : "default"}
         />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="p-4">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold">
+              {labels.salesAdmin.title} / {labels.expenses.title}
+            </h2>
+            <span className="text-xs text-muted-foreground">
+              <span className="text-emerald-600">{formatKyat(rangeSalesTotal)}</span> ·{" "}
+              <span className="text-rose-600">{formatKyat(rangeExpenseTotal)}</span>
+            </span>
+          </div>
+          <SalesExpenseBars data={trend} />
+        </Card>
+        <Card className="p-4">
+          <h2 className="mb-2 text-sm font-semibold">{labels.expenses.title}</h2>
+          <ExpenseBreakdownPie data={expenseBreakdown} />
+        </Card>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">

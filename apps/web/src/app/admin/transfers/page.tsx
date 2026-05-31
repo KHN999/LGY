@@ -2,15 +2,26 @@ import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
 import type { InventoryEvent } from "@/lib/api-client";
 import { PageHeader, EmptyState } from "@/components/ui";
+import { DateFilter } from "@/components/admin/date-filter";
 
 export const dynamic = "force-dynamic";
 
-export default async function TransfersPage() {
-  const transfers = await serverFetch<InventoryEvent[]>("/api/transfers");
+export default async function TransfersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  const { from, to } = await searchParams;
+  const p = new URLSearchParams();
+  if (from) p.set("from", from);
+  if (to) p.set("to", to);
+  const qs = p.toString();
+  const transfers = await serverFetch<InventoryEvent[]>(`/api/transfers${qs ? `?${qs}` : ""}`);
   const rows = transfers ?? [];
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title={labels.admin.transfers} />
+      <DateFilter />
       {rows.length === 0 ? (
         <EmptyState>{labels.admin.empty.transfers}</EmptyState>
       ) : (

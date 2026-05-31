@@ -3,6 +3,7 @@ import { labels } from "@/lib/labels";
 import { formatKyat } from "@/lib/utils";
 import type { DailyClose } from "@/lib/api-client";
 import { PageHeader, EmptyState, Card } from "@/components/ui";
+import { DateFilter } from "@/components/admin/date-filter";
 
 export const dynamic = "force-dynamic";
 
@@ -13,13 +14,24 @@ function diffText(d: number) {
   return (d > 0 ? "+" : "") + formatKyat(d);
 }
 
-export default async function ClosesPage() {
-  const closes = await serverFetch<DailyClose[]>("/api/daily-close");
+export default async function ClosesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  const { from, to } = await searchParams;
+  const p = new URLSearchParams();
+  if (from) p.set("from", from);
+  if (to) p.set("to", to);
+  const qs = p.toString();
+  const closes = await serverFetch<DailyClose[]>(`/api/daily-close${qs ? `?${qs}` : ""}`);
   const rows = closes ?? [];
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title={labels.admin.closes} />
+
+      <DateFilter />
 
       {rows.length === 0 ? (
         <EmptyState>{labels.admin.empty.closes}</EmptyState>

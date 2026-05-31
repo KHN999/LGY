@@ -45,6 +45,8 @@ model User {
   supplierPaymentsVoided  SupplierPayment[]      @relation("SuppPayVoidedBy")
   tailorPaymentsCreated   TailorPayment[]        @relation("TailorPayCreatedBy")
   tailorPaymentsVoided    TailorPayment[]        @relation("TailorPayVoidedBy")
+  tailorChargesCreated    TailorCharge[]         @relation("TailorChargeCreatedBy")
+  tailorChargesVoided     TailorCharge[]         @relation("TailorChargeVoidedBy")
   expensesCreated         Expense[]              @relation("ExpenseCreatedBy")
   expensesVoided          Expense[]              @relation("ExpenseVoidedBy")
   supplierOrdersCreated   SupplierOrder[]        @relation("SupplierOrderCreatedBy")
@@ -110,6 +112,7 @@ model Tailor {
   updatedAt          DateTime    @updatedAt
 
   payments       TailorPayment[]
+  charges        TailorCharge[]
   inventoryLines InventoryLine[]
 }
 
@@ -475,6 +478,29 @@ enum PaymentMethod {
   BANK_TRANSFER
   MOBILE_MONEY
   OTHER
+}
+
+/// A fee accrued to a tailor for sewing work (the "we owe" side). Amount is
+/// editable; pieces/feePerPiece are an optional convenience for deriving it.
+/// Tailor balance = Σ charges.amount − Σ payments.amount (non-voided).
+model TailorCharge {
+  id          Int       @id @default(autoincrement())
+  tailorId    Int
+  tailor      Tailor    @relation(fields: [tailorId], references: [id])
+  amount      Int
+  pieces      Int?
+  feePerPiece Int?
+  note        String?
+  chargeDate  DateTime  @default(now())
+  createdById Int
+  createdBy   User      @relation("TailorChargeCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+  voidedAt    DateTime?
+  voidedById  Int?
+  voidedBy    User?     @relation("TailorChargeVoidedBy", fields: [voidedById], references: [id])
+  voidReason  String?
+
+  @@index([tailorId, chargeDate])
 }
 
 // ─── Operating expenses ──────────────────────────────────────────

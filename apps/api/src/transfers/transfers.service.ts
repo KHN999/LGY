@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryService } from "../inventory/inventory.service";
 import { CreateTransferDto } from "./dto/transfer.dto";
@@ -82,15 +82,37 @@ export class TransfersService {
     });
   }
 
-  async list() {
+  async list(range: { from?: string; to?: string } = {}) {
     return this.prisma.inventoryEvent.findMany({
-      where: { kind: "TRANSFER" },
+      where: {
+        kind: "TRANSFER",
+        ...(range.from || range.to
+          ? {
+              occurredAt: {
+                ...(range.from ? { gte: new Date(range.from) } : {}),
+                ...(range.to ? { lte: new Date(range.to) } : {}),
+              },
+            }
+          : {}),
+      },
       orderBy: { occurredAt: "desc" },
-      take: 100,
+      take: 200,
       include: {
         lines: { include: { itemType: true } },
         createdBy: { select: { id: true, username: true, displayName: true } },
       },
     });
+  }
+
+  async getOne(id: number) {
+    const event = await this.prisma.inventoryEvent.findFirst({
+      where: { id, kind: "TRANSFER" },
+      include: {
+        lines: { include: { itemType: true } },
+        createdBy: { select: { id: true, username: true, displayName: true } },
+      },
+    });
+    if (!event) throw new NotFoundException(`Transfer ${id} not found`);
+    return event;
   }
 }

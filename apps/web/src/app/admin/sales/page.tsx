@@ -4,6 +4,7 @@ import { labels } from "@/lib/labels";
 import { formatKyat } from "@/lib/utils";
 import type { Page, Sale } from "@/lib/api-client";
 import { PageHeader, EmptyState } from "@/components/ui";
+import { DateFilter } from "@/components/admin/date-filter";
 
 export const dynamic = "force-dynamic";
 
@@ -28,16 +29,33 @@ const FILTERS: Array<{ key?: Sale["status"]; label: string }> = [
 export default async function SalesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; from?: string; to?: string; range?: string }>;
 }) {
-  const { status } = await searchParams;
-  const qs = status ? `?status=${status}&limit=50` : "?limit=50";
-  const page = await serverFetch<Page<Sale>>(`/api/sales${qs}`);
+  const { status, from, to, range } = await searchParams;
+
+  const apiParams = new URLSearchParams({ limit: "50" });
+  if (status) apiParams.set("status", status);
+  if (from) apiParams.set("fromDate", from);
+  if (to) apiParams.set("toDate", to);
+  const page = await serverFetch<Page<Sale>>(`/api/sales?${apiParams.toString()}`);
   const rows = page?.data ?? [];
+
+  // Status tabs keep the active date range.
+  const statusHref = (key?: Sale["status"]) => {
+    const p = new URLSearchParams();
+    if (from) p.set("from", from);
+    if (to) p.set("to", to);
+    if (range) p.set("range", range);
+    if (key) p.set("status", key);
+    const qs = p.toString();
+    return qs ? `/admin/sales?${qs}` : "/admin/sales";
+  };
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title={labels.salesAdmin.title} />
+
+      <DateFilter />
 
       <nav className="flex flex-wrap gap-2">
         {FILTERS.map((f) => {
@@ -45,7 +63,7 @@ export default async function SalesPage({
           return (
             <Link
               key={f.label}
-              href={f.key ? `/admin/sales?status=${f.key}` : "/admin/sales"}
+              href={statusHref(f.key)}
               className={
                 "rounded-lg px-3 py-1.5 text-sm " +
                 (active ? "bg-primary text-primary-foreground" : "border bg-card hover:bg-accent")

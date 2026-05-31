@@ -131,8 +131,17 @@ export class DailyCloseService {
     });
   }
 
-  async list(limit = 30) {
+  async list(range: { from?: string; to?: string } = {}, limit = 120) {
     return this.prisma.dailyClose.findMany({
+      where:
+        range.from || range.to
+          ? {
+              closeDate: {
+                ...(range.from ? { gte: new Date(range.from) } : {}),
+                ...(range.to ? { lte: new Date(range.to) } : {}),
+              },
+            }
+          : {},
       orderBy: { closeDate: "desc" },
       take: limit,
       include: { closedBy: { select: { id: true, displayName: true } } },

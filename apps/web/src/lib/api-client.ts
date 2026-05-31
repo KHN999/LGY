@@ -114,6 +114,49 @@ export interface Tailor {
   balance: number;
 }
 
+export interface TailorCharge {
+  id: number;
+  amount: number;
+  pieces: number | null;
+  feePerPiece: number | null;
+  note: string | null;
+  chargeDate: string;
+  voidedAt: string | null;
+}
+
+export interface TailorPaymentRow {
+  id: number;
+  amount: number;
+  method: string;
+  notes: string | null;
+  paymentDate: string;
+  voidedAt: string | null;
+}
+
+export interface TailorDetail extends Tailor {
+  charges: TailorCharge[];
+  payments: TailorPaymentRow[];
+}
+
+export interface ExpenseCategory {
+  id: number;
+  key: string;
+  labelMy: string;
+  isActive: boolean;
+}
+
+export interface ExpenseRow {
+  id: number;
+  expenseDate: string;
+  amount: number;
+  paidTo: string | null;
+  notes: string | null;
+  category: { id: number; key: string; labelMy: string };
+  paidToEmployee: { id: number; name: string } | null;
+  paidToDriver: { id: number; name: string } | null;
+  voidedAt: string | null;
+}
+
 export interface Driver {
   id: number;
   name: string;
