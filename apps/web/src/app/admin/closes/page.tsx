@@ -42,7 +42,7 @@ export default async function ClosesPage({
             {rows.map((c) => (
               <Card key={c.id} className="p-4">
                 <div className="mb-2 flex items-center justify-between border-b pb-2">
-                  <span className="font-semibold">{c.closeDate.slice(0, 10)}</span>
+                  <span className="font-semibold">{c.date}</span>
                   <span className={"font-bold tabular-nums " + diffClass(c.difference)}>
                     {diffText(c.difference)}
                   </span>
@@ -75,7 +75,7 @@ export default async function ClosesPage({
               <tbody>
                 {rows.map((c) => (
                   <tr key={c.id} className="border-b last:border-b-0">
-                    <td className="px-3 py-2">{c.closeDate.slice(0, 10)}</td>
+                    <td className="px-3 py-2">{c.date}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatKyat(c.openingCash)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatKyat(c.receivedTotal)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatKyat(c.paidOutTotal)}</td>

@@ -302,6 +302,9 @@ export interface DailyClosePreview {
 
 export interface DailyClose {
   id: number;
+  /** Yangon business date (YYYY-MM-DD). Use this for display — closeDate is a
+   *  UTC instant at Yangon midnight, so slicing its ISO is a day early. */
+  date: string;
   closeDate: string;
   openingCash: number;
   receivedTotal: number;

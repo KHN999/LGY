@@ -132,7 +132,7 @@ export class DailyCloseService {
   }
 
   async list(range: { from?: string; to?: string } = {}, limit = 120) {
-    return this.prisma.dailyClose.findMany({
+    const rows = await this.prisma.dailyClose.findMany({
       where:
         range.from || range.to
           ? {
@@ -146,5 +146,8 @@ export class DailyCloseService {
       take: limit,
       include: { closedBy: { select: { id: true, displayName: true } } },
     });
+    // closeDate is stored at Yangon midnight (the previous calendar day in UTC),
+    // so a raw ISO slice is a day early. Expose the real Yangon business date.
+    return rows.map((r) => ({ ...r, date: toYangonYmd(r.closeDate) }));
   }
 }

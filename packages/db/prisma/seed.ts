@@ -44,6 +44,15 @@ function midnight(n: number): Date {
   d.setHours(0, 0, 0, 0);
   return d;
 }
+// Yangon (+06:30) day anchoring — matches the API's ymdToYangonStart so demo and
+// real daily closes are stored the same way (Yangon midnight).
+const YANGON_OFFSET_MIN = 390;
+function yangonYmd(d: Date): string {
+  return new Date(d.getTime() + YANGON_OFFSET_MIN * 60_000).toISOString().slice(0, 10);
+}
+function yangonStart(ymd: string): Date {
+  return new Date(`${ymd}T00:00:00+06:30`);
+}
 
 // Per-item economics (kyat). ROLL is raw material (not sold).
 const ECON: Record<string, { cost: number; sell: number }> = {
@@ -561,7 +570,7 @@ async function seedDemo(adminId: number) {
     const carryForward = chance(0.4) ? pick([50_000, 100_000]) : 0;
     await prisma.dailyClose.create({
       data: {
-        closeDate: midnight(o),
+        closeDate: yangonStart(yangonYmd(midnight(o))),
         openingCash,
         receivedTotal: acc.received,
         paidOutTotal: acc.paidOut,

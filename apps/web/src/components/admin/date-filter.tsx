@@ -5,18 +5,23 @@ import { labels } from "@/lib/labels";
 
 type Preset = "today" | "week" | "month" | "all" | "custom";
 
-function startOfDay(d: Date) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
+// All boundaries are anchored to Yangon time (+06:30), NOT the viewer's browser
+// timezone, so the filter is correct from anywhere and lines up with how the
+// backend stores day-anchored data (e.g. daily closes at Yangon midnight).
+const YGN = "+06:30";
+const YGN_OFFSET_MS = 390 * 60_000;
+
+/** YYYY-MM-DD in Yangon for a given instant. */
+function yangonYmd(d: Date) {
+  return new Date(d.getTime() + YGN_OFFSET_MS).toISOString().slice(0, 10);
 }
-function endOfDay(d: Date) {
-  const x = new Date(d);
-  x.setHours(23, 59, 59, 999);
-  return x;
+/** Yangon 00:00:00 of the given YYYY-MM-DD, as an instant. */
+function yangonStart(ymd: string) {
+  return new Date(`${ymd}T00:00:00.000${YGN}`);
 }
-function ymdLocal(iso: string) {
-  return new Date(iso).toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
+/** Yangon 23:59:59.999 of the given YYYY-MM-DD, as an instant. */
+function yangonEnd(ymd: string) {
+  return new Date(`${ymd}T23:59:59.999${YGN}`);
 }
 
 /**
@@ -46,30 +51,34 @@ export function DateFilter() {
 
   function preset(p: "today" | "week" | "month" | "all") {
     const now = new Date();
-    if (p === "today") apply("today", startOfDay(now), endOfDay(now));
-    else if (p === "week")
-      apply("week", startOfDay(new Date(now.getTime() - 6 * 86400000)), endOfDay(now));
-    else if (p === "month")
-      apply("month", new Date(now.getFullYear(), now.getMonth(), 1), endOfDay(now));
-    else apply("all");
+    const todayYmd = yangonYmd(now);
+    if (p === "today") apply("today", yangonStart(todayYmd), yangonEnd(todayYmd));
+    else if (p === "week") {
+      const weekAgoYmd = yangonYmd(new Date(now.getTime() - 6 * 86_400_000));
+      apply("week", yangonStart(weekAgoYmd), yangonEnd(todayYmd));
+    } else if (p === "month") {
+      const firstOfMonth = `${todayYmd.slice(0, 8)}01`; // YYYY-MM-01
+      apply("month", yangonStart(firstOfMonth), yangonEnd(todayYmd));
+    } else apply("all");
   }
 
   function setCustom(which: "from" | "to", value: string) {
     if (!value) return;
     const fromIso = sp.get("from");
     const toIso = sp.get("to");
+    const todayYmd = yangonYmd(new Date());
     const from =
       which === "from"
-        ? new Date(`${value}T00:00:00`)
+        ? yangonStart(value)
         : fromIso
           ? new Date(fromIso)
-          : startOfDay(new Date());
+          : yangonStart(todayYmd);
     const to =
       which === "to"
-        ? new Date(`${value}T23:59:59.999`)
+        ? yangonEnd(value)
         : toIso
           ? new Date(toIso)
-          : endOfDay(new Date());
+          : yangonEnd(todayYmd);
     apply("custom", from, to);
   }
 
@@ -88,8 +97,8 @@ export function DateFilter() {
     </button>
   );
 
-  const fromVal = active === "custom" && sp.get("from") ? ymdLocal(sp.get("from")!) : "";
-  const toVal = active === "custom" && sp.get("to") ? ymdLocal(sp.get("to")!) : "";
+  const fromVal = active === "custom" && sp.get("from") ? yangonYmd(new Date(sp.get("from")!)) : "";
+  const toVal = active === "custom" && sp.get("to") ? yangonYmd(new Date(sp.get("to")!)) : "";
 
   return (
     <div className="flex flex-wrap items-center gap-2">
