@@ -2,7 +2,7 @@ import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
-import { JwtPayload } from "./jwt-payload";
+import { AuthenticatedUser, JwtPayload } from "./jwt-payload";
 
 export interface LoginResult {
   token: string;
@@ -70,5 +70,27 @@ export class AuthService {
 
   verifyToken(token: string): JwtPayload {
     return this.jwt.verify<JwtPayload>(token);
+  }
+
+  /**
+   * Verify a session token AND re-check the account against the database, so a
+   * disabled user (or a changed role) takes effect immediately rather than
+   * lingering until the 30-day token expires. Returns fresh identity + roles.
+   */
+  async validateSession(token: string): Promise<AuthenticatedUser> {
+    const payload = this.jwt.verify<JwtPayload>(token);
+    const user = await this.prisma.main.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, username: true, displayName: true, roles: true, status: true },
+    });
+    if (!user || user.status !== "ACTIVE") {
+      throw new UnauthorizedException("User not found or disabled");
+    }
+    return {
+      sub: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      roles: user.roles,
+    };
   }
 }

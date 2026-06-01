@@ -14,14 +14,15 @@ const COOKIE_NAME = "lgy_session";
 export class JwtAuthGuard implements CanActivate {
   constructor(private readonly auth: AuthService) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<Request & { user?: AuthenticatedUser }>();
     const token = req.cookies?.[COOKIE_NAME];
     if (!token || typeof token !== "string") {
       throw new UnauthorizedException("Not authenticated");
     }
     try {
-      req.user = this.auth.verifyToken(token);
+      // Re-validates against the DB (status + fresh roles), not just the token.
+      req.user = await this.auth.validateSession(token);
       return true;
     } catch {
       throw new UnauthorizedException("Session invalid or expired");

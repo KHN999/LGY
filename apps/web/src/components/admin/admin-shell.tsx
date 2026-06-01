@@ -50,6 +50,7 @@ const GROUPS: { title: string; items: NavItem[] }[] = [
     title: labels.admin.navGroups.system,
     items: [
       { href: "/admin/exceptions", label: labels.admin.exceptions, icon: "⚠️" },
+      { href: "/admin/users", label: labels.admin.users, icon: "🔐" },
       { href: "/admin/settings", label: labels.admin.settings, icon: "⚙️" },
     ],
   },

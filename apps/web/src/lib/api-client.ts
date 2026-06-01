@@ -93,6 +93,17 @@ export interface Customer {
   balance: number;
 }
 
+/** A login account (admin-managed). Never includes the password hash. */
+export interface ManagedUser {
+  id: number;
+  username: string;
+  displayName: string;
+  roles: string[];
+  status: "ACTIVE" | "DISABLED";
+  photoUrl: string | null;
+  createdAt: string;
+}
+
 export interface Supplier {
   id: number;
   name: string;

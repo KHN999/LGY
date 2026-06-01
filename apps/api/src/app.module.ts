@@ -23,6 +23,7 @@ import { ReturnsModule } from "./returns/returns.module";
 import { SettingsModule } from "./settings/settings.module";
 import { ShopModule } from "./shop/shop.module";
 import { ExpensesModule } from "./expenses/expenses.module";
+import { UsersModule } from "./users/users.module";
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { ExpensesModule } from "./expenses/expenses.module";
     SettingsModule,
     ShopModule,
     ExpensesModule,
+    UsersModule,
   ],
   controllers: [HealthController],
 })

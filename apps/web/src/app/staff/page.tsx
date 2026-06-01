@@ -9,7 +9,6 @@ const actions = [
   { href: "/staff/receive", label: labels.staff.receive, icon: "💵", color: "bg-amber-600" },
   { href: "/staff/debts", label: labels.staff.debts, icon: "📋", color: "bg-violet-600" },
   { href: "/staff/transfer", label: labels.staff.transfer, icon: "🚚", color: "bg-sky-600" },
-  { href: "/staff/transfers", label: labels.transfer.history, icon: "📜", color: "bg-sky-800" },
   { href: "/staff/stock", label: labels.staff.viewStock, icon: "📦", color: "bg-slate-600" },
   { href: "/staff/close", label: labels.staff.close, icon: "🌙", color: "bg-rose-600" },
 ];
