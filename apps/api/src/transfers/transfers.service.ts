@@ -84,19 +84,20 @@ export class TransfersService {
       // when a tracked driver is chosen; a one-off taxi is free-text).
       if (dto.driverFee && dto.driverFee > 0) {
         const category = await tx.expenseCategory.findUnique({ where: { key: "transport" } });
-        if (category) {
-          await tx.expense.create({
-            data: {
-              categoryId: category.id,
-              amount: dto.driverFee,
-              paidToDriverId: dto.driverId ?? null,
-              paidTo: dto.driverId ? null : dto.driverName?.trim() || "Taxi",
-              eventId: event.id,
-              notes: `Transfer #${event.id}`,
-              createdById,
-            },
-          });
+        if (!category) {
+          throw new BadRequestException("Expense category 'transport' is missing — cannot record the delivery fee");
         }
+        await tx.expense.create({
+          data: {
+            categoryId: category.id,
+            amount: dto.driverFee,
+            paidToDriverId: dto.driverId ?? null,
+            paidTo: dto.driverId ? null : dto.driverName?.trim() || "Taxi",
+            eventId: event.id,
+            notes: `Transfer #${event.id}`,
+            createdById,
+          },
+        });
       }
 
       return event;

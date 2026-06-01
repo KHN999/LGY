@@ -78,6 +78,13 @@ export class CreateReceiptDto {
   notes?: string;
 }
 
+export class CancelReceiptDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  reason?: string;
+}
+
 export class ListSupplierOrdersQueryDto {
   @IsOptional()
   @Type(() => Number)

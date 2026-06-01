@@ -23,6 +23,8 @@ import {
   UpdateTailorChargeDto,
   CreateTailorPaymentDto,
   VoidReasonDto,
+  SendToTailorDto,
+  ReceiveFromTailorDto,
 } from "./dto/tailor.dto";
 import { PaginationQueryDto } from "../common/pagination.dto";
 
@@ -55,6 +57,16 @@ export class TailorsController {
   @Get(":id")
   getOne(@Param("id", ParseIntPipe) id: number) {
     return this.service.getOne(id);
+  }
+
+  @Get("jobs/:eventId")
+  getJob(@Param("eventId", ParseIntPipe) eventId: number) {
+    return this.service.getJob(eventId);
+  }
+
+  @Get(":id/jobs")
+  jobs(@Param("id", ParseIntPipe) id: number) {
+    return this.service.getJobs(id);
   }
 
   @Post()
@@ -122,5 +134,28 @@ export class TailorsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.voidPayment(paymentId, dto.reason, user.sub);
+  }
+
+  // ── Production: send / receive ───────────────────────────────────
+  @Post(":id/send")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  send(
+    @Param("id", ParseIntPipe) id: number,
+    @Body() dto: SendToTailorDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.sendToTailor(id, dto, user.sub);
+  }
+
+  @Post(":id/receive")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  receive(
+    @Param("id", ParseIntPipe) id: number,
+    @Body() dto: ReceiveFromTailorDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.receiveFromTailor(id, dto, user.sub);
   }
 }

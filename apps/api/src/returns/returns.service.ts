@@ -113,4 +113,24 @@ export class ReturnsService {
       include: { lines: { include: { itemType: true } } },
     });
   }
+
+  /** Undo a return: voids the SaleReturn and its RETURN_FROM_CUSTOMER event
+   * (so the goods leave stock again and the receivable/refund are reversed). */
+  async voidReturn(returnId: number, reason: string | undefined, userId: number) {
+    return this.prisma.$transaction(async (tx) => {
+      const r = await tx.saleReturn.findUnique({ where: { id: returnId } });
+      if (!r) throw new NotFoundException(`Return ${returnId} not found`);
+      if (r.voidedAt) return r;
+      if (r.eventId) {
+        await tx.inventoryEvent.update({
+          where: { id: r.eventId },
+          data: { voidedAt: new Date(), voidedById: userId, voidReason: reason },
+        });
+      }
+      return tx.saleReturn.update({
+        where: { id: returnId },
+        data: { voidedAt: new Date(), voidedById: userId, voidReason: reason },
+      });
+    });
+  }
 }

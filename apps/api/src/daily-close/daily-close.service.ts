@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { addDays, startOfTodayYangon, ymdToYangonStart } from "../common/yangon-time";
+import { addDays, startOfTodayYangon, toYangonYmd, ymdToYangonStart } from "../common/yangon-time";
 import { CreateDailyCloseDto } from "./dto/daily-close.dto";
 
 export interface DailyClosePreview {
@@ -30,7 +30,7 @@ export class DailyCloseService {
   async preview(date?: string): Promise<DailyClosePreview> {
     const dayStart = date ? ymdToYangonStart(date) : startOfTodayYangon();
     const dayEnd = addDays(dayStart, 1);
-    const ymd = (date ?? dayStart.toISOString().slice(0, 10));
+    const ymd = date ?? toYangonYmd(dayStart);
 
     const existing = await this.prisma.dailyClose.findUnique({ where: { closeDate: dayStart } });
     const previousClose = await this.prisma.dailyClose.findFirst({

@@ -27,7 +27,7 @@ export class SupplierOrdersService {
       include: {
         supplier: { select: { id: true, name: true } },
         itemType: { select: { id: true, key: true, labelMy: true, emoji: true } },
-        receipts: { orderBy: { receivedAt: "asc" } },
+        receipts: { where: { voidedAt: null }, orderBy: { receivedAt: "asc" } },
         payments: { where: { voidedAt: null }, orderBy: { paymentDate: "asc" } },
       },
     });
@@ -40,7 +40,7 @@ export class SupplierOrdersService {
         supplier: true,
         itemType: true,
         receipts: { orderBy: { receivedAt: "asc" } },
-        payments: { where: { voidedAt: null }, orderBy: { paymentDate: "asc" } },
+        payments: { orderBy: { paymentDate: "asc" } },
       },
     });
     if (!order) throw new NotFoundException(`SupplierOrder ${id} not found`);
@@ -157,7 +157,8 @@ export class SupplierOrdersService {
       });
 
       const totalReceived =
-        order.receipts.reduce((s, r) => s + r.receivedQty, 0) + dto.receivedQty;
+        order.receipts.filter((r) => !r.voidedAt).reduce((s, r) => s + r.receivedQty, 0) +
+        dto.receivedQty;
       const newStatus: SupplierOrderStatus =
         totalReceived >= order.expectedQty ? "RECEIVED" : "PARTIAL_RECEIVED";
 
@@ -167,6 +168,55 @@ export class SupplierOrdersService {
       });
 
       return receipt;
+    });
+  }
+
+  /**
+   * Cancel a recorded receipt (e.g. entered by mistake). Reverses the stock by
+   * voiding the linked RECEIPT event, soft-deletes the receipt, and recomputes
+   * the order status from the remaining non-voided receipts. The supplier balance
+   * drops automatically (getBalance ignores voided receipts).
+   */
+  async cancelReceipt(receiptId: number, reason: string | undefined, userId: number) {
+    return this.prisma.$transaction(async (tx) => {
+      const receipt = await tx.supplierOrderReceipt.findUnique({
+        where: { id: receiptId },
+        include: { order: { include: { receipts: true } } },
+      });
+      if (!receipt) throw new NotFoundException(`Receipt ${receiptId} not found`);
+      if (receipt.voidedAt) throw new ConflictException("Receipt is already cancelled");
+
+      const now = new Date();
+      const why = reason ?? `Receipt #${receiptId} cancelled`;
+
+      // Reverse the stock that this receipt added at WAREHOUSE.
+      await tx.inventoryEvent.update({
+        where: { id: receipt.eventId },
+        data: { voidedAt: now, voidedById: userId, voidReason: why },
+      });
+      await tx.supplierOrderReceipt.update({
+        where: { id: receiptId },
+        data: { voidedAt: now, voidedById: userId, voidReason: reason },
+      });
+
+      // Recompute order status from the receipts that remain (excluding this one).
+      if (receipt.order.status !== "CANCELLED") {
+        const remaining = receipt.order.receipts
+          .filter((r) => r.id !== receiptId && !r.voidedAt)
+          .reduce((s, r) => s + r.receivedQty, 0);
+        const newStatus: SupplierOrderStatus =
+          remaining === 0
+            ? "PENDING"
+            : remaining >= receipt.order.expectedQty
+              ? "RECEIVED"
+              : "PARTIAL_RECEIVED";
+        await tx.supplierOrder.update({
+          where: { id: receipt.order.id },
+          data: { status: newStatus },
+        });
+      }
+
+      return tx.supplierOrderReceipt.findUnique({ where: { id: receiptId } });
     });
   }
 }

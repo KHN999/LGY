@@ -94,7 +94,6 @@ export const my: DeepPartial<Labels> = {
     noResults: "ရှာဖွေမှုနှင့်ကိုက်ညီသော အချက်အလက်မရှိပါ",
     line: "လိုင်း",
     removeLine: "ဖျက်မယ်",
-    creditLimit: "အကြွေးကန့်သတ်ချက်",
     currentDebt: "ယခုအကြွေးကျန်",
     typeChoose: "အရောင်းအမျိုးအစား",
     wholesale: "လက်ကား",
@@ -192,6 +191,7 @@ export const my: DeepPartial<Labels> = {
     submit: "ပြန်အမ်း မှတ်မယ်",
     existing: "ပြန်အမ်းမှု",
     reason: "အကြောင်းပြချက်",
+    void: "ပယ်ဖျက်",
   },
 
   expenses: {
@@ -211,6 +211,27 @@ export const my: DeepPartial<Labels> = {
     total: "စုစုပေါင်း (ပြထား)",
     paySalary: "လစာပေးမယ်",
     pay: "ပေးမယ်",
+  },
+
+  tailorWork: {
+    inHand: "ချုပ်ဆရာထံ",
+    nothing: "ချုပ်ဆရာထံ ပစ္စည်းမရှိ",
+    send: "ချုပ်ရန် ပို့မယ်",
+    receive: "ပြန်လက်ခံမယ်",
+    qty: "အရေအတွက်",
+    addItem: "ပစ္စည်းထည့်",
+    inputItem: "ပို့ထားသည်",
+    sentQty: "ပို့",
+    outputItem: "ပြန်ရ",
+    receivedQty: "ရရှိ",
+    loss: "လျော့",
+    fee: "ချုပ်ခ (ကျပ်)",
+    addLine: "လိုင်းထည့်",
+    receivedTooMany: "ရရှိသည် ပို့သည်ထက် မများရ",
+    history: "ချုပ်လုပ်ငန်း မှတ်တမ်း",
+    sendSlip: "ချုပ်ရန် ပို့",
+    receiveSlip: "ပြန်လက်ခံ",
+    savePrint: "သိမ်း & ပုံနှိပ်",
   },
 
   tailorLedger: {
@@ -319,7 +340,6 @@ export const my: DeepPartial<Labels> = {
       photoUrl: "ဓာတ်ပုံ URL",
       notes: "မှတ်ချက်",
       status: "အခြေအနေ",
-      creditLimit: "အကြွေးကန့်သတ်ချက် (ကျပ်)",
       defaultKind: "မူရင်းအရောင်းအမျိုးအစား",
       defaultFeePerPiece: "တစ်ထည်ချင်းခ (ကျပ်)",
       defaultFee: "တစ်ခေါက်ခ (ကျပ်)",
@@ -375,6 +395,10 @@ export const my: DeepPartial<Labels> = {
       price: "ဈေး (ကျပ်)",
       transportShort: "သယ်ခ",
       totalHint: "တစ်ခုချင်းမတွက်ဘဲ စုစုပေါင်းပိုက်ဆံ",
+      cancelReceipt: "ဒီပစ္စည်းရောက်မှု ပယ်ဖျက်",
+      cancelReceiptConfirm: "ဒီပစ္စည်းရောက်မှု ပယ်ဖျက်မလား။ ထည့်ထားတဲ့ ပစ္စည်းကို ပြန်နုတ်ပါမယ်။",
+      cancelPayment: "ဒီငွေပေးချေမှု ပယ်ဖျက်",
+      cancelPaymentConfirm: "ဒီငွေပေးချေမှု ပယ်ဖျက်မလား။",
     },
   },
 

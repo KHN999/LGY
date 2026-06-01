@@ -98,7 +98,7 @@ export class SuppliersService {
   async getBalance(supplierId: number): Promise<number> {
     // Receipt cost = goodsCost + transportCost.
     const receipts = await this.prisma.supplierOrderReceipt.findMany({
-      where: { order: { supplierId } },
+      where: { order: { supplierId }, voidedAt: null },
       select: { goodsCost: true, transportCost: true },
     });
     const purchasesTotal = receipts.reduce(
@@ -115,7 +115,7 @@ export class SuppliersService {
   async balancesFor(supplierIds: number[]): Promise<Map<number, number>> {
     if (supplierIds.length === 0) return new Map();
     const receipts = await this.prisma.supplierOrderReceipt.findMany({
-      where: { order: { supplierId: { in: supplierIds } } },
+      where: { order: { supplierId: { in: supplierIds } }, voidedAt: null },
       select: {
         goodsCost: true,
         transportCost: true,

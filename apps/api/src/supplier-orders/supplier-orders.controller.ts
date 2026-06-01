@@ -16,6 +16,7 @@ import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import type { AuthenticatedUser } from "../auth/jwt-payload";
 import { SupplierOrdersService } from "./supplier-orders.service";
 import {
+  CancelReceiptDto,
   CreateReceiptDto,
   CreateSupplierOrderDto,
   ListSupplierOrdersQueryDto,
@@ -63,5 +64,16 @@ export class SupplierOrdersController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.recordReceipt(id, dto, user.sub);
+  }
+
+  @Post("receipts/:receiptId/cancel")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  cancelReceipt(
+    @Param("receiptId", ParseIntPipe) receiptId: number,
+    @Body() dto: CancelReceiptDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.cancelReceipt(receiptId, dto.reason, user.sub);
   }
 }

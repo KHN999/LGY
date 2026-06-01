@@ -133,9 +133,18 @@ export interface TailorPaymentRow {
   voidedAt: string | null;
 }
 
+export interface TailorHolding {
+  itemTypeId: number;
+  key: string;
+  labelMy: string;
+  emoji: string | null;
+  qty: number;
+}
+
 export interface TailorDetail extends Tailor {
   charges: TailorCharge[];
   payments: TailorPaymentRow[];
+  holdings: TailorHolding[];
 }
 
 export interface ExpenseCategory {
@@ -308,6 +317,7 @@ export interface SupplierOrderReceipt {
   transportCost: number;
   receivedAt: string;
   notes: string | null;
+  voidedAt: string | null;
 }
 
 export interface SupplierOrderPayment {
@@ -316,6 +326,7 @@ export interface SupplierOrderPayment {
   paymentDate: string;
   method: string;
   notes: string | null;
+  voidedAt: string | null;
 }
 
 export interface SupplierOrder {
@@ -357,6 +368,20 @@ export interface InventoryEvent {
     amount: number;
     paidTo: string | null;
     paidToDriver: { id: number; name: string } | null;
+  }>;
+  /** Linked tailor charges (a TAILOR_RETURN's sewing fee). */
+  tailorCharges?: Array<{ id: number; amount: number; pieces: number | null }>;
+  /** Events derived from this one (e.g. a TAILOR_RETURN's sewing-loss LOSS event). */
+  derivedEvents?: Array<{
+    id: number;
+    kind: string;
+    lines: Array<{
+      direction: "IN" | "OUT";
+      location: "WAREHOUSE" | "SHOP" | "IN_TRANSIT" | "TAILOR";
+      itemTypeId: number;
+      itemType?: ItemType;
+      qty: number;
+    }>;
   }>;
 }
 

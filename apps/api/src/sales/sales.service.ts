@@ -32,7 +32,7 @@ export class SalesService {
   /**
    * Create a sale + its lines + a linked InventoryEvent kind=SALE — all in one
    * atomic transaction. Stock-out lines are created at SHOP location.
-   * Validates: customer active, items exist, shop has enough stock, credit limit.
+   * Validates: customer active, items exist, shop has enough stock.
    */
   async create(dto: CreateSaleDto, createdById: number) {
     const goodsTotal = dto.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
@@ -285,9 +285,10 @@ export class SalesService {
   }
 
   /**
-   * Void a sale: marks the Sale row voided AND voids the linked InventoryEvent.
-   * Stock is restored automatically because aggregations exclude voided rows.
-   * Customer payments tied to this sale stay active (treated as customer credit).
+   * Void a sale: reverses everything tied to it — the SALE stock event, its
+   * customer payments, AND any returns recorded against it (with their
+   * RETURN_FROM_CUSTOMER stock events). Stock & balances self-correct because
+   * aggregations exclude voided rows.
    */
   async voidSale(saleId: number, reason: string, voidedById: number) {
     return this.prisma.$transaction(async (tx) => {
@@ -326,6 +327,29 @@ export class SalesService {
         where: { saleId: sale.id, voidedAt: null },
         data: { voidedAt: now, voidedById, voidReason: `Sale #${sale.id} voided: ${reason}` },
       });
+
+      // Reverse any returns recorded against this sale (and their stock-in
+      // events) — otherwise the returned goods would be counted into stock twice
+      // and the customer balance would be wrong once the sale is gone.
+      const returns = await tx.saleReturn.findMany({
+        where: { saleId: sale.id, voidedAt: null },
+        select: { id: true, eventId: true },
+      });
+      if (returns.length > 0) {
+        await tx.saleReturn.updateMany({
+          where: { saleId: sale.id, voidedAt: null },
+          data: { voidedAt: now, voidedById, voidReason: `Sale #${sale.id} voided: ${reason}` },
+        });
+        const returnEventIds = returns
+          .map((r) => r.eventId)
+          .filter((id): id is number => id != null);
+        if (returnEventIds.length > 0) {
+          await tx.inventoryEvent.updateMany({
+            where: { id: { in: returnEventIds } },
+            data: { voidedAt: now, voidedById, voidReason: `Sale #${sale.id} voided: ${reason}` },
+          });
+        }
+      }
 
       return tx.sale.findUnique({
         where: { id: sale.id },

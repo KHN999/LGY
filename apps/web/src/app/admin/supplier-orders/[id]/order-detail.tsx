@@ -15,7 +15,9 @@ export function OrderDetail({ order }: Props) {
   const router = useRouter();
   const editable = order.status !== "RECEIVED" && order.status !== "CANCELLED";
   const canCancel = order.status === "PENDING";
-  const received = order.receipts.reduce((s, r) => s + r.receivedQty, 0);
+  const received = order.receipts
+    .filter((r) => !r.voidedAt)
+    .reduce((s, r) => s + r.receivedQty, 0);
   const remainingQty = Math.max(0, order.expectedQty - received);
 
   const [openPanel, setOpenPanel] = useState<"none" | "edit" | "payment" | "receipt">("none");
@@ -102,6 +104,34 @@ export function OrderDetail({ order }: Props) {
     setSubmitting(true);
     try {
       await api.patch(`/supplier-orders/${order.id}`, { status: "CANCELLED" });
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : labels.errors.unknown);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function cancelReceipt(id: number) {
+    if (!confirm(labels.admin.order.cancelReceiptConfirm)) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      await api.post(`/supplier-orders/receipts/${id}/cancel`, {});
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : labels.errors.unknown);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function cancelPayment(id: number) {
+    if (!confirm(labels.admin.order.cancelPaymentConfirm)) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      await api.post(`/supplier-payments/${id}/void`, { reason: "Cancelled" });
       router.refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : labels.errors.unknown);
@@ -276,25 +306,42 @@ export function OrderDetail({ order }: Props) {
         <section className="rounded-2xl border bg-card p-4">
           <h2 className="mb-2 text-base font-semibold">{labels.admin.order.recordReceipt}</h2>
           <ul className="flex flex-col divide-y">
-            {order.receipts.map((r) => (
-              <li key={r.id} className="flex items-center justify-between py-2 text-sm">
-                <div>
-                  <p>
-                    <span className="font-medium">{r.receivedQty}</span>{" "}
-                    {labels.units.htee}
-                    {" — "}
-                    {formatKyat(r.goodsCost)}
-                    {r.transportCost > 0 && ` + ${formatKyat(r.transportCost)} ${labels.admin.order.transportShort}`}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(r.receivedAt).toLocaleString("en-US", { hour12: true })}
-                  </p>
-                </div>
-                <p className="font-semibold">
-                  {formatKyat(r.goodsCost + r.transportCost)}
-                </p>
-              </li>
-            ))}
+            {order.receipts.map((r) => {
+              const voided = r.voidedAt != null;
+              return (
+                <li
+                  key={r.id}
+                  className={`flex items-center justify-between gap-2 py-2 text-sm ${voided ? "opacity-50" : ""}`}
+                >
+                  <div className="min-w-0">
+                    <p className={voided ? "line-through" : ""}>
+                      <span className="font-medium">{r.receivedQty}</span>{" "}
+                      {labels.units.htee}
+                      {" — "}
+                      {formatKyat(r.goodsCost)}
+                      {r.transportCost > 0 && ` + ${formatKyat(r.transportCost)} ${labels.admin.order.transportShort}`}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(r.receivedAt).toLocaleString("en-US", { hour12: true })}
+                      {voided && ` · ${labels.admin.order.cancelled}`}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <p className="font-semibold">{formatKyat(r.goodsCost + r.transportCost)}</p>
+                    {!voided && (
+                      <button
+                        type="button"
+                        onClick={() => cancelReceipt(r.id)}
+                        disabled={submitting}
+                        className="rounded-lg border px-2 py-1 text-xs text-destructive disabled:opacity-50"
+                      >
+                        {labels.admin.order.cancelReceipt}
+                      </button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}
@@ -304,16 +351,33 @@ export function OrderDetail({ order }: Props) {
         <section className="rounded-2xl border bg-card p-4">
           <h2 className="mb-2 text-base font-semibold">{labels.admin.order.recordPayment}</h2>
           <ul className="flex flex-col divide-y">
-            {order.payments.map((p) => (
-              <li key={p.id} className="flex items-center justify-between py-2 text-sm">
-                <div>
-                  <p className="font-medium">{formatKyat(p.amount)}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(p.paymentDate).toLocaleString("en-US", { hour12: true })} · {p.method}
-                  </p>
-                </div>
-              </li>
-            ))}
+            {order.payments.map((p) => {
+              const voided = p.voidedAt != null;
+              return (
+                <li
+                  key={p.id}
+                  className={`flex items-center justify-between gap-2 py-2 text-sm ${voided ? "opacity-50" : ""}`}
+                >
+                  <div className="min-w-0">
+                    <p className={`font-medium ${voided ? "line-through" : ""}`}>{formatKyat(p.amount)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(p.paymentDate).toLocaleString("en-US", { hour12: true })} · {p.method}
+                      {voided && ` · ${labels.admin.order.cancelled}`}
+                    </p>
+                  </div>
+                  {!voided && (
+                    <button
+                      type="button"
+                      onClick={() => cancelPayment(p.id)}
+                      disabled={submitting}
+                      className="shrink-0 rounded-lg border px-2 py-1 text-xs text-destructive disabled:opacity-50"
+                    >
+                      {labels.admin.order.cancelPayment}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}

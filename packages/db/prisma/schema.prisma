@@ -51,6 +51,7 @@ model User {
   expensesVoided          Expense[]              @relation("ExpenseVoidedBy")
   supplierOrdersCreated   SupplierOrder[]        @relation("SupplierOrderCreatedBy")
   supplierReceiptsCreated SupplierOrderReceipt[] @relation("SupplierReceiptCreatedBy")
+  supplierReceiptsVoided  SupplierOrderReceipt[] @relation("SupplierReceiptVoidedBy")
   dailyClosesCreated      DailyClose[]
   stockExceptionsResolved StockException[]       @relation("StockExceptionResolvedBy")
   saleReturnsCreated      SaleReturn[]           @relation("SaleReturnCreatedBy")
@@ -70,8 +71,6 @@ model Customer {
   name        String
   contact     String?
   photoUrl    String?
-  // Optional ceiling on outstanding debt; null = no limit.
-  creditLimit Int?
   // Default sale kind for this customer; staff can override per-sale.
   defaultKind SaleKind    @default(WHOLESALE)
   notes       String?
@@ -193,6 +192,13 @@ model InventoryEvent {
   sale    Sale?                 @relation(fields: [saleId], references: [id])
   receipt SupplierOrderReceipt?
 
+  /// Optional link to a parent event this one was derived from — e.g. a LOSS
+  /// event recording the spoilage of a TAILOR_RETURN. Lets a slip reconstruct
+  /// the full picture (sent = good + lost) while keeping stock single-counted.
+  relatedEventId Int?
+  relatedEvent   InventoryEvent?  @relation("EventDerivedFrom", fields: [relatedEventId], references: [id])
+  derivedEvents  InventoryEvent[] @relation("EventDerivedFrom")
+
   createdById Int
   createdBy   User     @relation("InvEventCreatedBy", fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
@@ -206,6 +212,7 @@ model InventoryEvent {
   stockExceptionResolutions StockException[] @relation("StockExceptionResolution")
   saleReturn                SaleReturn?      @relation("SaleReturnEvent")
   expenses                  Expense[]        @relation("ExpenseEvent")
+  tailorCharges             TailorCharge[]   @relation("TailorChargeEvent")
 
   @@index([kind, occurredAt])
   @@index([occurredAt])
@@ -452,6 +459,11 @@ model SupplierOrderReceipt {
   createdBy   User     @relation("SupplierReceiptCreatedBy", fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
 
+  voidedAt   DateTime?
+  voidedById Int?
+  voidedBy   User?     @relation("SupplierReceiptVoidedBy", fields: [voidedById], references: [id])
+  voidReason String?
+
   @@index([orderId])
 }
 
@@ -493,6 +505,9 @@ model TailorCharge {
   feePerPiece Int?
   note        String?
   chargeDate  DateTime  @default(now())
+  /// Optional link to the TAILOR_RETURN event that accrued this fee.
+  eventId     Int?
+  event       InventoryEvent? @relation("TailorChargeEvent", fields: [eventId], references: [id])
   createdById Int
   createdBy   User      @relation("TailorChargeCreatedBy", fields: [createdById], references: [id])
   createdAt   DateTime  @default(now())
@@ -502,6 +517,7 @@ model TailorCharge {
   voidReason  String?
 
   @@index([tailorId, chargeDate])
+  @@index([eventId])
 }
 
 // ─── Operating expenses ──────────────────────────────────────────

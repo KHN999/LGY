@@ -8,6 +8,8 @@ import {
   CreateTailorChargeDto,
   UpdateTailorChargeDto,
   CreateTailorPaymentDto,
+  SendToTailorDto,
+  ReceiveFromTailorDto,
 } from "./dto/tailor.dto";
 
 export interface TailorWithBalance {
@@ -26,9 +28,18 @@ export interface TailorWithBalance {
   balance: number;
 }
 
+export interface TailorHolding {
+  itemTypeId: number;
+  key: string;
+  labelMy: string;
+  emoji: string | null;
+  qty: number;
+}
+
 export interface TailorDetail extends TailorWithBalance {
   charges: TailorCharge[];
   payments: TailorPayment[];
+  holdings: TailorHolding[];
 }
 
 @Injectable()
@@ -75,7 +86,7 @@ export class TailorsService {
   async getOne(id: number): Promise<TailorDetail> {
     const tailor = await this.prisma.tailor.findUnique({ where: { id } });
     if (!tailor) throw new NotFoundException(`Tailor ${id} not found`);
-    const [charges, payments] = await Promise.all([
+    const [charges, payments, holdings] = await Promise.all([
       this.prisma.tailorCharge.findMany({
         where: { tailorId: id, voidedAt: null },
         orderBy: { chargeDate: "desc" },
@@ -84,10 +95,28 @@ export class TailorsService {
         where: { tailorId: id, voidedAt: null },
         orderBy: { paymentDate: "desc" },
       }),
+      this.getHoldings(id),
     ]);
     const balance =
       charges.reduce((s, c) => s + c.amount, 0) - payments.reduce((s, p) => s + p.amount, 0);
-    return { ...tailor, balance, charges, payments };
+    return { ...tailor, balance, charges, payments, holdings };
+  }
+
+  /** Stock currently in the tailor's hands (Σ IN − OUT at location=TAILOR). */
+  async getHoldings(tailorId: number): Promise<TailorHolding[]> {
+    const lines = await this.prisma.inventoryLine.findMany({
+      where: { tailorId, location: "TAILOR", event: { voidedAt: null } },
+      include: { itemType: { select: { id: true, key: true, labelMy: true, emoji: true } } },
+    });
+    const map = new Map<number, TailorHolding>();
+    for (const l of lines) {
+      const t = l.itemType;
+      const cur =
+        map.get(t.id) ?? { itemTypeId: t.id, key: t.key, labelMy: t.labelMy, emoji: t.emoji, qty: 0 };
+      cur.qty += l.direction === "IN" ? l.qty : -l.qty;
+      map.set(t.id, cur);
+    }
+    return [...map.values()].filter((h) => h.qty !== 0);
   }
 
   async create(dto: CreateTailorDto): Promise<TailorWithBalance> {
@@ -226,5 +255,151 @@ export class TailorsService {
       where: { id: paymentId },
       data: { voidedAt: new Date(), voidedById: userId, voidReason: reason },
     });
+  }
+
+  // ── Production: send goods to a tailor / receive them back ─────────
+  async sendToTailor(tailorId: number, dto: SendToTailorDto, userId: number) {
+    await this.ensureTailor(tailorId);
+    return this.prisma.$transaction(async (tx) => {
+      const requested = new Map<number, number>();
+      for (const it of dto.items) requested.set(it.itemTypeId, (requested.get(it.itemTypeId) ?? 0) + it.qty);
+
+      // Validate warehouse has enough.
+      const stockLines = await tx.inventoryLine.findMany({
+        where: { location: "WAREHOUSE", itemTypeId: { in: [...requested.keys()] }, event: { voidedAt: null } },
+        select: { itemTypeId: true, direction: true, qty: true },
+      });
+      const stock = new Map<number, number>();
+      for (const l of stockLines) {
+        stock.set(l.itemTypeId, (stock.get(l.itemTypeId) ?? 0) + (l.direction === "IN" ? l.qty : -l.qty));
+      }
+      for (const [id, qty] of requested) {
+        if ((stock.get(id) ?? 0) < qty) {
+          throw new BadRequestException(`Not enough warehouse stock for item #${id}`);
+        }
+      }
+
+      const lines = dto.items.flatMap((it) => [
+        { direction: "OUT" as const, location: "WAREHOUSE" as const, itemTypeId: it.itemTypeId, qty: it.qty },
+        { direction: "IN" as const, location: "TAILOR" as const, tailorId, itemTypeId: it.itemTypeId, qty: it.qty },
+      ]);
+      return tx.inventoryEvent.create({
+        data: { kind: "TAILOR_SEND", notes: dto.notes, createdById: userId, lines: { create: lines } },
+        include: { lines: { include: { itemType: true } } },
+      });
+    });
+  }
+
+  async receiveFromTailor(tailorId: number, dto: ReceiveFromTailorDto, userId: number) {
+    const tailor = await this.prisma.tailor.findUnique({ where: { id: tailorId } });
+    if (!tailor) throw new NotFoundException(`Tailor ${tailorId} not found`);
+    for (const l of dto.lines) {
+      if (l.receivedQty > l.sentQty) {
+        throw new BadRequestException("Received quantity cannot exceed sent quantity");
+      }
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // Validate the tailor actually holds what's being returned.
+      const holdLines = await tx.inventoryLine.findMany({
+        where: { tailorId, location: "TAILOR", event: { voidedAt: null } },
+        select: { itemTypeId: true, direction: true, qty: true },
+      });
+      const hold = new Map<number, number>();
+      for (const l of holdLines) {
+        hold.set(l.itemTypeId, (hold.get(l.itemTypeId) ?? 0) + (l.direction === "IN" ? l.qty : -l.qty));
+      }
+      const needed = new Map<number, number>();
+      for (const l of dto.lines) needed.set(l.inputItemTypeId, (needed.get(l.inputItemTypeId) ?? 0) + l.sentQty);
+      for (const [id, qty] of needed) {
+        if ((hold.get(id) ?? 0) < qty) {
+          throw new BadRequestException(`Tailor doesn't hold enough of item #${id}`);
+        }
+      }
+
+      // The successful transform: the good input pieces are consumed and the
+      // finished output goes to the warehouse (input qty == output qty).
+      const returnLines = dto.lines.flatMap((l) =>
+        l.receivedQty > 0
+          ? [
+              { direction: "OUT" as const, location: "TAILOR" as const, tailorId, itemTypeId: l.inputItemTypeId, qty: l.receivedQty },
+              { direction: "IN" as const, location: "WAREHOUSE" as const, itemTypeId: l.outputItemTypeId, qty: l.receivedQty },
+            ]
+          : [],
+      );
+      const event = await tx.inventoryEvent.create({
+        data: { kind: "TAILOR_RETURN", notes: dto.notes, createdById: userId, lines: { create: returnLines } },
+        include: { lines: { include: { itemType: true } } },
+      });
+
+      // Spoilage: input pieces that didn't survive sewing leave the tailor as a
+      // LOSS event (so it's an auditable kind=LOSS ledger entry, not silently
+      // dropped). Linked to the return so the slip can still show full sent qty.
+      const lossLines = dto.lines.flatMap((l) => {
+        const lost = l.sentQty - l.receivedQty;
+        return lost > 0
+          ? [{ direction: "OUT" as const, location: "TAILOR" as const, tailorId, itemTypeId: l.inputItemTypeId, qty: lost }]
+          : [];
+      });
+      if (lossLines.length > 0) {
+        await tx.inventoryEvent.create({
+          data: {
+            kind: "LOSS",
+            relatedEventId: event.id,
+            notes: `Sewing loss · tailor #${tailorId}`,
+            createdById: userId,
+            lines: { create: lossLines },
+          },
+        });
+      }
+
+      // Auto-charge the sewing fee to the tailor's ledger.
+      if (dto.fee && dto.fee > 0) {
+        const pieces = dto.lines.reduce((s, l) => s + l.receivedQty, 0);
+        await tx.tailorCharge.create({
+          data: {
+            tailorId,
+            amount: dto.fee,
+            pieces,
+            feePerPiece: tailor.defaultFeePerPiece ?? null,
+            eventId: event.id,
+            note: `Sewing return #${event.id}`,
+            createdById: userId,
+          },
+        });
+      }
+
+      return event;
+    });
+  }
+
+  // ── Tailor job history (send/receive events) ──────────────────────
+  private readonly jobInclude = {
+    lines: { include: { itemType: true } },
+    tailorCharges: { where: { voidedAt: null } },
+    createdBy: { select: { id: true, username: true, displayName: true } },
+    // Linked LOSS events (sewing spoilage) so the slip can show full sent qty.
+    derivedEvents: {
+      where: { voidedAt: null },
+      include: { lines: { include: { itemType: true } } },
+    },
+  };
+
+  async getJobs(tailorId: number) {
+    return this.prisma.inventoryEvent.findMany({
+      where: { kind: { in: ["TAILOR_SEND", "TAILOR_RETURN"] }, lines: { some: { tailorId } } },
+      orderBy: { occurredAt: "desc" },
+      take: 100,
+      include: this.jobInclude,
+    });
+  }
+
+  async getJob(eventId: number) {
+    const event = await this.prisma.inventoryEvent.findFirst({
+      where: { id: eventId, kind: { in: ["TAILOR_SEND", "TAILOR_RETURN"] } },
+      include: this.jobInclude,
+    });
+    if (!event) throw new NotFoundException(`Tailor job ${eventId} not found`);
+    return event;
   }
 }

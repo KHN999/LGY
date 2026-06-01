@@ -34,14 +34,15 @@ export default async function OrderDetailPage({
   const order = await serverFetch<SupplierOrder>(`/api/supplier-orders/${id}`);
   if (!order) notFound();
 
-  const received = order.receipts.reduce((s, r) => s + r.receivedQty, 0);
+  const liveReceipts = order.receipts.filter((r) => !r.voidedAt);
+  const received = liveReceipts.reduce((s, r) => s + r.receivedQty, 0);
   const remaining = Math.max(0, order.expectedQty - received);
   const totalActual =
-    order.receipts.reduce(
-      (s, r) => s + r.goodsCost + r.transportCost,
-      0,
-    ) || order.expectedTotal;
-  const paid = order.payments.reduce((s, p) => s + p.amount, 0);
+    liveReceipts.reduce((s, r) => s + r.goodsCost + r.transportCost, 0) ||
+    order.expectedTotal;
+  const paid = order.payments
+    .filter((p) => !p.voidedAt)
+    .reduce((s, p) => s + p.amount, 0);
   const remainingPay = totalActual - paid;
 
   return (

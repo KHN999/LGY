@@ -53,3 +53,10 @@ export class CreateReturnDto {
   @MaxLength(500)
   notes?: string;
 }
+
+export class VoidReturnDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+}

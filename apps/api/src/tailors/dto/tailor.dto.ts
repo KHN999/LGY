@@ -1,4 +1,6 @@
 import {
+  ArrayMinSize,
+  IsArray,
   IsEnum,
   IsIn,
   IsInt,
@@ -8,7 +10,9 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from "class-validator";
+import { Type } from "class-transformer";
 import { PartialType } from "@nestjs/mapped-types";
 import { PartyStatusInput } from "../../customers/dto/customer.dto";
 
@@ -91,4 +95,67 @@ export class VoidReasonDto {
   @IsString()
   @MaxLength(500)
   reason?: string;
+}
+
+// ── Send goods to a tailor (warehouse → tailor) ─────────────────────
+export class TailorSendItemDto {
+  @IsInt()
+  @Min(1)
+  itemTypeId!: number;
+
+  @IsInt()
+  @Min(1)
+  qty!: number;
+}
+
+export class SendToTailorDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => TailorSendItemDto)
+  items!: TailorSendItemDto[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
+}
+
+// ── Receive from a tailor (tailor → warehouse, with transform/loss) ─
+export class ReceiveLineDto {
+  @IsInt()
+  @Min(1)
+  inputItemTypeId!: number;
+
+  @IsInt()
+  @Min(1)
+  sentQty!: number;
+
+  @IsInt()
+  @Min(1)
+  outputItemTypeId!: number;
+
+  /** Good pieces returned; loss = sentQty − receivedQty. */
+  @IsInt()
+  @Min(0)
+  receivedQty!: number;
+}
+
+export class ReceiveFromTailorDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => ReceiveLineDto)
+  lines!: ReceiveLineDto[];
+
+  /** Total sewing fee for this batch (auto-charged to the tailor). */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  fee?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
 }

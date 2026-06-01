@@ -23,9 +23,25 @@ export function ReceiptView({
   returns: SaleReturnRow[];
   shop?: ShopSettings;
 }) {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [returning, setReturning] = useState(false);
+  const [voidingId, setVoidingId] = useState<number | null>(null);
+  const [voidError, setVoidError] = useState<string | null>(null);
   useEffect(() => setMounted(true), []);
+
+  async function voidReturn(id: number) {
+    setVoidingId(id);
+    setVoidError(null);
+    try {
+      await api.post(`/returns/${id}/void`, {});
+      router.refresh();
+    } catch (err) {
+      setVoidError(err instanceof ApiError ? err.message : labels.errors.unknown);
+    } finally {
+      setVoidingId(null);
+    }
+  }
 
   const data: ReceiptData = {
     saleId: sale.id,
@@ -59,6 +75,11 @@ export function ReceiptView({
       {returns.length > 0 && (
         <section className="rounded-2xl border bg-card p-4">
           <h2 className="mb-2 text-sm font-semibold">{labels.returns.existing}</h2>
+          {voidError && (
+            <p role="alert" className="mb-2 rounded-lg bg-destructive/10 p-2 text-sm text-destructive">
+              {voidError}
+            </p>
+          )}
           <ul className="flex flex-col divide-y text-sm">
             {returns.map((r) => (
               <li key={r.id} className="py-2">
@@ -67,7 +88,19 @@ export function ReceiptView({
                     {new Date(r.returnDate).toLocaleDateString("en-GB")} ·{" "}
                     {r.lines.reduce((s, l) => s + l.qty, 0)} {labels.units.htee}
                   </span>
-                  <span className="text-rose-600">−{formatKyat(r.refundAmount)}</span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-rose-600">−{formatKyat(r.refundAmount)}</span>
+                    {!voided && (
+                      <button
+                        type="button"
+                        onClick={() => voidReturn(r.id)}
+                        disabled={voidingId === r.id}
+                        className="rounded-lg border px-2 py-1 text-xs text-destructive disabled:opacity-50"
+                      >
+                        {voidingId === r.id ? labels.common.saving : labels.returns.void}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {r.notes && <p className="text-xs text-muted-foreground">📝 {r.notes}</p>}
               </li>

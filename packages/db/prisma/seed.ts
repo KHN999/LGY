@@ -150,9 +150,9 @@ async function seedDemo(adminId: number) {
   // ── Parties ──────────────────────────────────────────────────────
   const customers = await Promise.all(
     [
-      { name: "ဦးအောင်ကျော် (လက်ကား)", defaultKind: "WHOLESALE" as const, creditLimit: 2_000_000 },
+      { name: "ဦးအောင်ကျော် (လက်ကား)", defaultKind: "WHOLESALE" as const },
       { name: "ဒေါ်မြ (လက်လီ)", defaultKind: "RETAIL" as const },
-      { name: "ကိုဇော် ဆိုင်", defaultKind: "WHOLESALE" as const, creditLimit: 1_000_000 },
+      { name: "ကိုဇော် ဆိုင်", defaultKind: "WHOLESALE" as const },
       { name: "ဒေါ်နီလာ", defaultKind: "RETAIL" as const },
       { name: "ဦးထွန်းမြင့်", defaultKind: "WHOLESALE" as const },
       { name: " မလှလှ ဈေးသည်", defaultKind: "RETAIL" as const },
