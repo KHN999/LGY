@@ -216,6 +216,8 @@ model InventoryEvent {
 
   @@index([kind, occurredAt])
   @@index([occurredAt])
+  // Stock aggregations filter lines by event.voidedAt IS NULL — index the join key.
+  @@index([voidedAt])
 }
 
 enum InventoryEventKind {
@@ -308,6 +310,7 @@ model Sale {
   returns             SaleReturn[]
 
   @@index([customerId, saleDate])
+  @@index([customerId, voidedAt])
   @@index([saleDate])
   @@index([status])
   @@index([kind, saleDate])
@@ -366,6 +369,7 @@ model CustomerPayment {
   voidReason  String?
 
   @@index([customerId, paymentDate])
+  @@index([customerId, voidedAt])
   @@index([saleId])
 }
 
@@ -390,6 +394,7 @@ model SupplierPayment {
   voidReason  String?
 
   @@index([supplierId, paymentDate])
+  @@index([supplierId, voidedAt])
   @@index([orderId])
 }
 
@@ -465,6 +470,7 @@ model SupplierOrderReceipt {
   voidReason String?
 
   @@index([orderId])
+  @@index([orderId, voidedAt])
 }
 
 model TailorPayment {
@@ -484,6 +490,7 @@ model TailorPayment {
   voidReason  String?
 
   @@index([tailorId, paymentDate])
+  @@index([tailorId, voidedAt])
 }
 
 enum PaymentMethod {
@@ -517,6 +524,7 @@ model TailorCharge {
   voidReason  String?
 
   @@index([tailorId, chargeDate])
+  @@index([tailorId, voidedAt])
   @@index([eventId])
 }
 
@@ -676,6 +684,7 @@ model SaleReturn {
 
   @@index([saleId])
   @@index([customerId])
+  @@index([customerId, voidedAt])
   @@index([returnDate])
 }
 

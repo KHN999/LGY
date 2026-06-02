@@ -1,18 +1,16 @@
 import type { NextConfig } from "next";
 
-// The /api/* proxy target, evaluated at build time. We confirmed Vercel does not
-// reliably expose API_URL to next.config at build, so on Vercel we default to the
-// public production API (a public, non-secret URL). API_URL still wins if present;
-// local dev uses the dev API.
-const API_INTERNAL =
-  process.env.API_URL ??
-  (process.env.VERCEL
-    ? "https://lgyapi-production.up.railway.app"
-    : "http://localhost:4000");
+// The /api/* proxy target, evaluated at build time. Railway injects API_URL into
+// the build, so it's used in production; local dev falls back to the dev API.
+const API_INTERNAL = process.env.API_URL ?? "http://localhost:4000";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   transpilePackages: ["@lgy/db"],
+  experimental: {
+    // Trim chart-page bundles — import only the recharts/lucide modules used.
+    optimizePackageImports: ["recharts", "lucide-react"],
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "**.r2.cloudflarestorage.com" },

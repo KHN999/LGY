@@ -4,13 +4,15 @@ import type { ShopState } from "@/lib/api-client";
 import { ShopBanner } from "@/components/shop/shop-banner";
 
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
-  const user = await getCurrentUser();
+  // Fire both round-trips in parallel — they're independent.
+  const [user, shopState] = await Promise.all([
+    getCurrentUser(),
+    serverFetch<ShopState>("/api/shop"),
+  ]);
   if (!user) redirect("/login?redirect=/staff");
   if (!hasRole(user, "staff") && !hasRole(user, "admin")) {
     redirect("/login?redirect=/staff");
   }
-
-  const shopState = await serverFetch<ShopState>("/api/shop");
 
   // No app-bar on staff screens — each flow has its own Back, and the cash-register
   // pages need the full height. The account/logout menu lives on the staff home.

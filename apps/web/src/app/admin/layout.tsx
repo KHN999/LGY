@@ -5,11 +5,15 @@ import { AdminShell } from "@/components/admin/admin-shell";
 import { ShopBanner } from "@/components/shop/shop-banner";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const user = await getCurrentUser();
+  // Fire both round-trips in parallel — they're independent. (Sequential awaits
+  // here were the latency floor for every admin navigation.)
+  const [user, shopState] = await Promise.all([
+    getCurrentUser(),
+    serverFetch<ShopState>("/api/shop"),
+  ]);
   if (!user) redirect("/login?redirect=/admin");
   if (!hasRole(user, "admin")) redirect("/staff");
 
-  const shopState = await serverFetch<ShopState>("/api/shop");
   const shop = shopState?.shop ?? "main";
 
   return (
