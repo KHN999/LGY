@@ -15,6 +15,13 @@ function urlForShop(shop: ShopId): string {
 // is routed to the active shop's client.
 const OWN_KEYS = new Set(["main", "playground", "onModuleInit", "onModuleDestroy"]);
 
+// Interactive-transaction defaults. Prisma's stock 5s timeout is too tight for
+// multi-step writes (a sale touches ~12-15 rows) once any per-query latency is
+// in play — the sale-creation transaction was timing out (P2028) and failing.
+// Generous values here are a safety net for every $transaction in the app; with
+// a fast DB connection transactions still finish in well under this.
+const TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 20_000 };
+
 /**
  * One Prisma client per shop, fronted by a Proxy that transparently routes
  * every access to the active shop's client. This lets all existing services
@@ -31,8 +38,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   private readonly playground: PrismaClient;
 
   constructor() {
-    super({ datasources: { db: { url: urlForShop("main") } } });
-    this.playground = new PrismaClient({ datasources: { db: { url: urlForShop("playground") } } });
+    super({ datasources: { db: { url: urlForShop("main") } }, transactionOptions: TRANSACTION_OPTIONS });
+    this.playground = new PrismaClient({
+      datasources: { db: { url: urlForShop("playground") } },
+      transactionOptions: TRANSACTION_OPTIONS,
+    });
 
     return new Proxy(this, {
       get: (target, prop, receiver) => {

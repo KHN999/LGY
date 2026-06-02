@@ -4,6 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { api, type ItemType, type StockRow } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 
+// Module-level stale-while-revalidate cache. The item catalog is very stable and
+// shop stock changes slowly, so on repeat visits we paint the last-known values
+// instantly (no skeleton flash, no waiting on two round-trips) and refresh in the
+// background. Cleared on a full page reload — which is also when the shop can change.
+let cachedTypes: ItemType[] | null = null;
+const cachedStock: Record<string, Map<number, number>> = {};
+
 interface Props {
   /** Pass a location to also show stock-on-hand per item type. */
   locationForStock?: "WAREHOUSE" | "SHOP" | "IN_TRANSIT";
@@ -31,15 +38,19 @@ export function ItemTypeGrid({
   allowOversell = false,
   sellableOnly = false,
 }: Props) {
-  const [types, setTypes] = useState<ItemType[]>([]);
-  const [stockByItem, setStockByItem] = useState<Map<number, number>>(new Map());
-  const [loading, setLoading] = useState(true);
+  const stockKey = locationForStock ?? "";
+  const [types, setTypes] = useState<ItemType[]>(() => cachedTypes ?? []);
+  const [stockByItem, setStockByItem] = useState<Map<number, number>>(
+    () => cachedStock[stockKey] ?? new Map(),
+  );
+  // Only the very first load (nothing cached yet) blocks with a skeleton.
+  const [loading, setLoading] = useState(() => cachedTypes === null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const ctrl = new AbortController();
-    setLoading(true);
-    setError(null);
+    const key = locationForStock ?? "";
+    if (cachedTypes === null) setLoading(true);
     Promise.all([
       api.get<ItemType[]>("/item-types", ctrl.signal),
       locationForStock
@@ -47,15 +58,20 @@ export function ItemTypeGrid({
         : Promise.resolve(null),
     ])
       .then(([t, s]) => {
+        cachedTypes = t;
         setTypes(t);
+        setError(null);
         if (s) {
           const map = new Map<number, number>();
           for (const r of s) map.set(r.itemTypeId, r.qty);
+          cachedStock[key] = map;
           setStockByItem(map);
         }
       })
       .catch((e: Error) => {
-        if (e.name !== "AbortError") setError(e.message);
+        // Keep showing cached data on a failed background refresh; only surface
+        // the error when we have nothing to show.
+        if (e.name !== "AbortError" && cachedTypes === null) setError(e.message);
       })
       .finally(() => setLoading(false));
     return () => ctrl.abort();

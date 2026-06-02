@@ -24,7 +24,10 @@ async function bootstrap() {
 
   // Railway (and most PaaS) inject PORT; fall back to API_PORT for local dev.
   const port = Number(process.env.PORT ?? process.env.API_PORT ?? 4000);
-  await app.listen(port, "0.0.0.0");
+  // Bind IPv6 "::" (dual-stack: also accepts IPv4). Railway's PRIVATE network is
+  // IPv6-only, so listening on 0.0.0.0 would make the service unreachable over
+  // <service>.railway.internal — required for web→api private networking.
+  await app.listen(port, "::");
   console.log(`LGY API listening on port ${port}`);
 }
 

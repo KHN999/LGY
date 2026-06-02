@@ -146,7 +146,10 @@ export class SalesService {
             })),
           },
         },
-        include: { lines: { include: { itemType: true } }, customer: true },
+        // No `include` here on purpose: the caller only needs the new sale's id +
+        // saleDate, and an include forces extra readback SELECTs INSIDE this hot
+        // write transaction (one per relation), adding round-trips that pushed it
+        // over the transaction timeout. Read paths (getOne) fetch relations later.
       });
 
       // Linked InventoryEvent of kind=SALE with one OUT line per catalog item.
