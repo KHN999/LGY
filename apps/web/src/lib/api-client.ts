@@ -205,6 +205,19 @@ export interface StockRow {
   qty: number;
 }
 
+/** One server-aggregated payload for the admin dashboard (replaces ~9 calls). */
+export interface DashboardSummary {
+  counts: { itemTypes: number; customers: number; suppliers: number; tailors: number };
+  today: { receivedTotal: number; expectedCash: number };
+  debts: { customer: number; supplier: number };
+  trend: { date: string; sales: number; expenses: number }[];
+  expenseBreakdown: { name: string; value: number }[];
+  rangeSalesTotal: number;
+  rangeExpenseTotal: number;
+  warehouseStock: StockRow[];
+  shopStock: StockRow[];
+}
+
 export interface SaleLine {
   id: number;
   itemTypeId: number | null;

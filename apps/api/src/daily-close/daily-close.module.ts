@@ -5,5 +5,6 @@ import { DailyCloseService } from "./daily-close.service";
 @Module({
   controllers: [DailyCloseController],
   providers: [DailyCloseService],
+  exports: [DailyCloseService],
 })
 export class DailyCloseModule {}

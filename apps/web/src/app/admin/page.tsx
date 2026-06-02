@@ -2,22 +2,24 @@ import Link from "next/link";
 import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
 import { formatKyat } from "@/lib/utils";
-import type {
-  Page,
-  Customer,
-  Supplier,
-  Tailor,
-  ItemType,
-  StockRow,
-  DailyClosePreview,
-  Sale,
-  ExpenseRow,
-} from "@/lib/api-client";
+import type { DashboardSummary, StockRow } from "@/lib/api-client";
 import { PageHeader, Card } from "@/components/ui";
 import { DateFilter } from "@/components/admin/date-filter";
 import { SalesExpenseBars, ExpenseBreakdownPie } from "@/components/admin/dashboard-charts";
 
 export const dynamic = "force-dynamic";
+
+const EMPTY: DashboardSummary = {
+  counts: { itemTypes: 0, customers: 0, suppliers: 0, tailors: 0 },
+  today: { receivedTotal: 0, expectedCash: 0 },
+  debts: { customer: 0, supplier: 0 },
+  trend: [],
+  expenseBreakdown: [],
+  rangeSalesTotal: 0,
+  rangeExpenseTotal: 0,
+  warehouseStock: [],
+  shopStock: [],
+};
 
 export default async function AdminHomePage({
   searchParams,
@@ -25,66 +27,20 @@ export default async function AdminHomePage({
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   const { from, to } = await searchParams;
-  const range = new URLSearchParams();
-  if (from) range.set("from", from);
-  if (to) range.set("to", to);
-  const rangeQs = range.toString();
-  const salesQs = new URLSearchParams({ limit: "1000" });
-  if (from) salesQs.set("fromDate", from);
-  if (to) salesQs.set("toDate", to);
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const qs = params.toString();
 
-  const [
-    customers,
-    suppliers,
-    tailors,
-    itemTypes,
-    warehouseStock,
-    shopStock,
-    todayPreview,
-    salesPage,
-    expenses,
-  ] = await Promise.all([
-    serverFetch<Page<Customer>>("/api/customers?limit=200"),
-    serverFetch<Page<Supplier>>("/api/suppliers?limit=200"),
-    serverFetch<Page<Tailor>>("/api/tailors?limit=200"),
-    serverFetch<ItemType[]>("/api/item-types"),
-    serverFetch<StockRow[]>("/api/inventory/stock?location=WAREHOUSE"),
-    serverFetch<StockRow[]>("/api/inventory/stock?location=SHOP"),
-    serverFetch<DailyClosePreview>("/api/daily-close/preview"),
-    serverFetch<Page<Sale>>(`/api/sales?${salesQs.toString()}`),
-    serverFetch<ExpenseRow[]>(`/api/expenses${rangeQs ? `?${rangeQs}` : ""}`),
-  ]);
+  // One server-aggregated call instead of ~9 round-trips.
+  const summary =
+    (await serverFetch<DashboardSummary>(`/api/dashboard/summary${qs ? `?${qs}` : ""}`)) ?? EMPTY;
 
-  const customerDebt = (customers?.data ?? []).reduce(
-    (s, c) => s + Math.max(0, c.balance),
-    0,
-  );
-  const supplierDebt = (suppliers?.data ?? []).reduce(
-    (s, x) => s + Math.max(0, x.balance),
-    0,
-  );
-
-  // ── Aggregate for charts ──────────────────────────────────────────
-  const dayMap = new Map<string, { sales: number; expenses: number }>();
-  const bucket = (key: string) => dayMap.get(key) ?? dayMap.set(key, { sales: 0, expenses: 0 }).get(key)!;
-  for (const s of salesPage?.data ?? []) {
-    bucket(new Date(s.saleDate).toLocaleDateString("en-CA")).sales += s.grandTotal;
-  }
-  for (const e of expenses ?? []) {
-    bucket(new Date(e.expenseDate).toLocaleDateString("en-CA")).expenses += e.amount;
-  }
-  const trend = [...dayMap.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([d, v]) => ({ date: d.slice(5), sales: v.sales, expenses: v.expenses }));
-
-  const catMap = new Map<string, number>();
-  for (const e of expenses ?? []) catMap.set(e.category.labelMy, (catMap.get(e.category.labelMy) ?? 0) + e.amount);
-  const expenseBreakdown = [...catMap.entries()]
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value);
-
-  const rangeSalesTotal = (salesPage?.data ?? []).reduce((s, x) => s + x.grandTotal, 0);
-  const rangeExpenseTotal = (expenses ?? []).reduce((s, x) => s + x.amount, 0);
+  const trend = summary.trend.map((t) => ({
+    date: t.date.slice(5),
+    sales: t.sales,
+    expenses: t.expenses,
+  }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -95,21 +51,21 @@ export default async function AdminHomePage({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label={labels.close.received + " (" + labels.close.today + ")"}
-          value={todayPreview ? formatKyat(todayPreview.receivedTotal) : "—"}
+          value={formatKyat(summary.today.receivedTotal)}
         />
         <KpiCard
           label={labels.close.expectedCash + " (" + labels.close.today + ")"}
-          value={todayPreview ? formatKyat(todayPreview.expectedCash) : "—"}
+          value={formatKyat(summary.today.expectedCash)}
         />
         <KpiCard
           label={labels.domain.customer + " " + labels.domain.debt}
-          value={formatKyat(customerDebt)}
-          tone={customerDebt > 0 ? "warn" : "default"}
+          value={formatKyat(summary.debts.customer)}
+          tone={summary.debts.customer > 0 ? "warn" : "default"}
         />
         <KpiCard
           label={labels.domain.supplier + " " + labels.domain.debt}
-          value={formatKyat(supplierDebt)}
-          tone={supplierDebt > 0 ? "warn" : "default"}
+          value={formatKyat(summary.debts.supplier)}
+          tone={summary.debts.supplier > 0 ? "warn" : "default"}
         />
       </div>
 
@@ -120,28 +76,28 @@ export default async function AdminHomePage({
               {labels.salesAdmin.title} / {labels.expenses.title}
             </h2>
             <span className="text-xs text-muted-foreground">
-              <span className="text-emerald-600">{formatKyat(rangeSalesTotal)}</span> ·{" "}
-              <span className="text-rose-600">{formatKyat(rangeExpenseTotal)}</span>
+              <span className="text-emerald-600">{formatKyat(summary.rangeSalesTotal)}</span> ·{" "}
+              <span className="text-rose-600">{formatKyat(summary.rangeExpenseTotal)}</span>
             </span>
           </div>
           <SalesExpenseBars data={trend} />
         </Card>
         <Card className="p-4">
           <h2 className="mb-2 text-sm font-semibold">{labels.expenses.title}</h2>
-          <ExpenseBreakdownPie data={expenseBreakdown} />
+          <ExpenseBreakdownPie data={summary.expenseBreakdown} />
         </Card>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        <CountCard href="/admin/item-types" title={labels.admin.itemTypes} count={itemTypes?.length ?? null} />
-        <CountCard href="/admin/customers" title={labels.admin.customers} count={customers?.total ?? null} />
-        <CountCard href="/admin/suppliers" title={labels.admin.suppliers} count={suppliers?.total ?? null} />
-        <CountCard href="/admin/tailors" title={labels.admin.tailors} count={tailors?.total ?? null} />
+        <CountCard href="/admin/item-types" title={labels.admin.itemTypes} count={summary.counts.itemTypes} />
+        <CountCard href="/admin/customers" title={labels.admin.customers} count={summary.counts.customers} />
+        <CountCard href="/admin/suppliers" title={labels.admin.suppliers} count={summary.counts.suppliers} />
+        <CountCard href="/admin/tailors" title={labels.admin.tailors} count={summary.counts.tailors} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <StockSection title={labels.transfer.locWarehouse} rows={warehouseStock ?? []} />
-        <StockSection title={labels.transfer.locShop} rows={shopStock ?? []} />
+        <StockSection title={labels.transfer.locWarehouse} rows={summary.warehouseStock} />
+        <StockSection title={labels.transfer.locShop} rows={summary.shopStock} />
       </div>
     </div>
   );
