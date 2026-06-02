@@ -108,7 +108,7 @@ async function main() {
     { key: "utilities", labelMy: "မီတာခ / ရေခ" },
     { key: "wash_softener", labelMy: "ချည်ပေါင်းသား ကုန်ကျစရိတ်" },
     { key: "tailor_fee", labelMy: "ချုပ်ခ" },
-    { key: "misc", labelMy: "ထွေထွေထူးထူး" },
+    { key: "misc", labelMy: "အခြား ကုန်ကျစရိတ်" },
   ];
   for (const c of categories) {
     await prisma.expenseCategory.upsert({
