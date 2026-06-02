@@ -18,8 +18,13 @@ const SINGLETON_ID = 1;
 export class SettingsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** The singleton shop-settings row (id = 1), created with defaults on first read. */
+  /** The singleton shop-settings row (id = 1), created with defaults on first read.
+   *  Hot path (every sell screen + receipt fetches it), so do a plain READ and
+   *  only create the row the first time it's missing — upserting on every read
+   *  was a write-per-render and measurably slow (~0.7s on the sell screen). */
   async get() {
+    const existing = await this.prisma.shopSetting.findUnique({ where: { id: SINGLETON_ID } });
+    if (existing) return existing;
     return this.prisma.shopSetting.upsert({
       where: { id: SINGLETON_ID },
       create: { id: SINGLETON_ID },
