@@ -56,31 +56,19 @@ export class InventoryService {
     location: Location,
     tx: Tx = this.prisma,
   ): Promise<Map<number, number>> {
-    const [insBy, outsBy] = await Promise.all([
-      tx.inventoryLine.groupBy({
-        by: ["itemTypeId"],
-        where: {
-          direction: "IN",
-          location,
-          tailorId: null,
-          event: { voidedAt: null },
-        },
-        _sum: { qty: true },
-      }),
-      tx.inventoryLine.groupBy({
-        by: ["itemTypeId"],
-        where: {
-          direction: "OUT",
-          location,
-          tailorId: null,
-          event: { voidedAt: null },
-        },
-        _sum: { qty: true },
-      }),
-    ]);
+    // One grouped query (by direction + item) instead of two. Each DB round-trip
+    // is costly on the deploy network, and inside a transaction the two old queries
+    // ran serially — so we fetch once and net IN/OUT client-side.
+    const rows = await tx.inventoryLine.groupBy({
+      by: ["direction", "itemTypeId"],
+      where: { location, tailorId: null, event: { voidedAt: null } },
+      _sum: { qty: true },
+    });
     const map = new Map<number, number>();
-    for (const r of insBy) map.set(r.itemTypeId, (map.get(r.itemTypeId) ?? 0) + (r._sum.qty ?? 0));
-    for (const r of outsBy) map.set(r.itemTypeId, (map.get(r.itemTypeId) ?? 0) - (r._sum.qty ?? 0));
+    for (const r of rows) {
+      const qty = r._sum.qty ?? 0;
+      map.set(r.itemTypeId, (map.get(r.itemTypeId) ?? 0) + (r.direction === "IN" ? qty : -qty));
+    }
     return map;
   }
 
@@ -89,31 +77,16 @@ export class InventoryService {
     tailorId: number,
     tx: Tx = this.prisma,
   ): Promise<Map<number, number>> {
-    const [insBy, outsBy] = await Promise.all([
-      tx.inventoryLine.groupBy({
-        by: ["itemTypeId"],
-        where: {
-          direction: "IN",
-          location: "TAILOR",
-          tailorId,
-          event: { voidedAt: null },
-        },
-        _sum: { qty: true },
-      }),
-      tx.inventoryLine.groupBy({
-        by: ["itemTypeId"],
-        where: {
-          direction: "OUT",
-          location: "TAILOR",
-          tailorId,
-          event: { voidedAt: null },
-        },
-        _sum: { qty: true },
-      }),
-    ]);
+    const rows = await tx.inventoryLine.groupBy({
+      by: ["direction", "itemTypeId"],
+      where: { location: "TAILOR", tailorId, event: { voidedAt: null } },
+      _sum: { qty: true },
+    });
     const map = new Map<number, number>();
-    for (const r of insBy) map.set(r.itemTypeId, (map.get(r.itemTypeId) ?? 0) + (r._sum.qty ?? 0));
-    for (const r of outsBy) map.set(r.itemTypeId, (map.get(r.itemTypeId) ?? 0) - (r._sum.qty ?? 0));
+    for (const r of rows) {
+      const qty = r._sum.qty ?? 0;
+      map.set(r.itemTypeId, (map.get(r.itemTypeId) ?? 0) + (r.direction === "IN" ? qty : -qty));
+    }
     return map;
   }
 }

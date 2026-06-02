@@ -4,11 +4,8 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { Customer, Prisma, TxnStatus } from "@lgy/db";
+import { Prisma, type TxnStatus } from "@lgy/db";
 import { PrismaService } from "../prisma/prisma.service";
-import { InventoryService } from "../inventory/inventory.service";
-import { CustomersService } from "../customers/customers.service";
-import { StockExceptionsService } from "../stock-exceptions/stock-exceptions.service";
 import type { PageResult } from "../common/pagination.dto";
 import { CreateSaleDto } from "./dto/create-sale.dto";
 import { AddPaymentDto } from "./dto/add-payment.dto";
@@ -20,19 +17,34 @@ function statusFor(grandTotal: number, paidAmount: number): TxnStatus {
   return "PARTIAL";
 }
 
+type CreateSaleItemInput = {
+  itemTypeId: number | null;
+  itemName: string | null;
+  qty: number;
+  unitPrice: number;
+  note: string | null;
+};
+
+type CreateSaleSqlRow = {
+  id: number | null;
+  saleDate: Date | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+};
+
+function cleanText(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
 @Injectable()
 export class SalesService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly inventory: InventoryService,
-    private readonly customers: CustomersService,
-    private readonly stockExceptions: StockExceptionsService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Create a sale + its lines + a linked InventoryEvent kind=SALE — all in one
-   * atomic transaction. Stock-out lines are created at SHOP location.
-   * Validates: customer active, items exist, shop has enough stock.
+   * Create a sale + lines + linked stock/payment/oversell rows in one Postgres
+   * statement. A single statement is atomic and avoids Prisma's per-step
+   * transaction round-trips on the hot POS path.
    */
   async create(dto: CreateSaleDto, createdById: number) {
     const goodsTotal = dto.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
@@ -57,148 +69,386 @@ export class SalesService {
       throw new BadRequestException("Buyer name is required to save the customer");
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      let customer: Customer | null = null;
-      if (dto.customerId !== undefined) {
-        customer = await tx.customer.findUnique({ where: { id: dto.customerId } });
-        if (!customer || customer.status !== "ACTIVE") {
-          throw new NotFoundException(`Customer ${dto.customerId} not found or inactive`);
-        }
-      } else if (willCreateCustomer) {
-        customer = await tx.customer.create({ data: { name: dto.customerName!.trim() } });
+    const saleDate = dto.saleDate ? new Date(dto.saleDate) : new Date();
+    const oneTimeName =
+      dto.customerId === undefined && !willCreateCustomer ? cleanText(dto.customerName) : null;
+    const items: CreateSaleItemInput[] = dto.items.map((i) => ({
+      itemTypeId: i.itemTypeId ?? null,
+      itemName: i.itemTypeId === undefined ? cleanText(i.itemName) : null,
+      qty: i.qty,
+      unitPrice: i.unitPrice,
+      note: cleanText(i.note),
+    }));
+    const status = statusFor(grandTotal, paidAmount);
+    // Stock policy (launch default): SHOP sales NEVER block — physical stock is
+    // the source of truth and the ledger is corrected later. Set
+    // SHOP_OVERSELL=block to enforce strict shop stock instead.
+    const enforceStock = process.env.SHOP_OVERSELL === "block";
+
+    const rows = await this.prisma.$queryRaw<CreateSaleSqlRow[]>(Prisma.sql`
+      WITH
+        args AS (
+          SELECT
+            ${dto.customerId ?? null}::int AS customer_id,
+            ${willCreateCustomer}::boolean AS will_create_customer,
+            ${cleanText(dto.customerName)}::text AS customer_name,
+            ${oneTimeName}::text AS one_time_name,
+            ${JSON.stringify(items)}::jsonb AS sale_items,
+            ${dto.kind ?? null}::"SaleKind" AS kind_override,
+            ${goodsTotal}::int AS goods_total,
+            ${discount}::int AS discount,
+            ${grandTotal}::int AS grand_total,
+            ${paidAmount}::int AS paid_amount,
+            ${status}::"TxnStatus" AS txn_status,
+            ${dto.paymentMethod ?? "CASH"}::"PaymentMethod" AS payment_method,
+            ${dto.notes ?? null}::text AS notes,
+            ${saleDate}::timestamp(3) AS sale_date,
+            ${createdById}::int AS created_by_id,
+            ${enforceStock}::boolean AS enforce_stock
+        ),
+        raw_items AS (
+          SELECT elem, ord::int
+          FROM args a
+          CROSS JOIN LATERAL jsonb_array_elements(a.sale_items) WITH ORDINALITY AS item(elem, ord)
+        ),
+        items AS (
+          SELECT
+            ord,
+            (elem->>'itemTypeId')::int AS item_type_id,
+            NULLIF(BTRIM(elem->>'itemName'), '') AS item_name,
+            (elem->>'qty')::int AS qty,
+            (elem->>'unitPrice')::int AS unit_price,
+            NULLIF(BTRIM(elem->>'note'), '') AS note
+          FROM raw_items
+        ),
+        customer_existing AS (
+          SELECT c.id, c."defaultKind"
+          FROM "Customer" c
+          JOIN args a ON c.id = a.customer_id
+          WHERE c.status = 'ACTIVE'::"PartyStatus"
+        ),
+        catalog_requested AS (
+          SELECT item_type_id, SUM(qty)::int AS requested_qty
+          FROM items
+          WHERE item_type_id IS NOT NULL
+          GROUP BY item_type_id
+        ),
+        catalog_types AS (
+          SELECT t.id, t.key, t."isActive"
+          FROM "ItemType" t
+          JOIN catalog_requested r ON r.item_type_id = t.id
+        ),
+        stock AS (
+          SELECT
+            r.item_type_id,
+            COALESCE(
+              SUM(
+                CASE
+                  WHEN ev."voidedAt" IS NULL AND il.direction = 'IN'::"InventoryDirection" THEN il.qty
+                  WHEN ev."voidedAt" IS NULL AND il.direction = 'OUT'::"InventoryDirection" THEN -il.qty
+                  ELSE 0
+                END
+              ),
+              0
+            )::int AS qty
+          FROM catalog_requested r
+          LEFT JOIN "InventoryLine" il
+            ON il."itemTypeId" = r.item_type_id
+           AND il.location = 'SHOP'::"Location"
+           AND il."tailorId" IS NULL
+          LEFT JOIN "InventoryEvent" ev ON ev.id = il."eventId"
+          GROUP BY r.item_type_id
+        ),
+        customer_error AS (
+          SELECT
+            10 AS priority,
+            'CUSTOMER_NOT_FOUND_OR_INACTIVE'::text AS error_code,
+            FORMAT('Customer %s not found or inactive', a.customer_id)::text AS error_message
+          FROM args a
+          WHERE a.customer_id IS NOT NULL
+            AND NOT EXISTS (SELECT 1 FROM customer_existing)
+        ),
+        item_identity_error AS (
+          SELECT
+            20 AS priority,
+            'ITEM_REQUIRES_ID_OR_NAME'::text AS error_code,
+            'Each item needs a catalog itemTypeId or an itemName'::text AS error_message
+          FROM items i
+          WHERE i.item_type_id IS NULL AND i.item_name IS NULL
+          ORDER BY i.ord
+          LIMIT 1
+        ),
+        missing_item_error AS (
+          SELECT
+            30 AS priority,
+            'ITEM_NOT_FOUND'::text AS error_code,
+            FORMAT('ItemType %s not found', r.item_type_id)::text AS error_message
+          FROM catalog_requested r
+          LEFT JOIN catalog_types t ON t.id = r.item_type_id
+          WHERE t.id IS NULL
+          ORDER BY r.item_type_id
+          LIMIT 1
+        ),
+        inactive_item_error AS (
+          SELECT
+            40 AS priority,
+            'ITEM_INACTIVE'::text AS error_code,
+            FORMAT('ItemType %s is inactive', t.key)::text AS error_message
+          FROM catalog_types t
+          WHERE NOT t."isActive"
+          ORDER BY t.id
+          LIMIT 1
+        ),
+        stock_error AS (
+          SELECT
+            50 AS priority,
+            'STOCK_SHORTAGE'::text AS error_code,
+            FORMAT(
+              'Not enough stock for %s at SHOP: have %s, need %s',
+              COALESCE(t.key, FORMAT('#%s', r.item_type_id)),
+              COALESCE(s.qty, 0),
+              r.requested_qty
+            )::text AS error_message
+          FROM catalog_requested r
+          LEFT JOIN catalog_types t ON t.id = r.item_type_id
+          LEFT JOIN stock s ON s.item_type_id = r.item_type_id
+          JOIN args a ON a.enforce_stock
+          WHERE COALESCE(s.qty, 0) < r.requested_qty
+          ORDER BY r.item_type_id
+          LIMIT 1
+        ),
+        validation_errors AS (
+          SELECT * FROM customer_error
+          UNION ALL
+          SELECT * FROM item_identity_error
+          UNION ALL
+          SELECT * FROM missing_item_error
+          UNION ALL
+          SELECT * FROM inactive_item_error
+          UNION ALL
+          SELECT * FROM stock_error
+        ),
+        validation_error AS (
+          SELECT error_code, error_message
+          FROM validation_errors
+          ORDER BY priority
+          LIMIT 1
+        ),
+        created_customer AS (
+          INSERT INTO "Customer" ("name", "updatedAt")
+          SELECT a.customer_name, NOW()
+          FROM args a
+          WHERE a.will_create_customer
+            AND NOT EXISTS (SELECT 1 FROM validation_error)
+          RETURNING id, "defaultKind"
+        ),
+        inserted_sale AS (
+          INSERT INTO "Sale" (
+            "saleDate",
+            "customerId",
+            "customerName",
+            kind,
+            "goodsTotal",
+            discount,
+            "grandTotal",
+            "paidAmount",
+            status,
+            notes,
+            "createdById",
+            "updatedAt"
+          )
+          SELECT
+            a.sale_date,
+            COALESCE(ce.id, cc.id),
+            CASE WHEN ce.id IS NULL AND cc.id IS NULL THEN a.one_time_name ELSE NULL END,
+            COALESCE(a.kind_override, ce."defaultKind", cc."defaultKind", 'RETAIL'::"SaleKind"),
+            a.goods_total,
+            a.discount,
+            a.grand_total,
+            a.paid_amount,
+            a.txn_status,
+            a.notes,
+            a.created_by_id,
+            NOW()
+          FROM args a
+          LEFT JOIN customer_existing ce ON TRUE
+          LEFT JOIN created_customer cc ON TRUE
+          WHERE NOT EXISTS (SELECT 1 FROM validation_error)
+          RETURNING id, "saleDate", "customerId"
+        ),
+        inserted_sale_lines AS (
+          INSERT INTO "SaleLine" (
+            "saleId",
+            "itemTypeId",
+            "itemName",
+            qty,
+            "unitPrice",
+            "lineTotal",
+            note
+          )
+          SELECT
+            s.id,
+            i.item_type_id,
+            i.item_name,
+            i.qty,
+            i.unit_price,
+            i.qty * i.unit_price,
+            i.note
+          FROM inserted_sale s
+          CROSS JOIN items i
+          ORDER BY i.ord
+          RETURNING id
+        ),
+        inserted_inventory_event AS (
+          INSERT INTO "InventoryEvent" (kind, "occurredAt", "saleId", "createdById")
+          SELECT 'SALE'::"InventoryEventKind", a.sale_date, s.id, a.created_by_id
+          FROM args a
+          CROSS JOIN inserted_sale s
+          WHERE EXISTS (SELECT 1 FROM catalog_requested)
+          RETURNING id
+        ),
+        inserted_inventory_lines AS (
+          INSERT INTO "InventoryLine" (
+            "eventId",
+            direction,
+            location,
+            "itemTypeId",
+            qty
+          )
+          SELECT
+            e.id,
+            'OUT'::"InventoryDirection",
+            'SHOP'::"Location",
+            r.item_type_id,
+            r.requested_qty
+          FROM inserted_inventory_event e
+          CROSS JOIN catalog_requested r
+          RETURNING id
+        ),
+        inserted_payment AS (
+          INSERT INTO "CustomerPayment" (
+            "customerId",
+            "saleId",
+            amount,
+            method,
+            "paymentDate",
+            "createdById"
+          )
+          SELECT
+            s."customerId",
+            s.id,
+            a.paid_amount,
+            a.payment_method,
+            a.sale_date,
+            a.created_by_id
+          FROM args a
+          CROSS JOIN inserted_sale s
+          WHERE a.paid_amount > 0
+          RETURNING id
+        ),
+        shortfalls AS (
+          SELECT
+            r.item_type_id,
+            (r.requested_qty - GREATEST(COALESCE(s.qty, 0), 0))::int AS qty_beyond
+          FROM catalog_requested r
+          LEFT JOIN stock s ON s.item_type_id = r.item_type_id
+          WHERE COALESCE(s.qty, 0) < r.requested_qty
+        ),
+        existing_open_exceptions AS (
+          SELECT DISTINCT ON (sf.item_type_id)
+            e.id,
+            e."itemTypeId" AS item_type_id
+          FROM shortfalls sf
+          JOIN "StockException" e
+            ON e."itemTypeId" = sf.item_type_id
+           AND e.location = 'SHOP'::"Location"
+           AND e.status = 'OPEN'::"StockExceptionStatus"
+          WHERE NOT EXISTS (SELECT 1 FROM validation_error)
+          ORDER BY sf.item_type_id, e.id
+        ),
+        updated_exceptions AS (
+          UPDATE "StockException" e
+          SET "lastDetectedAt" = a.sale_date,
+              "updatedAt" = NOW()
+          FROM existing_open_exceptions existing
+          CROSS JOIN args a
+          WHERE e.id = existing.id
+          RETURNING e.id, e."itemTypeId" AS item_type_id
+        ),
+        inserted_exceptions AS (
+          INSERT INTO "StockException" (
+            "itemTypeId",
+            location,
+            "firstDetectedAt",
+            "lastDetectedAt",
+            "updatedAt"
+          )
+          SELECT
+            sf.item_type_id,
+            'SHOP'::"Location",
+            a.sale_date,
+            a.sale_date,
+            NOW()
+          FROM shortfalls sf
+          CROSS JOIN args a
+          WHERE NOT EXISTS (SELECT 1 FROM validation_error)
+            AND NOT EXISTS (
+              SELECT 1
+              FROM existing_open_exceptions existing
+              WHERE existing.item_type_id = sf.item_type_id
+            )
+          RETURNING id, "itemTypeId" AS item_type_id
+        ),
+        touched_exceptions AS (
+          SELECT id, item_type_id FROM updated_exceptions
+          UNION ALL
+          SELECT id, item_type_id FROM inserted_exceptions
+        ),
+        inserted_exception_sales AS (
+          INSERT INTO "StockExceptionSale" ("exceptionId", "saleId", "qtyBeyond")
+          SELECT
+            e.id,
+            s.id,
+            sf.qty_beyond
+          FROM touched_exceptions e
+          JOIN shortfalls sf ON sf.item_type_id = e.item_type_id
+          CROSS JOIN inserted_sale s
+          RETURNING id
+        )
+      SELECT
+        NULL::int AS id,
+        NULL::timestamp AS "saleDate",
+        v.error_code AS "errorCode",
+        v.error_message AS "errorMessage"
+      FROM validation_error v
+
+      UNION ALL
+
+      SELECT
+        s.id,
+        s."saleDate",
+        NULL::text AS "errorCode",
+        NULL::text AS "errorMessage"
+      FROM inserted_sale s
+
+      LIMIT 1
+    `);
+
+    const row = rows[0];
+    if (!row) throw new ConflictException("Sale could not be created");
+    if (row.errorCode) {
+      if (row.errorCode === "CUSTOMER_NOT_FOUND_OR_INACTIVE" || row.errorCode === "ITEM_NOT_FOUND") {
+        throw new NotFoundException(row.errorMessage);
       }
-      // One-time buyer: keep the typed name on the sale (no customer record).
-      const oneTimeName = customer ? null : dto.customerName?.trim() || null;
-
-      // Each item is either a catalog item (itemTypeId, stock-tracked) or a one-off
-      // ad-hoc line (itemName, free-text, not in the catalog, not stock-tracked).
-      for (const it of dto.items) {
-        if (it.itemTypeId === undefined && !it.itemName?.trim()) {
-          throw new BadRequestException("Each item needs a catalog itemTypeId or an itemName");
-        }
+      if (row.errorCode === "STOCK_SHORTAGE") {
+        throw new ConflictException(row.errorMessage);
       }
-      const catalogItems = dto.items.filter((i) => i.itemTypeId !== undefined);
-
-      const ids = [...new Set(catalogItems.map((i) => i.itemTypeId!))];
-      const types = await tx.itemType.findMany({
-        where: { id: { in: ids } },
-        select: { id: true, key: true, labelMy: true, isActive: true },
-      });
-      const typeMap = new Map(types.map((t) => [t.id, t]));
-      for (const it of catalogItems) {
-        const t = typeMap.get(it.itemTypeId!);
-        if (!t) throw new NotFoundException(`ItemType ${it.itemTypeId} not found`);
-        if (!t.isActive) throw new BadRequestException(`ItemType ${t.key} is inactive`);
-      }
-
-      // Shop stock check — catalog items only (ad-hoc items are not stock-tracked).
-      const requested = new Map<number, number>();
-      for (const it of catalogItems) {
-        requested.set(it.itemTypeId!, (requested.get(it.itemTypeId!) ?? 0) + it.qty);
-      }
-      // Stock policy (launch default): SHOP sales NEVER block — physical stock is
-      // the source of truth and the ledger is corrected later. We still record the
-      // shortfall as a StockException worklist item (after the sale exists, so we
-      // can link it). Set SHOP_OVERSELL=block to enforce strict shop stock instead.
-      const enforceStock = process.env.SHOP_OVERSELL === "block";
-      const shopStock = await this.inventory.stockMapAt("SHOP", tx);
-      const shortfalls: { itemTypeId: number; qtyBeyond: number }[] = [];
-      for (const [id, qty] of requested) {
-        const have = shopStock.get(id) ?? 0;
-        if (have < qty) {
-          if (enforceStock) {
-            const t = typeMap.get(id);
-            throw new ConflictException(
-              `Not enough stock for ${t?.key ?? `#${id}`} at SHOP: have ${have}, need ${qty}`,
-            );
-          }
-          // Units sold beyond what was actually available. If stock is already
-          // negative, available is effectively 0 (don't double-count prior deficit).
-          shortfalls.push({ itemTypeId: id, qtyBeyond: qty - Math.max(have, 0) });
-        }
-      }
-
-      const kind = dto.kind ?? customer?.defaultKind ?? "RETAIL";
-      const status = statusFor(grandTotal, paidAmount);
-      const saleDate = dto.saleDate ? new Date(dto.saleDate) : new Date();
-
-      const sale = await tx.sale.create({
-        data: {
-          saleDate,
-          customerId: customer?.id ?? null,
-          customerName: oneTimeName,
-          kind,
-          goodsTotal,
-          discount,
-          grandTotal,
-          paidAmount,
-          status,
-          notes: dto.notes,
-          createdById,
-          lines: {
-            create: dto.items.map((i) => ({
-              itemTypeId: i.itemTypeId ?? null,
-              itemName: i.itemTypeId !== undefined ? null : i.itemName?.trim() || null,
-              qty: i.qty,
-              unitPrice: i.unitPrice,
-              lineTotal: i.unitPrice * i.qty,
-              note: i.note?.trim() || null,
-            })),
-          },
-        },
-        // No `include` here on purpose: the caller only needs the new sale's id +
-        // saleDate, and an include forces extra readback SELECTs INSIDE this hot
-        // write transaction (one per relation), adding round-trips that pushed it
-        // over the transaction timeout. Read paths (getOne) fetch relations later.
-      });
-
-      // Linked InventoryEvent of kind=SALE with one OUT line per catalog item.
-      // A sale of only ad-hoc items touches no stock, so no event is created.
-      if (requested.size > 0) {
-        await tx.inventoryEvent.create({
-          data: {
-            kind: "SALE",
-            occurredAt: saleDate,
-            saleId: sale.id,
-            createdById,
-            lines: {
-              create: [...requested.entries()].map(([itemTypeId, qty]) => ({
-                direction: "OUT" as const,
-                location: "SHOP" as const,
-                itemTypeId,
-                qty,
-              })),
-            },
-          },
-        });
-      }
-
-      if (paidAmount > 0) {
-        await tx.customerPayment.create({
-          data: {
-            customerId: customer?.id ?? null,
-            saleId: sale.id,
-            amount: paidAmount,
-            method: dto.paymentMethod ?? "CASH",
-            paymentDate: saleDate,
-            createdById,
-          },
-        });
-      }
-
-      // Log oversell exceptions now that the Sale row exists (worklist + audit).
-      for (const s of shortfalls) {
-        await this.stockExceptions.recordOversell(tx, {
-          itemTypeId: s.itemTypeId,
-          location: "SHOP",
-          saleId: sale.id,
-          qtyBeyond: s.qtyBeyond,
-          when: saleDate,
-        });
-      }
-
-      return sale;
-    });
+      throw new BadRequestException(row.errorMessage);
+    }
+    if (row.id == null || row.saleDate == null) {
+      throw new ConflictException("Sale could not be created");
+    }
+    return { id: row.id, saleDate: row.saleDate };
   }
 
   async list(q: ListSalesQueryDto): Promise<PageResult<unknown>> {

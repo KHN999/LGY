@@ -4,12 +4,36 @@ import { useEffect, useMemo, useState } from "react";
 import { api, type ItemType, type StockRow } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 
-// Module-level stale-while-revalidate cache. The item catalog is very stable and
-// shop stock changes slowly, so on repeat visits we paint the last-known values
-// instantly (no skeleton flash, no waiting on two round-trips) and refresh in the
-// background. Cleared on a full page reload — which is also when the shop can change.
+// Stale-while-revalidate cache. The item catalog is essentially static and shop
+// stock changes slowly, so we paint the last-known values instantly and refresh in
+// the background — no skeleton, no waiting on slow round-trips. Backed by a module
+// cache (instant within a session) AND localStorage (survives full page reloads),
+// both scoped to the active shop so Main/Test never bleed.
 let cachedTypes: ItemType[] | null = null;
 const cachedStock: Record<string, Map<number, number>> = {};
+
+function shopId(): string {
+  if (typeof document === "undefined") return "main";
+  const m = document.cookie.match(/(?:^|;\s*)lgy_shop=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : "main";
+}
+function lsGet<T>(key: string): T | null {
+  try {
+    const v = typeof localStorage !== "undefined" ? localStorage.getItem(key) : null;
+    return v ? (JSON.parse(v) as T) : null;
+  } catch {
+    return null;
+  }
+}
+function lsSet(key: string, val: unknown): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(val));
+  } catch {
+    /* quota exceeded / private mode — caching is best-effort */
+  }
+}
+const typesLSKey = () => `lgy.types.${shopId()}`;
+const stockLSKey = (loc: string) => `lgy.stock.${shopId()}.${loc}`;
 
 interface Props {
   /** Pass a location to also show stock-on-hand per item type. */
@@ -50,6 +74,26 @@ export function ItemTypeGrid({
   useEffect(() => {
     const ctrl = new AbortController();
     const key = locationForStock ?? "";
+
+    // Cold in-memory cache (e.g. a fresh page load): hydrate instantly from
+    // localStorage so the menu paints with no skeleton, then revalidate below.
+    if (cachedTypes === null) {
+      const lsTypes = lsGet<ItemType[]>(typesLSKey());
+      if (lsTypes && lsTypes.length) {
+        cachedTypes = lsTypes;
+        setTypes(lsTypes);
+        setLoading(false);
+      }
+      if (locationForStock) {
+        const lsStock = lsGet<[number, number][]>(stockLSKey(locationForStock));
+        if (lsStock) {
+          const m = new Map<number, number>(lsStock);
+          cachedStock[key] = m;
+          setStockByItem(m);
+        }
+      }
+    }
+
     if (cachedTypes === null) setLoading(true);
     Promise.all([
       api.get<ItemType[]>("/item-types", ctrl.signal),
@@ -61,11 +105,13 @@ export function ItemTypeGrid({
         cachedTypes = t;
         setTypes(t);
         setError(null);
+        lsSet(typesLSKey(), t);
         if (s) {
           const map = new Map<number, number>();
           for (const r of s) map.set(r.itemTypeId, r.qty);
           cachedStock[key] = map;
           setStockByItem(map);
+          if (locationForStock) lsSet(stockLSKey(locationForStock), [...map.entries()]);
         }
       })
       .catch((e: Error) => {
