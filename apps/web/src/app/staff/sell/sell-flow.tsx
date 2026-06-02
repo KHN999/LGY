@@ -60,6 +60,10 @@ export function SellFlow({ shop }: { shop?: ShopSettings }) {
   const [custMode, setCustMode] = useState<"choose" | "new">("choose");
   const [activeField, setActiveField] = useState<"qty" | "price">("qty");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  // The free/replacement note box only appears once the user tries to add a
+  // 0-price line — NOT reactively on price===0, which would flicker (and steal
+  // focus) on every normal price entry as the first digit makes price non-zero.
+  const [freeNotePrompt, setFreeNotePrompt] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [savedSale, setSavedSale] = useState<{ id: number; date: string } | null>(null);
   const wantPrintRef = useRef(false);
@@ -81,11 +85,13 @@ export function SellFlow({ shop }: { shop?: ShopSettings }) {
     setDraft({ type, name: type.labelMy, stock, qty: 0, price: 0, note: "" });
     setActiveField("qty");
     setEditingIndex(null);
+    setFreeNotePrompt(false);
   }
   function startAddManual() {
     setDraft({ type: null, name: "", stock: 0, qty: 0, price: 0, note: "" });
     setActiveField("qty");
     setEditingIndex(null);
+    setFreeNotePrompt(false);
   }
   function editLine(i: number) {
     const l = cart[i];
@@ -101,9 +107,12 @@ export function SellFlow({ shop }: { shop?: ShopSettings }) {
     setEditingIndex(i);
     setActiveField("qty");
     setError(null);
+    setFreeNotePrompt(false);
   }
   // Number keypad edits whichever field (qty / price) is highlighted.
   function padDigit(d: number) {
+    // Typing a price means it isn't a free line — drop the free-note prompt.
+    if (activeField === "price") setFreeNotePrompt(false);
     setDraft((prev) => {
       if (!prev) return prev;
       if (activeField === "qty") return { ...prev, qty: Math.min(999999, prev.qty * 10 + d) };
@@ -132,8 +141,10 @@ export function SellFlow({ shop }: { shop?: ShopSettings }) {
       setError(labels.sell.itemNameRequired);
       return;
     }
-    // Price 0 = free/replacement → a note is required (also guards accidental presses).
+    // Price 0 = free/replacement → reveal the note box and require a reason
+    // (this is the only place it appears, so normal price entry never flickers).
     if (draft.price === 0 && !draft.note.trim()) {
+      setFreeNotePrompt(true);
       setError(labels.sell.noteRequired);
       return;
     }
@@ -153,6 +164,7 @@ export function SellFlow({ shop }: { shop?: ShopSettings }) {
     );
     setDraft(null);
     setEditingIndex(null);
+    setFreeNotePrompt(false);
   }
   function removeLine(i: number) {
     setCart((prev) => prev.filter((_, idx) => idx !== i));
@@ -428,9 +440,12 @@ export function SellFlow({ shop }: { shop?: ShopSettings }) {
             <span className="text-2xl font-bold">{formatKyat(draft.qty * draft.price)}</span>
           </div>
 
-          {draft.price === 0 && (
+          {freeNotePrompt && (
             <input
               type="text"
+              autoFocus
+              autoCapitalize="none"
+              autoCorrect="off"
               value={draft.note}
               maxLength={200}
               onChange={(e) => setDraft({ ...draft, note: e.target.value })}
