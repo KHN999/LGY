@@ -204,31 +204,43 @@ export class AuditInterceptor implements NestInterceptor {
         ? (req.body as { username: string }).username
         : null;
     const res = context.switchToHttp().getResponse<Response>();
+    const sub = path.replace(/^\/api\//, "").split("/").filter(Boolean)[2];
+    const bodyObj = req.body && typeof req.body === "object" ? (req.body as Record<string, unknown>) : {};
 
     const write = (status: number, ok: boolean, error: string | null, summaryOverride?: string | null) => {
       const user = req.user;
-      this.prisma.main.auditLog
-        .create({
-          data: {
-            userId: user?.sub ?? null,
-            username: user?.username ?? bodyUsername,
-            shop,
-            method: req.method,
-            path,
-            entity,
-            entityId,
-            summary: summaryOverride || summary,
-            status,
-            ok,
-            error,
-            payload,
-            ip,
-            durationMs: Date.now() - start,
-          },
-        })
-        .catch((e: unknown) =>
-          this.logger.error(`audit write failed for ${req.method} ${path}: ${String(e)}`),
-        );
+      // Resolve a name-rich summary off the hot path. The inventory response
+      // override already carries item names, so it wins; otherwise enrich the
+      // body-derived line with item/party names (falling back to the plain one).
+      const build = summaryOverride
+        ? Promise.resolve(summaryOverride)
+        : this.enrich(entity ?? "", sub, entityId, bodyObj, shop, req.method)
+            .then((s) => s ?? summary)
+            .catch(() => summary);
+      void build.then((finalSummary) =>
+        this.prisma.main.auditLog
+          .create({
+            data: {
+              userId: user?.sub ?? null,
+              username: user?.username ?? bodyUsername,
+              shop,
+              method: req.method,
+              path,
+              entity,
+              entityId,
+              summary: finalSummary,
+              status,
+              ok,
+              error,
+              payload,
+              ip,
+              durationMs: Date.now() - start,
+            },
+          })
+          .catch((e: unknown) =>
+            this.logger.error(`audit write failed for ${req.method} ${path}: ${String(e)}`),
+          ),
+      );
     };
 
     return next.handle().pipe(
@@ -246,5 +258,97 @@ export class AuditInterceptor implements NestInterceptor {
         return throwError(() => err);
       }),
     );
+  }
+
+  /**
+   * Resolve item/party names so the summary reads "Sale · 25 × ဝမ်းဆက် … · Daw Mya"
+   * instead of ids. Runs in the non-blocking write path. Item names are resolved
+   * for both shops (the catalog is identical); party names only for the real shop
+   * (playground ids would resolve to different demo records). Returns null to fall
+   * back to the plain body summary.
+   */
+  private async enrich(
+    entity: string,
+    sub: string | undefined,
+    id: string | null,
+    body: Record<string, unknown>,
+    shop: string,
+    method: string,
+  ): Promise<string | null> {
+    const items = Array.isArray(body.items) ? (body.items as Array<Record<string, unknown>>) : [];
+    const itemNames = async (): Promise<Map<number, string>> => {
+      const ids = [...new Set(items.map((i) => Number(i.itemTypeId)).filter((n) => Number.isInteger(n)))];
+      if (!ids.length) return new Map();
+      const types = await this.prisma.main.itemType.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, labelMy: true },
+      });
+      return new Map(types.map((t) => [t.id, t.labelMy]));
+    };
+    const party = async (kind: "customers" | "suppliers", idVal: unknown): Promise<string | null> =>
+      shop === "main" && Number.isInteger(Number(idVal)) ? this.lookupName(kind, Number(idVal)) : null;
+
+    if (entity === "sales" && method === "POST" && !sub) {
+      const names = await itemNames();
+      const total = items.reduce((s, i) => s + num(i.qty) * num(i.unitPrice), 0) - num(body.discount);
+      const desc =
+        items
+          .slice(0, 3)
+          .map((i) => {
+            const nm = i.itemTypeId != null ? names.get(Number(i.itemTypeId)) : str(i.itemName);
+            return `${num(i.qty)}×${nm ?? `item#${String(i.itemTypeId ?? "?")}`}`;
+          })
+          .join(" + ") + (items.length > 3 ? ` +${items.length - 3} more` : "");
+      const who =
+        str(body.customerName) ??
+        (await party("customers", body.customerId)) ??
+        (body.customerId ? `customer #${String(body.customerId)}` : "walk-in");
+      return `Sale · ${desc} = ${total.toLocaleString("en-US")} Ks · ${who}`;
+    }
+    if (entity === "customer-payments" && method === "POST") {
+      const who = (await party("customers", body.customerId)) ?? `customer #${String(body.customerId ?? "?")}`;
+      const m = str(body.method);
+      return `Received ${ks(body.amount)}${m ? ` (${m.toLowerCase().replace(/_/g, " ")})` : ""} from ${who}`;
+    }
+    if (entity === "supplier-payments" && method === "POST") {
+      const who = (await party("suppliers", body.supplierId)) ?? `supplier #${String(body.supplierId ?? "?")}`;
+      return `Paid ${who} ${ks(body.amount)}`;
+    }
+    if (entity === "transfers" && method === "POST") {
+      const names = await itemNames();
+      const desc =
+        items.slice(0, 3).map((i) => `${num(i.qty)}×${names.get(Number(i.itemTypeId)) ?? `item#${String(i.itemTypeId)}`}`).join(" + ") ||
+        `${num(body.qty)} pcs`;
+      return `Transfer ${desc} · ${String(body.fromLocation ?? "?")} → ${String(body.toLocation ?? "?")}`;
+    }
+    if (id && (method === "PATCH" || method === "DELETE") && shop === "main") {
+      const name = await this.lookupName(entity, Number(id));
+      if (name) {
+        const noun = (ENTITY_NOUN[entity] ?? entity).toLowerCase();
+        return `${method === "DELETE" ? "Deleted" : "Updated"} ${noun}: ${name}`;
+      }
+    }
+    return null;
+  }
+
+  private async lookupName(entity: string, id: number): Promise<string | null> {
+    if (!Number.isInteger(id)) return null;
+    const main = this.prisma.main;
+    const sel = { where: { id }, select: { name: true } };
+    try {
+      switch (entity) {
+        case "customers": return (await main.customer.findUnique(sel))?.name ?? null;
+        case "suppliers": return (await main.supplier.findUnique(sel))?.name ?? null;
+        case "tailors": return (await main.tailor.findUnique(sel))?.name ?? null;
+        case "drivers": return (await main.driver.findUnique(sel))?.name ?? null;
+        case "employees": return (await main.employee.findUnique(sel))?.name ?? null;
+        case "item-types":
+          return (await main.itemType.findUnique({ where: { id }, select: { labelMy: true } }))?.labelMy ?? null;
+        default:
+          return null;
+      }
+    } catch {
+      return null;
+    }
   }
 }
