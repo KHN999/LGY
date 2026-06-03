@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import type { Prisma } from "@lgy/db";
+import { Prisma } from "@lgy/db";
 import { PrismaService } from "../prisma/prisma.service";
 import type { PageResult } from "../common/pagination.dto";
 import { CreateCustomerDto, UpdateCustomerDto } from "./dto/customer.dto";
@@ -16,6 +16,16 @@ export interface CustomerWithBalance {
   balance: number;
 }
 
+type CustomerBalanceRow = {
+  customerId: number;
+  balance: number;
+};
+
+type CustomerListSqlRow = Omit<CustomerWithBalance, "balance"> & {
+  balance: number;
+  total: number;
+};
+
 @Injectable()
 export class CustomersService {
   constructor(private readonly prisma: PrismaService) {}
@@ -27,34 +37,82 @@ export class CustomersService {
     activeOnly?: boolean;
   }): Promise<PageResult<CustomerWithBalance>> {
     const { page, limit, search, activeOnly = true } = opts;
-    const where = {
-      ...(activeOnly ? { status: "ACTIVE" as const } : {}),
-      ...(search
-        ? {
-            OR: [
-              { name: { contains: search, mode: "insensitive" as const } },
-              { contact: { contains: search, mode: "insensitive" as const } },
-            ],
-          }
-        : {}),
-    };
+    const filters: Prisma.Sql[] = [];
+    if (activeOnly) filters.push(Prisma.sql`c.status = 'ACTIVE'::"PartyStatus"`);
+    if (search) {
+      const q = `%${search}%`;
+      filters.push(Prisma.sql`(c.name ILIKE ${q} OR COALESCE(c.contact, '') ILIKE ${q})`);
+    }
+    const whereSql = filters.length
+      ? Prisma.sql`WHERE ${Prisma.join(filters, " AND ")}`
+      : Prisma.empty;
 
-    const [rows, total] = await Promise.all([
-      this.prisma.customer.findMany({
-        where,
-        skip: (page - 1) * limit,
-        take: limit,
-        orderBy: { name: "asc" },
-      }),
-      this.prisma.customer.count({ where }),
-    ]);
+    const rows = await this.prisma.$queryRaw<CustomerListSqlRow[]>(Prisma.sql`
+      WITH filtered AS (
+        SELECT c.*
+        FROM "Customer" c
+        ${whereSql}
+      ),
+      page_rows AS (
+        SELECT
+          filtered.*,
+          COUNT(*) OVER()::int AS total
+        FROM filtered
+        ORDER BY name ASC
+        OFFSET ${(page - 1) * limit}
+        LIMIT ${limit}
+      ),
+      sales AS (
+        SELECT "customerId", SUM("grandTotal")::int AS total
+        FROM "Sale"
+        WHERE "customerId" IN (SELECT id FROM page_rows)
+          AND "voidedAt" IS NULL
+        GROUP BY "customerId"
+      ),
+      payments AS (
+        SELECT "customerId", SUM(amount)::int AS total
+        FROM "CustomerPayment"
+        WHERE "customerId" IN (SELECT id FROM page_rows)
+          AND "voidedAt" IS NULL
+        GROUP BY "customerId"
+      ),
+      returns AS (
+        SELECT
+          "customerId",
+          SUM("returnTotal")::int AS return_total,
+          SUM("refundAmount")::int AS refund_total
+        FROM "SaleReturn"
+        WHERE "customerId" IN (SELECT id FROM page_rows)
+          AND "voidedAt" IS NULL
+        GROUP BY "customerId"
+      )
+      SELECT
+        p.id,
+        p.name,
+        p.contact,
+        p."photoUrl",
+        p."defaultKind",
+        p.notes,
+        p.status,
+        (
+          COALESCE(sales.total, 0)
+          - COALESCE(returns.return_total, 0)
+          - COALESCE(payments.total, 0)
+          + COALESCE(returns.refund_total, 0)
+        )::int AS balance,
+        p.total
+      FROM page_rows p
+      LEFT JOIN sales ON sales."customerId" = p.id
+      LEFT JOIN payments ON payments."customerId" = p.id
+      LEFT JOIN returns ON returns."customerId" = p.id
+      ORDER BY p.name ASC
+    `);
 
-    const balances = await this.balancesFor(rows.map((r) => r.id));
     return {
-      data: rows.map((r) => ({ ...r, balance: balances.get(r.id) ?? 0 })),
+      data: rows.map(({ total, ...r }) => r),
       page,
       limit,
-      total,
+      total: rows[0]?.total ?? 0,
     };
   }
 
@@ -99,27 +157,7 @@ export class CustomersService {
     customerId: number,
     tx: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<number> {
-    const [sales, payments, returns] = await Promise.all([
-      tx.sale.aggregate({
-        where: { customerId, voidedAt: null },
-        _sum: { grandTotal: true },
-      }),
-      tx.customerPayment.aggregate({
-        where: { customerId, voidedAt: null },
-        _sum: { amount: true },
-      }),
-      tx.saleReturn.aggregate({
-        where: { customerId, voidedAt: null },
-        _sum: { returnTotal: true, refundAmount: true },
-      }),
-    ]);
-    // balance = Σsales − Σreturns − (Σpayments − Σrefunds)
-    return (
-      (sales._sum.grandTotal ?? 0) -
-      (returns._sum.returnTotal ?? 0) -
-      (payments._sum.amount ?? 0) +
-      (returns._sum.refundAmount ?? 0)
-    );
+    return (await this.balancesFor([customerId], tx)).get(customerId) ?? 0;
   }
 
   async balancesFor(
@@ -127,39 +165,51 @@ export class CustomersService {
     tx: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<Map<number, number>> {
     if (customerIds.length === 0) return new Map();
-    const [sales, payments, returns] = await Promise.all([
-      tx.sale.groupBy({
-        by: ["customerId"],
-        where: { customerId: { in: customerIds }, voidedAt: null },
-        _sum: { grandTotal: true },
-      }),
-      tx.customerPayment.groupBy({
-        by: ["customerId"],
-        where: { customerId: { in: customerIds }, voidedAt: null },
-        _sum: { amount: true },
-      }),
-      tx.saleReturn.groupBy({
-        by: ["customerId"],
-        where: { customerId: { in: customerIds }, voidedAt: null },
-        _sum: { returnTotal: true, refundAmount: true },
-      }),
-    ]);
     const map = new Map<number, number>();
     for (const id of customerIds) map.set(id, 0);
-    for (const r of sales) {
-      if (r.customerId == null) continue; // walk-in sales belong to no customer
-      map.set(r.customerId, (map.get(r.customerId) ?? 0) + (r._sum.grandTotal ?? 0));
-    }
-    for (const r of payments) {
-      if (r.customerId == null) continue;
-      map.set(r.customerId, (map.get(r.customerId) ?? 0) - (r._sum.amount ?? 0));
-    }
-    for (const r of returns) {
-      if (r.customerId == null) continue;
-      map.set(
-        r.customerId,
-        (map.get(r.customerId) ?? 0) - (r._sum.returnTotal ?? 0) + (r._sum.refundAmount ?? 0),
-      );
+
+    const idValues = Prisma.join(customerIds.map((id) => Prisma.sql`(${id})`));
+    const rows = await tx.$queryRaw<CustomerBalanceRow[]>(Prisma.sql`
+      WITH selected(id) AS (VALUES ${idValues}),
+      sales AS (
+        SELECT "customerId", SUM("grandTotal")::int AS total
+        FROM "Sale"
+        WHERE "customerId" IN (SELECT id FROM selected)
+          AND "voidedAt" IS NULL
+        GROUP BY "customerId"
+      ),
+      payments AS (
+        SELECT "customerId", SUM(amount)::int AS total
+        FROM "CustomerPayment"
+        WHERE "customerId" IN (SELECT id FROM selected)
+          AND "voidedAt" IS NULL
+        GROUP BY "customerId"
+      ),
+      returns AS (
+        SELECT
+          "customerId",
+          SUM("returnTotal")::int AS return_total,
+          SUM("refundAmount")::int AS refund_total
+        FROM "SaleReturn"
+        WHERE "customerId" IN (SELECT id FROM selected)
+          AND "voidedAt" IS NULL
+        GROUP BY "customerId"
+      )
+      SELECT
+        selected.id AS "customerId",
+        (
+          COALESCE(sales.total, 0)
+          - COALESCE(returns.return_total, 0)
+          - COALESCE(payments.total, 0)
+          + COALESCE(returns.refund_total, 0)
+        )::int AS balance
+      FROM selected
+      LEFT JOIN sales ON sales."customerId" = selected.id
+      LEFT JOIN payments ON payments."customerId" = selected.id
+      LEFT JOIN returns ON returns."customerId" = selected.id
+    `);
+    for (const r of rows) {
+      map.set(r.customerId, r.balance);
     }
     return map;
   }

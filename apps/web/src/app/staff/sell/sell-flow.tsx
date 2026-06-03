@@ -10,6 +10,7 @@ import {
   type Customer,
   type ItemType,
   type SaleKind,
+  type ShopId,
   type ShopSettings,
 } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
@@ -36,7 +37,7 @@ interface CartLine {
  *   customer → items (loop: pick type → qty → price) → review (paid) → save
  *   no typing required for happy path; voice confirms on save.
  */
-export function SellFlow({ shop }: { shop?: ShopSettings }) {
+export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("customer");
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -511,7 +512,13 @@ export function SellFlow({ shop }: { shop?: ShopSettings }) {
         </div>
 
         <h1 className="text-center text-xl font-bold">{labels.sell.pickItem}</h1>
-        <ItemTypeGrid locationForStock="SHOP" onPick={startAddItem} allowOversell sellableOnly />
+        <ItemTypeGrid
+          locationForStock="SHOP"
+          onPick={startAddItem}
+          allowOversell
+          sellableOnly
+          shopId={shopId}
+        />
         <button
           type="button"
           onClick={startAddManual}

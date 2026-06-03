@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { api, type ItemType, type StockRow } from "@/lib/api-client";
+import { api, type ItemType, type ShopId, type StockRow } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 
 // Stale-while-revalidate cache. The item catalog is essentially static and shop
@@ -9,14 +9,9 @@ import { labels } from "@/lib/labels";
 // the background — no skeleton, no waiting on slow round-trips. Backed by a module
 // cache (instant within a session) AND localStorage (survives full page reloads),
 // both scoped to the active shop so Main/Test never bleed.
-let cachedTypes: ItemType[] | null = null;
-const cachedStock: Record<string, Map<number, number>> = {};
+const cachedTypes: Record<string, ItemType[] | undefined> = {};
+const cachedStock: Record<string, Record<string, Map<number, number> | undefined>> = {};
 
-function shopId(): string {
-  if (typeof document === "undefined") return "main";
-  const m = document.cookie.match(/(?:^|;\s*)lgy_shop=([^;]+)/);
-  return m ? decodeURIComponent(m[1]) : "main";
-}
 function lsGet<T>(key: string): T | null {
   try {
     const v = typeof localStorage !== "undefined" ? localStorage.getItem(key) : null;
@@ -32,8 +27,20 @@ function lsSet(key: string, val: unknown): void {
     /* quota exceeded / private mode — caching is best-effort */
   }
 }
-const typesLSKey = () => `lgy.types.${shopId()}`;
-const stockLSKey = (loc: string) => `lgy.stock.${shopId()}.${loc}`;
+const typesLSKey = (shop: ShopId) => `lgy.types.${shop}`;
+const stockLSKey = (shop: ShopId, loc: string) => `lgy.stock.${shop}.${loc}`;
+
+function itemTypeFromStockRow(row: StockRow): ItemType {
+  return {
+    id: row.itemTypeId,
+    key: row.key,
+    labelMy: row.labelMy,
+    emoji: row.emoji,
+    sortOrder: row.sortOrder ?? 0,
+    isActive: row.isActive ?? true,
+    sellable: row.sellable ?? true,
+  };
+}
 
 interface Props {
   /** Pass a location to also show stock-on-hand per item type. */
@@ -48,6 +55,8 @@ interface Props {
   allowOversell?: boolean;
   /** Only show item types marked sellable in the shop (hides warehouse-only items). */
   sellableOnly?: boolean;
+  /** Server-known active shop. The cookie is httpOnly, so the browser cannot read it. */
+  shopId?: ShopId;
 }
 
 /**
@@ -61,67 +70,79 @@ export function ItemTypeGrid({
   minStock = 0,
   allowOversell = false,
   sellableOnly = false,
+  shopId = "main",
 }: Props) {
   const stockKey = locationForStock ?? "";
-  const [types, setTypes] = useState<ItemType[]>(() => cachedTypes ?? []);
+  const [types, setTypes] = useState<ItemType[]>(() => cachedTypes[shopId] ?? []);
   const [stockByItem, setStockByItem] = useState<Map<number, number>>(
-    () => cachedStock[stockKey] ?? new Map(),
+    () => cachedStock[shopId]?.[stockKey] ?? new Map(),
   );
   // Only the very first load (nothing cached yet) blocks with a skeleton.
-  const [loading, setLoading] = useState(() => cachedTypes === null);
+  const [loading, setLoading] = useState(() => cachedTypes[shopId] === undefined);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const ctrl = new AbortController();
     const key = locationForStock ?? "";
+    const activeShop = shopId;
 
     // Cold in-memory cache (e.g. a fresh page load): hydrate instantly from
     // localStorage so the menu paints with no skeleton, then revalidate below.
-    if (cachedTypes === null) {
-      const lsTypes = lsGet<ItemType[]>(typesLSKey());
+    if (cachedTypes[activeShop] === undefined) {
+      const lsTypes = lsGet<ItemType[]>(typesLSKey(activeShop));
       if (lsTypes && lsTypes.length) {
-        cachedTypes = lsTypes;
+        cachedTypes[activeShop] = lsTypes;
         setTypes(lsTypes);
         setLoading(false);
       }
       if (locationForStock) {
-        const lsStock = lsGet<[number, number][]>(stockLSKey(locationForStock));
+        const lsStock = lsGet<[number, number][]>(stockLSKey(activeShop, locationForStock));
         if (lsStock) {
           const m = new Map<number, number>(lsStock);
-          cachedStock[key] = m;
+          cachedStock[activeShop] ??= {};
+          cachedStock[activeShop][key] = m;
           setStockByItem(m);
         }
       }
     }
 
-    if (cachedTypes === null) setLoading(true);
-    Promise.all([
-      api.get<ItemType[]>("/item-types", ctrl.signal),
-      locationForStock
-        ? api.get<StockRow[]>(`/inventory/stock?location=${locationForStock}`, ctrl.signal)
-        : Promise.resolve(null),
-    ])
-      .then(([t, s]) => {
-        cachedTypes = t;
+    if (cachedTypes[activeShop] === undefined) setLoading(true);
+    const load = locationForStock
+      ? api
+          .get<StockRow[]>(`/inventory/stock?location=${locationForStock}`, ctrl.signal)
+          .then((rows) => {
+            const t = rows.map(itemTypeFromStockRow);
+            const map = new Map<number, number>();
+            for (const r of rows) map.set(r.itemTypeId, r.qty);
+            return { types: t, stock: map };
+          })
+      : api
+          .get<ItemType[]>("/item-types", ctrl.signal)
+          .then((t) => ({ types: t, stock: null }));
+
+    load
+      .then(({ types: t, stock }) => {
+        cachedTypes[activeShop] = t;
         setTypes(t);
         setError(null);
-        lsSet(typesLSKey(), t);
-        if (s) {
-          const map = new Map<number, number>();
-          for (const r of s) map.set(r.itemTypeId, r.qty);
-          cachedStock[key] = map;
-          setStockByItem(map);
-          if (locationForStock) lsSet(stockLSKey(locationForStock), [...map.entries()]);
+        lsSet(typesLSKey(activeShop), t);
+        if (stock) {
+          cachedStock[activeShop] ??= {};
+          cachedStock[activeShop][key] = stock;
+          setStockByItem(stock);
+          if (locationForStock) {
+            lsSet(stockLSKey(activeShop, locationForStock), [...stock.entries()]);
+          }
         }
       })
       .catch((e: Error) => {
         // Keep showing cached data on a failed background refresh; only surface
         // the error when we have nothing to show.
-        if (e.name !== "AbortError" && cachedTypes === null) setError(e.message);
+        if (e.name !== "AbortError" && cachedTypes[activeShop] === undefined) setError(e.message);
       })
       .finally(() => setLoading(false));
     return () => ctrl.abort();
-  }, [locationForStock]);
+  }, [locationForStock, shopId]);
 
   const visible = useMemo(() => {
     let list = types;

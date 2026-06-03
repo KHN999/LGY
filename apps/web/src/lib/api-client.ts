@@ -202,6 +202,9 @@ export interface StockRow {
   key: string;
   labelMy: string;
   emoji: string | null;
+  sortOrder?: number;
+  isActive?: boolean;
+  sellable?: boolean;
   qty: number;
 }
 

@@ -31,35 +31,13 @@ export class InventoryController {
   /** Stock at a fixed location, keyed by itemTypeId. */
   @Get("stock")
   async stock(@Query() q: StockQueryDto) {
-    const map = await this.inventory.stockMapAt(q.location);
-    const itemTypes = await this.prisma.itemType.findMany({
-      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
-    });
-    return itemTypes.map((t) => ({
-      itemTypeId: t.id,
-      key: t.key,
-      labelMy: t.labelMy,
-      emoji: t.emoji,
-      qty: map.get(t.id) ?? 0,
-    }));
+    return this.inventory.stockRowsAt(q.location);
   }
 
   /** Stock currently with a specific tailor. */
   @Get("stock-at-tailor/:tailorId")
   async stockAtTailor(@Param("tailorId", ParseIntPipe) tailorId: number) {
-    const map = await this.inventory.stockMapAtTailor(tailorId);
-    const itemTypes = await this.prisma.itemType.findMany({
-      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
-    });
-    return itemTypes
-      .map((t) => ({
-        itemTypeId: t.id,
-        key: t.key,
-        labelMy: t.labelMy,
-        emoji: t.emoji,
-        qty: map.get(t.id) ?? 0,
-      }))
-      .filter((r) => r.qty > 0);
+    return this.inventory.stockRowsAtTailor(tailorId);
   }
 
   /** Recent inventory events with their lines (debug / audit). */

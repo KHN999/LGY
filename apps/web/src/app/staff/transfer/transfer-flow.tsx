@@ -3,7 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api, ApiError, type ItemType, type Location, type Driver } from "@/lib/api-client";
+import {
+  api,
+  ApiError,
+  type ItemType,
+  type Location,
+  type Driver,
+  type ShopId,
+} from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 import { ItemTypeGrid } from "@/components/staff/item-type-grid";
 import { QtyStepper } from "@/components/staff/qty-stepper";
@@ -20,7 +27,7 @@ const LOC_LABEL: Record<"WAREHOUSE" | "SHOP" | "IN_TRANSIT", string> = {
   IN_TRANSIT: labels.transfer.locInTransit,
 };
 
-export function TransferFlow({ drivers }: { drivers: Driver[] }) {
+export function TransferFlow({ drivers, shopId }: { drivers: Driver[]; shopId: ShopId }) {
   const router = useRouter();
   const [from, setFrom] = useState<"WAREHOUSE" | "SHOP" | "IN_TRANSIT">("WAREHOUSE");
   const [to, setTo] = useState<"WAREHOUSE" | "SHOP" | "IN_TRANSIT">("SHOP");
@@ -167,7 +174,13 @@ export function TransferFlow({ drivers }: { drivers: Driver[] }) {
         </div>
       </div>
 
-      <ItemTypeGrid locationForStock={from} hideZeroStock onPick={add} minStock={1} />
+      <ItemTypeGrid
+        locationForStock={from}
+        hideZeroStock
+        onPick={add}
+        minStock={1}
+        shopId={shopId}
+      />
 
       {lines.length > 0 && (
         <section className="rounded-2xl border bg-card p-3">

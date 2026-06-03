@@ -32,6 +32,27 @@ type CreateSaleSqlRow = {
   errorMessage: string | null;
 };
 
+type SaleListSqlRow = {
+  id: number;
+  saleDate: Date;
+  customerId: number | null;
+  customerName: string | null;
+  kind: TxnStatus | string;
+  goodsTotal: number;
+  discount: number;
+  grandTotal: number;
+  paidAmount: number;
+  status: TxnStatus;
+  notes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  voidedAt: Date | null;
+  voidReason: string | null;
+  customer: { id: number; name: string } | null;
+  lines: unknown;
+  total: number;
+};
+
 function cleanText(value: string | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
@@ -455,37 +476,98 @@ export class SalesService {
     const page = q.page ?? 1;
     const limit = q.limit ?? 50;
     const includeVoided = q.includeVoided === "true";
+    const filters: Prisma.Sql[] = [];
+    if (!includeVoided) filters.push(Prisma.sql`s."voidedAt" IS NULL`);
+    if (q.customerId) filters.push(Prisma.sql`s."customerId" = ${q.customerId}`);
+    if (q.status) filters.push(Prisma.sql`s.status = ${q.status}::"TxnStatus"`);
+    if (q.kind) filters.push(Prisma.sql`s.kind = ${q.kind}::"SaleKind"`);
+    if (q.fromDate) filters.push(Prisma.sql`s."saleDate" >= ${new Date(q.fromDate)}`);
+    if (q.toDate) filters.push(Prisma.sql`s."saleDate" <= ${new Date(q.toDate)}`);
+    const where = filters.length
+      ? Prisma.sql`WHERE ${Prisma.join(filters, " AND ")}`
+      : Prisma.empty;
 
-    const where: Prisma.SaleWhereInput = {
-      ...(includeVoided ? {} : { voidedAt: null }),
-      ...(q.customerId ? { customerId: q.customerId } : {}),
-      ...(q.status ? { status: q.status as TxnStatus } : {}),
-      ...(q.kind ? { kind: q.kind } : {}),
-      ...(q.fromDate || q.toDate
-        ? {
-            saleDate: {
-              ...(q.fromDate ? { gte: new Date(q.fromDate) } : {}),
-              ...(q.toDate ? { lte: new Date(q.toDate) } : {}),
-            },
-          }
-        : {}),
+    const rows = await this.prisma.$queryRaw<SaleListSqlRow[]>(Prisma.sql`
+      WITH filtered AS (
+        SELECT
+          s.id,
+          s."saleDate",
+          s."customerId",
+          s."customerName",
+          s.kind,
+          s."goodsTotal",
+          s.discount,
+          s."grandTotal",
+          s."paidAmount",
+          s.status,
+          s.notes,
+          s."createdAt",
+          s."updatedAt",
+          s."voidedAt",
+          s."voidReason",
+          c.id AS customer_id,
+          c.name AS customer_name,
+          COUNT(*) OVER()::int AS total
+        FROM "Sale" s
+        LEFT JOIN "Customer" c ON c.id = s."customerId"
+        ${where}
+        ORDER BY s."saleDate" DESC
+        OFFSET ${(page - 1) * limit}
+        LIMIT ${limit}
+      )
+      SELECT
+        f.id,
+        f."saleDate",
+        f."customerId",
+        f."customerName",
+        f.kind,
+        f."goodsTotal",
+        f.discount,
+        f."grandTotal",
+        f."paidAmount",
+        f.status,
+        f.notes,
+        f."createdAt",
+        f."updatedAt",
+        f."voidedAt",
+        f."voidReason",
+        CASE
+          WHEN f.customer_id IS NULL THEN NULL
+          ELSE jsonb_build_object('id', f.customer_id, 'name', f.customer_name)
+        END AS customer,
+        COALESCE(
+          (
+            SELECT jsonb_agg(
+              jsonb_build_object(
+                'id', l.id,
+                'itemTypeId', l."itemTypeId",
+                'itemName', l."itemName",
+                'qty', l.qty,
+                'unitPrice', l."unitPrice",
+                'lineTotal', l."lineTotal",
+                'note', l.note
+              )
+              ORDER BY l.id
+            )
+            FROM "SaleLine" l
+            WHERE l."saleId" = f.id
+          ),
+          '[]'::jsonb
+        ) AS lines,
+        f.total
+      FROM filtered f
+      ORDER BY f."saleDate" DESC
+    `);
+
+    return {
+      data: rows.map((r) => ({
+        ...r,
+        lines: Array.isArray(r.lines) ? r.lines : [],
+      })),
+      page,
+      limit,
+      total: rows[0]?.total ?? 0,
     };
-
-    const [rows, total] = await Promise.all([
-      this.prisma.sale.findMany({
-        where,
-        skip: (page - 1) * limit,
-        take: limit,
-        orderBy: { saleDate: "desc" },
-        include: {
-          customer: { select: { id: true, name: true } },
-          lines: { include: { itemType: true } },
-        },
-      }),
-      this.prisma.sale.count({ where }),
-    ]);
-
-    return { data: rows, page, limit, total };
   }
 
   async getOne(id: number) {
