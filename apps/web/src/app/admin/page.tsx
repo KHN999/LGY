@@ -33,9 +33,11 @@ export default async function AdminHomePage({
   if (to) params.set("to", to);
   const qs = params.toString();
 
-  // One server-aggregated call instead of ~9 round-trips.
-  const summary =
-    (await serverFetch<DashboardSummary>(`/api/dashboard/summary${qs ? `?${qs}` : ""}`)) ?? EMPTY;
+  // One server-aggregated call instead of ~9 round-trips. Shallow-merge over
+  // EMPTY so a response missing a newer field (e.g. rollOrders, before the API
+  // redeploys) falls back to a default instead of crashing the page.
+  const fetched = await serverFetch<DashboardSummary>(`/api/dashboard/summary${qs ? `?${qs}` : ""}`);
+  const summary: DashboardSummary = { ...EMPTY, ...(fetched ?? {}) };
 
   const trend = summary.trend.map((t) => ({
     date: t.date.slice(5),
