@@ -39,7 +39,7 @@ export class OpeningStockService {
           })),
         },
       },
-      include: { lines: true },
+      include: { lines: { include: { itemType: true } } },
     });
   }
 

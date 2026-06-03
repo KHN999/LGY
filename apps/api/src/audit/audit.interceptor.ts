@@ -138,6 +138,31 @@ function summarize(method: string, path: string, params: Record<string, string>,
   return `${noun} · ${method}`;
 }
 
+/**
+ * Richer summary built from the RESPONSE of inventory actions. The request body
+ * only carries target counts; the response is the resulting event with the actual
+ * per-item lines (signed delta + item name) — e.g. "Stock count: မိုက်လျှော −5,
+ * ဝမ်းဆက် +20". Returns null for anything else (caller falls back to the body
+ * summary, which already covers sales/payments/transfers/etc.).
+ */
+function summarizeFromResponse(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const d = data as Record<string, unknown>;
+  if (d.kind !== "ADJUSTMENT" && d.kind !== "OPENING_STOCK") return null;
+  const lines = Array.isArray(d.lines) ? (d.lines as Array<Record<string, unknown>>) : [];
+  if (lines.length === 0) return null;
+  const verb = d.kind === "ADJUSTMENT" ? "Stock count" : "Opening stock";
+  const parts = lines.slice(0, 8).map((l) => {
+    const it = l.itemType as Record<string, unknown> | undefined;
+    const name =
+      (typeof it?.labelMy === "string" && it.labelMy) ||
+      (typeof it?.key === "string" && it.key) ||
+      `item#${String(l.itemTypeId)}`;
+    return `${name} ${l.direction === "OUT" ? "−" : "+"}${num(l.qty)}`;
+  });
+  return `${verb}: ${parts.join(", ")}${lines.length > 8 ? ` +${lines.length - 8} more` : ""}`;
+}
+
 type ReqWithUser = Request & {
   user?: AuthenticatedUser;
   cookies?: Record<string, string>;
@@ -180,7 +205,7 @@ export class AuditInterceptor implements NestInterceptor {
         : null;
     const res = context.switchToHttp().getResponse<Response>();
 
-    const write = (status: number, ok: boolean, error: string | null) => {
+    const write = (status: number, ok: boolean, error: string | null, summaryOverride?: string | null) => {
       const user = req.user;
       this.prisma.main.auditLog
         .create({
@@ -192,7 +217,7 @@ export class AuditInterceptor implements NestInterceptor {
             path,
             entity,
             entityId,
-            summary,
+            summary: summaryOverride || summary,
             status,
             ok,
             error,
@@ -207,7 +232,7 @@ export class AuditInterceptor implements NestInterceptor {
     };
 
     return next.handle().pipe(
-      tap(() => write(res.statusCode ?? 200, true, null)),
+      tap((data) => write(res.statusCode ?? 200, true, null, summarizeFromResponse(data))),
       catchError((err: unknown) => {
         const status =
           typeof (err as { getStatus?: () => number })?.getStatus === "function"
