@@ -30,6 +30,25 @@ export default async function SupplierOrdersPage({
   const orders = await serverFetch<SupplierOrder[]>("/api/supplier-orders");
   const rows = orders ?? [];
 
+  // Header totals — same per-row formula as below, so they always agree.
+  const totals = rows.reduce(
+    (acc, o) => {
+      const received = o.receipts.reduce((s, r) => s + r.receivedQty, 0);
+      const paid = o.payments.reduce((s, p) => s + p.amount, 0);
+      const receivedCost = o.receipts.reduce((s, r) => s + r.goodsCost + r.transportCost, 0);
+      const totalActual = receivedCost || o.expectedTotal;
+      acc.committed += Math.max(0, totalActual - paid);
+      acc.dueNow += Math.max(0, receivedCost - paid);
+      if (o.status === "PENDING" || o.status === "PARTIAL_RECEIVED") {
+        acc.open += 1;
+        acc.rollsOrdered += o.expectedQty;
+        acc.rollsReceived += received;
+      }
+      return acc;
+    },
+    { open: 0, rollsOrdered: 0, rollsReceived: 0, committed: 0, dueNow: 0 },
+  );
+
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
@@ -45,6 +64,33 @@ export default async function SupplierOrdersPage({
         <p className="rounded-lg bg-emerald-100 px-3 py-2 text-emerald-900">
           {labels.admin.saved}
         </p>
+      )}
+
+      {rows.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-4">
+          <div>
+            <p className="text-xs text-muted-foreground">{labels.rollOrders.open}</p>
+            <p className="text-xl font-bold tabular-nums">{totals.open}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">{labels.rollOrders.rolls}</p>
+            <p className="text-xl font-bold tabular-nums">
+              {totals.rollsReceived}/{totals.rollsOrdered}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">{labels.rollOrders.committedToPay}</p>
+            <p className={"text-lg font-bold " + (totals.committed > 0 ? "text-rose-600" : "")}>
+              {formatKyat(totals.committed)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">{labels.rollOrders.dueNow}</p>
+            <p className={"text-lg font-bold " + (totals.dueNow > 0 ? "text-rose-600" : "")}>
+              {formatKyat(totals.dueNow)}
+            </p>
+          </div>
+        </div>
       )}
 
       {rows.length === 0 ? (

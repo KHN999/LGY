@@ -4,6 +4,7 @@ import { DailyCloseService } from "../daily-close/daily-close.service";
 import { InventoryService } from "../inventory/inventory.service";
 import { CustomersService } from "../customers/customers.service";
 import { SuppliersService } from "../suppliers/suppliers.service";
+import { SupplierOrdersService, type RollOrdersSummary } from "../supplier-orders/supplier-orders.service";
 import { toYangonYmd } from "../common/yangon-time";
 
 export interface DashboardStockRow {
@@ -24,6 +25,7 @@ export interface DashboardSummary {
   rangeExpenseTotal: number;
   warehouseStock: DashboardStockRow[];
   shopStock: DashboardStockRow[];
+  rollOrders: RollOrdersSummary;
 }
 
 /**
@@ -40,6 +42,7 @@ export class DashboardService {
     private readonly inventory: InventoryService,
     private readonly customers: CustomersService,
     private readonly suppliers: SuppliersService,
+    private readonly supplierOrders: SupplierOrdersService,
   ) {}
 
   async summary(range: { from?: string; to?: string } = {}): Promise<DashboardSummary> {
@@ -87,9 +90,10 @@ export class DashboardService {
       }),
     ]);
 
-    const [custBalances, suppBalances] = await Promise.all([
+    const [custBalances, suppBalances, rollOrders] = await Promise.all([
       this.customers.balancesFor(custIds.map((c) => c.id)),
       this.suppliers.balancesFor(suppIds.map((s) => s.id)),
+      this.supplierOrders.summary(),
     ]);
     const customerDebt = [...custBalances.values()].reduce((s, b) => s + Math.max(0, b), 0);
     const supplierDebt = [...suppBalances.values()].reduce((s, b) => s + Math.max(0, b), 0);
@@ -148,6 +152,7 @@ export class DashboardService {
       rangeExpenseTotal,
       warehouseStock: rows(whMap),
       shopStock: rows(shopMap),
+      rollOrders,
     };
   }
 }

@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { SupplierOrderStatus } from "@lgy/db";
+import { Prisma, type SupplierOrderStatus } from "@lgy/db";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   CreateReceiptDto,
@@ -13,9 +13,51 @@ import {
   UpdateSupplierOrderDto,
 } from "./dto/supplier-order.dto";
 
+export interface RollOrdersSummary {
+  /** Orders still awaiting delivery (PENDING or PARTIAL_RECEIVED). */
+  openOrders: number;
+  /** Rolls on those open orders: total ordered vs already received. */
+  rollsOrdered: number;
+  rollsReceived: number;
+  /** Σ(expectedTotal − payments) over non-cancelled orders — what each row shows
+   *  as "ပေးရန်ကျန်", incl. orders not yet received (a commitment). */
+  committedToPay: number;
+  /** Σ(received cost − payments) — payable for goods that have actually arrived. */
+  dueNow: number;
+}
+
 @Injectable()
 export class SupplierOrdersService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /** Roll-order obligations at a glance (dashboard card + page header). Single
+   *  source of truth so both views agree. Order-scoped payments only. */
+  async summary(): Promise<RollOrdersSummary> {
+    const rows = await this.prisma.$queryRaw<RollOrdersSummary[]>(Prisma.sql`
+      WITH o AS (
+        SELECT
+          so.status::text AS status,
+          so."expectedQty",
+          so."expectedTotal",
+          COALESCE((SELECT SUM(r."receivedQty") FROM "SupplierOrderReceipt" r
+                    WHERE r."orderId" = so.id AND r."voidedAt" IS NULL), 0)::int AS received_qty,
+          COALESCE((SELECT SUM(r."goodsCost" + r."transportCost") FROM "SupplierOrderReceipt" r
+                    WHERE r."orderId" = so.id AND r."voidedAt" IS NULL), 0)::int AS received_cost,
+          COALESCE((SELECT SUM(p.amount) FROM "SupplierPayment" p
+                    WHERE p."orderId" = so.id AND p."voidedAt" IS NULL), 0)::int AS paid
+        FROM "SupplierOrder" so
+        WHERE so.status::text <> 'CANCELLED'
+      )
+      SELECT
+        COUNT(*) FILTER (WHERE status IN ('PENDING', 'PARTIAL_RECEIVED'))::int AS "openOrders",
+        COALESCE(SUM("expectedQty") FILTER (WHERE status IN ('PENDING', 'PARTIAL_RECEIVED')), 0)::int AS "rollsOrdered",
+        COALESCE(SUM(received_qty) FILTER (WHERE status IN ('PENDING', 'PARTIAL_RECEIVED')), 0)::int AS "rollsReceived",
+        COALESCE(SUM(GREATEST((CASE WHEN received_cost > 0 THEN received_cost ELSE "expectedTotal" END) - paid, 0)), 0)::int AS "committedToPay",
+        COALESCE(SUM(GREATEST(received_cost - paid, 0)), 0)::int AS "dueNow"
+      FROM o
+    `);
+    return rows[0] ?? { openOrders: 0, rollsOrdered: 0, rollsReceived: 0, committedToPay: 0, dueNow: 0 };
+  }
 
   async list(q: ListSupplierOrdersQueryDto) {
     return this.prisma.supplierOrder.findMany({

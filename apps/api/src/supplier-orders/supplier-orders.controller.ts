@@ -33,6 +33,12 @@ export class SupplierOrdersController {
     return this.service.list(q);
   }
 
+  // Must precede @Get(":id") so "summary" isn't captured as an id.
+  @Get("summary")
+  summary() {
+    return this.service.summary();
+  }
+
   @Get(":id")
   getOne(@Param("id", ParseIntPipe) id: number) {
     return this.service.getOne(id);

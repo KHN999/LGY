@@ -228,6 +228,17 @@ export interface StockRow {
   qty: number;
 }
 
+/** Roll-order (supplier order) obligations at a glance. */
+export interface RollOrdersSummary {
+  openOrders: number;
+  rollsOrdered: number;
+  rollsReceived: number;
+  /** Σ(expectedTotal − payments) over non-cancelled orders — total "ပေးရန်ကျန်". */
+  committedToPay: number;
+  /** Σ(received cost − payments) — payable for goods that have arrived. */
+  dueNow: number;
+}
+
 /** One server-aggregated payload for the admin dashboard (replaces ~9 calls). */
 export interface DashboardSummary {
   counts: { itemTypes: number; customers: number; suppliers: number; tailors: number };
@@ -239,6 +250,7 @@ export interface DashboardSummary {
   rangeExpenseTotal: number;
   warehouseStock: StockRow[];
   shopStock: StockRow[];
+  rollOrders: RollOrdersSummary;
 }
 
 export interface SaleLine {

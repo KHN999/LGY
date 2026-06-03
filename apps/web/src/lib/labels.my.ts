@@ -507,6 +507,15 @@ export const my: DeepPartial<Labels> = {
     thanks: "ကျေးဇူးတင်ပါသည်",
   },
 
+  rollOrders: {
+    title: "အလိပ်မှာယူမှု",
+    open: "မှာထားဆဲ",
+    rolls: "မှာထားသော အလိပ်",
+    received: "ရောက်ပြီး",
+    committedToPay: "ပေးရန်ကျန် (စုစုပေါင်း)",
+    dueNow: "ယခုပေးရန် (ရောက်ပြီး)",
+  },
+
   errors: {
     required: "ဖြည့်ရန်လိုသည်",
     networkError: "ချိတ်ဆက်မှု အဆင်မပြေပါ။ နောက်တစ်ခါပြန်ကြိုးစားပါ။",

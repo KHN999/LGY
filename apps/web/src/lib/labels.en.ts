@@ -506,6 +506,15 @@ export const en = {
     thanks: "Thank you!",
   },
 
+  rollOrders: {
+    title: "Roll orders",
+    open: "Open orders",
+    rolls: "Rolls ordered",
+    received: "received",
+    committedToPay: "Committed to pay",
+    dueNow: "Due now (received)",
+  },
+
   audit: {
     title: "Audit log",
     subtitle: "Every change made in the system — newest first.",

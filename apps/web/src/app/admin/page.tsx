@@ -19,6 +19,7 @@ const EMPTY: DashboardSummary = {
   rangeExpenseTotal: 0,
   warehouseStock: [],
   shopStock: [],
+  rollOrders: { openOrders: 0, rollsOrdered: 0, rollsReceived: 0, committedToPay: 0, dueNow: 0 },
 };
 
 export default async function AdminHomePage({
@@ -68,6 +69,38 @@ export default async function AdminHomePage({
           tone={summary.debts.supplier > 0 ? "warn" : "default"}
         />
       </div>
+
+      <Link href="/admin/supplier-orders" className="rounded-2xl border bg-card p-4 hover:bg-accent">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-base font-semibold">{labels.rollOrders.title}</h2>
+          <span className="text-sm text-muted-foreground">→</span>
+        </div>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div>
+            <p className="text-xs text-muted-foreground">{labels.rollOrders.open}</p>
+            <p className="text-2xl font-bold tabular-nums">{summary.rollOrders.openOrders}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">{labels.rollOrders.rolls}</p>
+            <p className="text-2xl font-bold tabular-nums">
+              {summary.rollOrders.rollsReceived}/{summary.rollOrders.rollsOrdered}
+            </p>
+            <p className="text-[11px] text-muted-foreground">{labels.rollOrders.received}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">{labels.rollOrders.committedToPay}</p>
+            <p className={"text-xl font-bold " + (summary.rollOrders.committedToPay > 0 ? "text-rose-600" : "")}>
+              {formatKyat(summary.rollOrders.committedToPay)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">{labels.rollOrders.dueNow}</p>
+            <p className={"text-xl font-bold " + (summary.rollOrders.dueNow > 0 ? "text-rose-600" : "")}>
+              {formatKyat(summary.rollOrders.dueNow)}
+            </p>
+          </div>
+        </div>
+      </Link>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-4">
