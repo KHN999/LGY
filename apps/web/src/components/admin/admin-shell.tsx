@@ -173,8 +173,9 @@ export function AdminShell({
 
       {/* Content column */}
       <div className="min-w-0 flex-1">
-        {/* Mobile top bar */}
-        <header className="flex items-center justify-between gap-2 border-b bg-card px-4 py-3 lg:hidden">
+        {/* Mobile top bar — sticky so the menu (and ☰) is always reachable
+            without scrolling back to the top of a long page. */}
+        <header className="sticky top-0 z-30 flex items-center justify-between gap-2 border-b bg-card px-4 py-3 lg:hidden">
           <button
             type="button"
             onClick={() => setOpen(true)}
