@@ -12,17 +12,18 @@ export class UpdateSettingsDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(200)
+  @MaxLength(250)
   addressLine?: string;
 
+  // phone/social hold several entries, one per line — hence the generous caps.
   @IsOptional()
   @IsString()
-  @MaxLength(60)
+  @MaxLength(200)
   phone?: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(120)
+  @MaxLength(200)
   social?: string;
 
   @IsOptional()

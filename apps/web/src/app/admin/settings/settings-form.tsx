@@ -19,16 +19,36 @@ const SAMPLE: ReceiptData = {
   paid: 30000,
 };
 
+const PHONE_COUNT = 4;
+const SOCIAL_COUNT = 2;
+
+/** Split a stored multi-value field into a fixed-length array of boxes (accepts
+ *  one-per-line or legacy comma-separated). */
+function splitPad(s: string | null | undefined, n: number): string[] {
+  const arr = (s ?? "")
+    .split(/[\n,]+/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+  return Array.from({ length: n }, (_, i) => arr[i] ?? "");
+}
+/** Join the non-empty boxes back into one stored value (one per line). */
+function joinEntries(arr: string[]): string {
+  return arr.map((x) => x.trim()).filter(Boolean).join("\n");
+}
+
+const inputCx =
+  "w-full rounded-lg border bg-background px-3 py-2 outline-none focus:ring-2 focus:ring-ring";
+
 export function SettingsForm({ initial }: { initial: ShopSettings }) {
   const router = useRouter();
   const [form, setForm] = useState({
     shopName: initial.shopName ?? "",
     addressLine: initial.addressLine ?? "",
-    phone: initial.phone ?? "",
-    social: initial.social ?? "",
     receiptHeader: initial.receiptHeader ?? "",
     receiptFooter: initial.receiptFooter ?? "",
   });
+  const [phones, setPhones] = useState<string[]>(splitPad(initial.phone, PHONE_COUNT));
+  const [socials, setSocials] = useState<string[]>(splitPad(initial.social, SOCIAL_COUNT));
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,13 +57,24 @@ export function SettingsForm({ initial }: { initial: ShopSettings }) {
     setForm((p) => ({ ...p, [key]: value }));
     setSavedAt(false);
   }
+  function setEntry(
+    setter: React.Dispatch<React.SetStateAction<string[]>>,
+    i: number,
+    value: string,
+  ) {
+    setter((p) => p.map((x, idx) => (idx === i ? value : x)));
+    setSavedAt(false);
+  }
+
+  const phoneStr = joinEntries(phones);
+  const socialStr = joinEntries(socials);
 
   // What the preview/receipt actually uses (empty → fall back to defaults).
   const preview: ShopSettings = {
     shopName: form.shopName.trim() || initial.shopName,
     addressLine: form.addressLine.trim() || null,
-    phone: form.phone.trim() || null,
-    social: form.social.trim() || null,
+    phone: phoneStr || null,
+    social: socialStr || null,
     receiptHeader: form.receiptHeader.trim() || null,
     receiptFooter: form.receiptFooter.trim() || null,
   };
@@ -56,8 +87,8 @@ export function SettingsForm({ initial }: { initial: ShopSettings }) {
       await api.patch("/settings", {
         shopName: form.shopName.trim(),
         addressLine: form.addressLine,
-        phone: form.phone,
-        social: form.social,
+        phone: phoneStr,
+        social: socialStr,
         receiptHeader: form.receiptHeader,
         receiptFooter: form.receiptFooter,
       });
@@ -94,35 +125,47 @@ export function SettingsForm({ initial }: { initial: ShopSettings }) {
           />
         </Field>
 
-        <Field label={labels.settings.address}>
-          <input
-            type="text"
+        <Field label={labels.settings.address} hint={labels.settings.addressHint}>
+          <textarea
             value={form.addressLine}
             onChange={(e) => set("addressLine", e.target.value)}
-            maxLength={200}
-            className="w-full rounded-lg border bg-background px-3 py-2 outline-none focus:ring-2 focus:ring-ring"
+            maxLength={250}
+            rows={2}
+            className={inputCx}
           />
         </Field>
 
-        <Field label={labels.settings.phone}>
-          <input
-            type="text"
-            value={form.phone}
-            onChange={(e) => set("phone", e.target.value)}
-            maxLength={60}
-            className="w-full rounded-lg border bg-background px-3 py-2 outline-none focus:ring-2 focus:ring-ring"
-          />
+        <Field label={labels.settings.phone} hint={labels.settings.phoneHint}>
+          <div className="grid grid-cols-2 gap-2">
+            {phones.map((p, i) => (
+              <input
+                key={i}
+                type="text"
+                inputMode="tel"
+                value={p}
+                onChange={(e) => setEntry(setPhones, i, e.target.value)}
+                maxLength={40}
+                placeholder={`${labels.settings.phone} ${i + 1}`}
+                className={inputCx}
+              />
+            ))}
+          </div>
         </Field>
 
-        <Field label={labels.settings.social}>
-          <input
-            type="text"
-            value={form.social}
-            onChange={(e) => set("social", e.target.value)}
-            maxLength={120}
-            placeholder={labels.settings.socialPlaceholder}
-            className="w-full rounded-lg border bg-background px-3 py-2 outline-none focus:ring-2 focus:ring-ring"
-          />
+        <Field label={labels.settings.social} hint={labels.settings.socialHint}>
+          <div className="flex flex-col gap-2">
+            {socials.map((s, i) => (
+              <input
+                key={i}
+                type="text"
+                value={s}
+                onChange={(e) => setEntry(setSocials, i, e.target.value)}
+                maxLength={80}
+                placeholder={labels.settings.socialPlaceholder}
+                className={inputCx}
+              />
+            ))}
+          </div>
         </Field>
 
         <Field label={labels.settings.receiptFooter}>
@@ -164,10 +207,19 @@ export function SettingsForm({ initial }: { initial: ShopSettings }) {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="flex flex-col gap-1.5">
       <span className="text-sm font-medium">{label}</span>
+      {hint && <span className="-mt-1 text-xs text-muted-foreground">{hint}</span>}
       {children}
     </label>
   );

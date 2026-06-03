@@ -26,6 +26,15 @@ function hideOnError(e: React.SyntheticEvent<HTMLImageElement>) {
   e.currentTarget.style.display = "none";
 }
 
+/** Split a multi-value field (phones, socials) into trimmed entries. Accepts
+ *  one-per-line (new) or comma-separated (legacy) data. */
+function splitEntries(s?: string | null): string[] {
+  return (s ?? "")
+    .split(/[\n,]+/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
 /**
  * Receipt — sized for A5 paper (see the print rules in globals.css). Used both
  * as the on-screen preview and the printed copy. The header/footer text comes
@@ -41,6 +50,8 @@ export function Receipt({ data, shop }: { data: ReceiptData; shop?: ShopSettings
   const shopName = shop?.shopName?.trim() || labels.receipt.shopName;
   const subtitle = shop?.receiptHeader?.trim() || labels.receipt.title;
   const footer = shop?.receiptFooter?.trim() || labels.receipt.thanks;
+  const phones = splitEntries(shop?.phone);
+  const socials = splitEntries(shop?.social);
   return (
     <div className="relative mx-auto w-full max-w-[150mm] overflow-hidden bg-white p-6 text-black">
       {/* Faint, centered logo watermark behind the content. */}
@@ -66,10 +77,18 @@ export function Receipt({ data, shop }: { data: ReceiptData; shop?: ShopSettings
           <h2 className="text-2xl font-extrabold tracking-wide">{shopName}</h2>
           <p className="text-sm font-medium text-neutral-700">{subtitle}</p>
           {shop?.addressLine?.trim() && (
-            <p className="mt-1 text-xs text-neutral-600">{shop.addressLine}</p>
+            <p className="mt-1 whitespace-pre-line text-xs leading-snug text-neutral-600">
+              {shop.addressLine.trim()}
+            </p>
           )}
-          {shop?.phone?.trim() && <p className="text-xs text-neutral-600">{shop.phone}</p>}
-          {shop?.social?.trim() && <p className="text-xs text-neutral-600">{shop.social}</p>}
+          {phones.length > 0 && (
+            <p className="mt-1 text-xs leading-snug text-neutral-600">
+              📞 {phones.join("  ·  ")}
+            </p>
+          )}
+          {socials.length > 0 && (
+            <p className="text-xs leading-snug text-neutral-600">{socials.join("  ·  ")}</p>
+          )}
         </div>
 
         <div className="mt-4 flex justify-between text-sm">
