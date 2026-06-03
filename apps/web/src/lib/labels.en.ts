@@ -324,6 +324,7 @@ export const en = {
     settings: "Settings",
     users: "Users",
     audit: "Audit log",
+    export: "Export / Backup",
     userMgmt: {
       title: "User accounts",
       add: "Add user",

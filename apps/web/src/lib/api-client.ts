@@ -467,3 +467,23 @@ export interface StockExceptionRow {
   lastDetectedAt: string;
   sales: StockExceptionSaleRef[];
 }
+
+export interface StatementTxn {
+  date: string;
+  type: string;
+  description: string;
+  in: number;
+  out: number;
+  balance: number;
+}
+export interface Statement {
+  from: string;
+  to: string;
+  openingCash: number;
+  closingCash: number;
+  totalIn: number;
+  totalOut: number;
+  salesTotal: number;
+  salesCount: number;
+  transactions: StatementTxn[];
+}

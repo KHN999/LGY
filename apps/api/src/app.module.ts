@@ -26,6 +26,7 @@ import { ExpensesModule } from "./expenses/expenses.module";
 import { UsersModule } from "./users/users.module";
 import { DashboardModule } from "./dashboard/dashboard.module";
 import { AuditModule } from "./audit/audit.module";
+import { ExportModule } from "./export/export.module";
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { AuditModule } from "./audit/audit.module";
     UsersModule,
     DashboardModule,
     AuditModule,
+    ExportModule,
   ],
   controllers: [HealthController],
 })
