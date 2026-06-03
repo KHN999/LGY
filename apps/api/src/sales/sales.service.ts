@@ -53,9 +53,21 @@ type SaleListSqlRow = {
   total: number;
 };
 
+type SaleDetailSqlRow = Omit<SaleListSqlRow, "total"> & {
+  createdById: number;
+  voidedById: number | null;
+  createdBy: unknown;
+  voidedBy: unknown;
+  payments: unknown;
+};
+
 function cleanText(value: string | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+function jsonArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
 }
 
 @Injectable()
@@ -571,18 +583,114 @@ export class SalesService {
   }
 
   async getOne(id: number) {
-    const sale = await this.prisma.sale.findUnique({
-      where: { id },
-      include: {
-        customer: true,
-        lines: { include: { itemType: true } },
-        payments: { where: { voidedAt: null }, orderBy: { paymentDate: "asc" } },
-        createdBy: { select: { id: true, username: true, displayName: true } },
-        voidedBy: { select: { id: true, username: true, displayName: true } },
-      },
-    });
+    const [sale] = await this.prisma.$queryRaw<SaleDetailSqlRow[]>(Prisma.sql`
+      SELECT
+        s.id,
+        s."saleDate",
+        s."customerId",
+        s."customerName",
+        s.kind,
+        s."goodsTotal",
+        s.discount,
+        s."grandTotal",
+        s."paidAmount",
+        s.status,
+        s.notes,
+        s."createdById",
+        s."createdAt",
+        s."updatedAt",
+        s."voidedAt",
+        s."voidedById",
+        s."voidReason",
+        CASE
+          WHEN c.id IS NULL THEN NULL
+          ELSE jsonb_build_object(
+            'id', c.id,
+            'name', c.name,
+            'contact', c.contact,
+            'photoUrl', c."photoUrl",
+            'defaultKind', c."defaultKind",
+            'notes', c.notes,
+            'status', c.status
+          )
+        END AS customer,
+        COALESCE(
+          (
+            SELECT jsonb_agg(
+              jsonb_build_object(
+                'id', l.id,
+                'itemTypeId', l."itemTypeId",
+                'itemName', l."itemName",
+                'qty', l.qty,
+                'unitPrice', l."unitPrice",
+                'lineTotal', l."lineTotal",
+                'note', l.note,
+                'itemType',
+                  CASE
+                    WHEN t.id IS NULL THEN NULL
+                    ELSE jsonb_build_object(
+                      'id', t.id,
+                      'key', t.key,
+                      'labelMy', t."labelMy",
+                      'emoji', t.emoji,
+                      'sortOrder', t."sortOrder",
+                      'isActive', t."isActive",
+                      'sellable', t.sellable
+                    )
+                  END
+              )
+              ORDER BY l.id
+            )
+            FROM "SaleLine" l
+            LEFT JOIN "ItemType" t ON t.id = l."itemTypeId"
+            WHERE l."saleId" = s.id
+          ),
+          '[]'::jsonb
+        ) AS lines,
+        COALESCE(
+          (
+            SELECT jsonb_agg(
+              jsonb_build_object(
+                'id', p.id,
+                'amount', p.amount,
+                'paymentDate', p."paymentDate",
+                'method', p.method,
+                'notes', p.notes
+              )
+              ORDER BY p."paymentDate" ASC, p.id ASC
+            )
+            FROM "CustomerPayment" p
+            WHERE p."saleId" = s.id
+              AND p."voidedAt" IS NULL
+          ),
+          '[]'::jsonb
+        ) AS payments,
+        jsonb_build_object(
+          'id', cb.id,
+          'username', cb.username,
+          'displayName', cb."displayName"
+        ) AS "createdBy",
+        CASE
+          WHEN vb.id IS NULL THEN NULL
+          ELSE jsonb_build_object(
+            'id', vb.id,
+            'username', vb.username,
+            'displayName', vb."displayName"
+          )
+        END AS "voidedBy"
+      FROM "Sale" s
+      LEFT JOIN "Customer" c ON c.id = s."customerId"
+      JOIN "User" cb ON cb.id = s."createdById"
+      LEFT JOIN "User" vb ON vb.id = s."voidedById"
+      WHERE s.id = ${id}
+      LIMIT 1
+    `);
     if (!sale) throw new NotFoundException(`Sale ${id} not found`);
-    return sale;
+    return {
+      ...sale,
+      lines: jsonArray(sale.lines),
+      payments: jsonArray(sale.payments),
+    };
   }
 
   async addPayment(saleId: number, dto: AddPaymentDto, createdById: number) {

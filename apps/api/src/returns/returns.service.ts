@@ -1,6 +1,28 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@lgy/db";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateReturnDto } from "./dto/create-return.dto";
+
+type SaleReturnSqlRow = {
+  id: number;
+  saleId: number;
+  customerId: number | null;
+  returnDate: Date;
+  returnTotal: number;
+  refundAmount: number;
+  notes: string | null;
+  eventId: number | null;
+  createdById: number;
+  createdAt: Date;
+  voidedAt: Date | null;
+  voidedById: number | null;
+  voidReason: string | null;
+  lines: unknown;
+};
+
+function jsonArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
 
 @Injectable()
 export class ReturnsService {
@@ -107,11 +129,60 @@ export class ReturnsService {
   }
 
   async listForSale(saleId: number) {
-    return this.prisma.saleReturn.findMany({
-      where: { saleId, voidedAt: null },
-      orderBy: { returnDate: "desc" },
-      include: { lines: { include: { itemType: true } } },
-    });
+    const rows = await this.prisma.$queryRaw<SaleReturnSqlRow[]>(Prisma.sql`
+      SELECT
+        r.id,
+        r."saleId",
+        r."customerId",
+        r."returnDate",
+        r."returnTotal",
+        r."refundAmount",
+        r.notes,
+        r."eventId",
+        r."createdById",
+        r."createdAt",
+        r."voidedAt",
+        r."voidedById",
+        r."voidReason",
+        COALESCE(
+          (
+            SELECT jsonb_agg(
+              jsonb_build_object(
+                'id', l.id,
+                'returnId', l."returnId",
+                'itemTypeId', l."itemTypeId",
+                'itemName', l."itemName",
+                'qty', l.qty,
+                'unitPrice', l."unitPrice",
+                'lineTotal', l."lineTotal",
+                'itemType',
+                  CASE
+                    WHEN t.id IS NULL THEN NULL
+                    ELSE jsonb_build_object(
+                      'id', t.id,
+                      'key', t.key,
+                      'labelMy', t."labelMy",
+                      'emoji', t.emoji,
+                      'sortOrder', t."sortOrder",
+                      'isActive', t."isActive",
+                      'sellable', t.sellable
+                    )
+                  END
+              )
+              ORDER BY l.id
+            )
+            FROM "SaleReturnLine" l
+            LEFT JOIN "ItemType" t ON t.id = l."itemTypeId"
+            WHERE l."returnId" = r.id
+          ),
+          '[]'::jsonb
+        ) AS lines
+      FROM "SaleReturn" r
+      WHERE r."saleId" = ${saleId}
+        AND r."voidedAt" IS NULL
+      ORDER BY r."returnDate" DESC, r.id DESC
+    `);
+    return rows.map((r) => ({ ...r, lines: jsonArray(r.lines) }));
   }
 
   /** Undo a return: voids the SaleReturn and its RETURN_FROM_CUSTOMER event
