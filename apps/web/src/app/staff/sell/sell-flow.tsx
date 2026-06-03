@@ -356,7 +356,7 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
   if (step === "items") {
     if (draft) {
       return (
-        <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-2 p-3 sm:gap-3 sm:p-6">
+        <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-2 p-3 pb-28 sm:gap-3 sm:p-6">
           <button
             type="button"
             onClick={() => {
