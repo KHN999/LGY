@@ -82,9 +82,13 @@ export function Receipt({ data, shop }: { data: ReceiptData; shop?: ShopSettings
             </p>
           )}
           {phones.length > 0 && (
-            <p className="mt-1 text-xs leading-snug text-neutral-600">
-              📞 {phones.join("  ·  ")}
-            </p>
+            <div className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-0.5 text-xs leading-snug text-neutral-600">
+              {phones.map((p, i) => (
+                <span key={i} className="whitespace-nowrap">
+                  📞 {p}
+                </span>
+              ))}
+            </div>
           )}
           {socials.length > 0 && (
             <p className="text-xs leading-snug text-neutral-600">{socials.join("  ·  ")}</p>
