@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { labels } from "@/lib/labels";
 
 interface Props {
@@ -22,10 +21,6 @@ const ROLE_LABEL: Record<string, string> = {
  */
 export function UserMenu({ user }: Props) {
   const router = useRouter();
-  const pathname = usePathname();
-  // Only admins can enter both apps, so only they get the one-tap switcher.
-  const isAdmin = user.roles.includes("admin");
-  const inAdmin = pathname?.startsWith("/admin") ?? false;
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -108,18 +103,7 @@ export function UserMenu({ user }: Props) {
             )}
           </div>
 
-          <div className="flex flex-col gap-2 pt-3">
-            {isAdmin && (
-              <Link
-                href={inAdmin ? "/staff" : "/admin"}
-                role="menuitem"
-                onClick={() => setOpen(false)}
-                className="flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-accent"
-              >
-                <span aria-hidden className="text-base">{inAdmin ? "🛍️" : "📊"}</span>
-                {inAdmin ? labels.nav.staff : labels.nav.admin}
-              </Link>
-            )}
+          <div className="pt-3">
             {!confirming ? (
               <button
                 type="button"

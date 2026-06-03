@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth-server";
 import { UserMenu } from "@/components/user-menu";
+import { AppSwitchButton } from "@/components/app-switch-button";
 import { labels } from "@/lib/labels";
 
 const actions = [
@@ -33,7 +34,10 @@ export default async function StaffHomePage({
     <main className="mx-auto max-w-2xl p-4 sm:p-8">
       <div className="mb-6 flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">{labels.staff.home}</h1>
-        {user && <UserMenu user={user} />}
+        <div className="flex items-center gap-2">
+          {user && <AppSwitchButton roles={user.roles} />}
+          {user && <UserMenu user={user} />}
+        </div>
       </div>
       {flash && (
         <p className="mb-4 rounded-lg bg-emerald-100 p-3 text-center text-emerald-900">

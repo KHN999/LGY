@@ -7,6 +7,7 @@ import { labels } from "@/lib/labels";
 import type { ShopId } from "@/lib/api-client";
 import { UserMenu } from "@/components/user-menu";
 import { ShopSwitcher } from "@/components/shop/shop-switcher";
+import { AppSwitchButton } from "@/components/app-switch-button";
 
 interface NavItem {
   href: string;
@@ -130,6 +131,10 @@ function SidebarContent({
       </nav>
 
       <div className="flex flex-col gap-2 border-t p-3">
+        <AppSwitchButton
+          roles={user.roles}
+          className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-accent"
+        />
         <ShopSwitcher current={currentShop} />
         <div className="hidden lg:block">
           <UserMenu user={user} />
@@ -180,12 +185,17 @@ export function AdminShell({
             type="button"
             onClick={() => setOpen(true)}
             aria-label="Menu"
-            className="rounded-lg border bg-card px-3 py-2 text-base leading-none"
+            className="shrink-0 rounded-lg border bg-card px-3 py-2 text-base leading-none"
           >
             ☰
           </button>
-          <span className="font-semibold">{labels.common.appName} {labels.nav.admin}</span>
-          <UserMenu user={user} />
+          <span className="min-w-0 truncate font-semibold">
+            {labels.common.appName} {labels.nav.admin}
+          </span>
+          <div className="flex shrink-0 items-center gap-2">
+            <AppSwitchButton roles={user.roles} />
+            <UserMenu user={user} />
+          </div>
         </header>
 
         <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">{children}</main>
