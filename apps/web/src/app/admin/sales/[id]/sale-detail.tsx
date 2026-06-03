@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError, type SaleDetail } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
-import { formatKyat } from "@/lib/utils";
+import { formatKyat, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui";
 
 export function SaleDetailActions({ sale }: { sale: SaleDetail }) {
@@ -25,7 +25,7 @@ export function SaleDetailActions({ sale }: { sale: SaleDetail }) {
                 <div>
                   <p className="font-medium">{formatKyat(p.amount)}</p>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(p.paymentDate).toLocaleDateString("en-US")} · {p.method}
+                    {formatDate(p.paymentDate)} · {p.method}
                   </p>
                 </div>
                 {!voided && (

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
-import { formatKyat } from "@/lib/utils";
+import { formatKyat, formatDateTime } from "@/lib/utils";
 import type { SaleDetail } from "@/lib/api-client";
 import { SaleDetailActions } from "./sale-detail";
 import { PageHeader } from "@/components/ui";
@@ -34,7 +34,7 @@ export default async function SaleDetailPage({
         }
       />
       <p className="-mt-2 text-sm text-muted-foreground">
-        {new Date(sale.saleDate).toLocaleString("en-US", { hour12: true })}
+        {formatDateTime(sale.saleDate)}
       </p>
 
       <section className="rounded-2xl border bg-card p-4">

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
-import { formatKyat } from "@/lib/utils";
+import { formatKyat, formatDateTime } from "@/lib/utils";
 import type { Page, Sale } from "@/lib/api-client";
 
 export const dynamic = "force-dynamic";
@@ -34,10 +34,7 @@ export default async function StaffSalesHistoryPage() {
                     #{s.id} {s.customer?.name ?? s.customerName ?? labels.sell.walkInCustomer}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(s.saleDate).toLocaleString("en-GB", {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}
+                    {formatDateTime(s.saleDate)}
                     {s.voidedAt && ` · ${labels.salesAdmin.voided}`}
                   </p>
                 </div>

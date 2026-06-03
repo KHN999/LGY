@@ -2,7 +2,7 @@ import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
 import type { ItemType, InventoryEvent } from "@/lib/api-client";
 import { OpeningStockForm } from "./opening-stock-form";
-import { formatKyat } from "@/lib/utils";
+import { formatKyat, formatDateTime } from "@/lib/utils";
 import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +37,7 @@ export default async function OpeningStockPage({
             {history.slice(0, 10).map((e) => (
               <li key={e.id} className="py-3">
                 <p className="text-xs text-muted-foreground">
-                  {new Date(e.occurredAt).toLocaleString("en-US", { hour12: true })}
+                  {formatDateTime(e.occurredAt)}
                   {e.notes && ` · ${e.notes}`}
                 </p>
                 <ul className="mt-1 flex flex-wrap gap-2 text-sm">

@@ -10,7 +10,7 @@ import {
   type TailorPaymentRow,
 } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
-import { formatKyat } from "@/lib/utils";
+import { formatKyat, formatDate } from "@/lib/utils";
 import { Field, inputClass } from "@/components/admin/form-field";
 import { Button, Card } from "@/components/ui";
 
@@ -21,7 +21,7 @@ const METHODS: { value: string; label: string }[] = [
   { value: "OTHER", label: labels.tailorLedger.methodOther },
 ];
 const methodLabel = (m: string) => METHODS.find((x) => x.value === m)?.label ?? m;
-const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-GB");
+const fmtDate = (s: string) => formatDate(s);
 
 export function TailorLedger({ tailor }: { tailor: TailorDetail }) {
   const router = useRouter();

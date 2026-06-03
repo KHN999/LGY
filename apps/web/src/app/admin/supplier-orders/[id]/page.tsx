@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
-import { formatKyat } from "@/lib/utils";
+import { formatKyat, formatDate } from "@/lib/utils";
 import type { SupplierOrder } from "@/lib/api-client";
 import { OrderDetail } from "./order-detail";
 import { PageHeader } from "@/components/ui";
@@ -66,7 +66,7 @@ export default async function OrderDetailPage({
 
       <p className="-mt-2 text-sm text-muted-foreground">
         {order.itemType?.emoji} {order.itemType?.labelMy} ·{" "}
-        {new Date(order.orderDate).toLocaleDateString("en-US")}
+        {formatDate(order.orderDate)}
       </p>
 
       <div className="grid gap-3 sm:grid-cols-3">

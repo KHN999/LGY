@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { serverFetch } from "@/lib/auth-server";
 import { CustomerForm } from "../customer-form";
 import { labels } from "@/lib/labels";
-import { formatKyat } from "@/lib/utils";
+import { formatKyat, formatDate, yangonYmd } from "@/lib/utils";
 import type { Customer, Page, Sale, CustomerPayment } from "@/lib/api-client";
 import { PageHeader, Card } from "@/components/ui";
 import { CustomerActivityChart } from "@/components/admin/customer-charts";
@@ -29,8 +29,8 @@ export default async function CustomerDetailPage({
   // Activity per day: bought (on credit) vs paid.
   const map = new Map<string, { bought: number; paid: number }>();
   const day = (k: string) => map.get(k) ?? map.set(k, { bought: 0, paid: 0 }).get(k)!;
-  for (const s of sales) day(new Date(s.saleDate).toLocaleDateString("en-CA")).bought += s.grandTotal;
-  for (const p of pays) day(new Date(p.paymentDate).toLocaleDateString("en-CA")).paid += p.amount;
+  for (const s of sales) day(yangonYmd(s.saleDate)).bought += s.grandTotal;
+  for (const p of pays) day(yangonYmd(p.paymentDate)).paid += p.amount;
   const activity = [...map.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([d, v]) => ({ date: d.slice(5), bought: v.bought, paid: v.paid }));
@@ -88,7 +88,7 @@ export default async function CustomerDetailPage({
                       className="flex items-center justify-between gap-2 rounded-lg px-1 py-2 hover:bg-accent"
                     >
                       <span className="text-sm">
-                        #{s.id} · {new Date(s.saleDate).toLocaleDateString("en-GB")}
+                        #{s.id} · {formatDate(s.saleDate)}
                         {s.voidedAt ? ` · ${labels.salesAdmin.voided}` : ""}
                       </span>
                       <span className="shrink-0 text-right text-sm">
@@ -125,7 +125,7 @@ export default async function CustomerDetailPage({
               {pays.slice(0, 12).map((p) => (
                 <li key={p.id} className="flex items-center justify-between gap-2 py-2">
                   <span className="text-sm">
-                    {new Date(p.paymentDate).toLocaleDateString("en-GB")} · {p.method}
+                    {formatDate(p.paymentDate)} · {p.method}
                   </span>
                   <span className="text-sm font-medium tabular-nums text-emerald-700">
                     {formatKyat(p.amount)}

@@ -1,7 +1,7 @@
 "use client";
 
 import { labels } from "@/lib/labels";
-import { formatKyat } from "@/lib/utils";
+import { formatKyat, formatDateTime } from "@/lib/utils";
 import type { ShopSettings } from "@/lib/api-client";
 
 export interface TransferSlip {
@@ -35,7 +35,7 @@ export function TransferReceipt({ data, shop }: { data: TransferSlip; shop?: Sho
         <span>
           {labels.receipt.no}: {data.transferId}
         </span>
-        <span>{d.toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}</span>
+        <span>{formatDateTime(d)}</span>
       </div>
       <p className="mt-2 text-center text-base font-semibold">
         {data.fromLabel} → {data.toLabel}

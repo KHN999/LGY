@@ -1,7 +1,7 @@
 "use client";
 
 import { labels } from "@/lib/labels";
-import { formatKyat } from "@/lib/utils";
+import { formatKyat, formatDateTime } from "@/lib/utils";
 import type { ShopSettings } from "@/lib/api-client";
 
 export interface ReceiptLine {
@@ -76,7 +76,7 @@ export function Receipt({ data, shop }: { data: ReceiptData; shop?: ShopSettings
           <span>
             {labels.receipt.no}: {data.saleId ?? "—"}
           </span>
-          <span>{d.toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}</span>
+          <span>{formatDateTime(d)}</span>
         </div>
         {data.customerName?.trim() && (
           <div className="text-sm">

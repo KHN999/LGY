@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { serverFetch } from "@/lib/auth-server";
-import { formatKyat } from "@/lib/utils";
+import { formatKyat, formatDateTime } from "@/lib/utils";
 import type { AuditLogRow, ItemType } from "@/lib/api-client";
 import { EmptyState } from "@/components/ui";
 
@@ -82,7 +82,7 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
         )}
       </div>
       <p className="-mt-2 text-sm text-muted-foreground">
-        {row.username ?? "—"} · {new Date(row.createdAt).toLocaleString("en-GB")}
+        {row.username ?? "—"} · {formatDateTime(row.createdAt)}
       </p>
 
       {!row.ok && row.error && (

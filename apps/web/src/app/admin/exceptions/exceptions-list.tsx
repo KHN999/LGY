@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError, type StockExceptionRow } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
+import { formatDate, formatDateTime } from "@/lib/utils";
 import { Field, inputClass } from "@/components/admin/form-field";
 import { Button, EmptyState } from "@/components/ui";
 
@@ -70,7 +71,7 @@ function ExceptionCard({ row }: { row: StockExceptionRow }) {
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {labels.exceptions.lastSeen}:{" "}
-            {new Date(row.lastDetectedAt).toLocaleString("en-US", { hour12: true })}
+            {formatDateTime(row.lastDetectedAt)}
           </p>
         </div>
         <Button type="button" onClick={() => setOpen((v) => !v)} className="shrink-0">
@@ -91,7 +92,7 @@ function ExceptionCard({ row }: { row: StockExceptionRow }) {
                   {s.voided && <span className="ml-1 text-rose-600">({labels.exceptions.voided})</span>}
                 </span>
                 <span className="text-muted-foreground">
-                  {new Date(s.saleDate).toLocaleDateString("en-US")} · ×{s.qtyBeyond}
+                  {formatDate(s.saleDate)} · ×{s.qtyBeyond}
                 </span>
               </li>
             ))}

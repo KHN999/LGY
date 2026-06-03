@@ -11,7 +11,7 @@ import {
   type Driver,
 } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
-import { formatKyat } from "@/lib/utils";
+import { formatKyat, formatDate } from "@/lib/utils";
 import { Field, inputClass } from "@/components/admin/form-field";
 import { Button, Card, EmptyState } from "@/components/ui";
 
@@ -113,7 +113,7 @@ function ExpenseRowItem({
           {who ? ` · ${who}` : ""}
         </p>
         <p className="text-xs text-muted-foreground">
-          {new Date(expense.expenseDate).toLocaleDateString("en-GB")}
+          {formatDate(expense.expenseDate)}
           {expense.notes ? ` · ${expense.notes}` : ""}
         </p>
       </div>

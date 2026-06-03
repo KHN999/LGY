@@ -12,7 +12,7 @@ import {
 } from "@/lib/api-client";
 import { Receipt, type ReceiptData } from "@/components/staff/receipt";
 import { labels } from "@/lib/labels";
-import { formatKyat } from "@/lib/utils";
+import { formatKyat, formatDate } from "@/lib/utils";
 
 export function ReceiptView({
   sale,
@@ -85,7 +85,7 @@ export function ReceiptView({
               <li key={r.id} className="py-2">
                 <div className="flex items-center justify-between gap-2">
                   <span>
-                    {new Date(r.returnDate).toLocaleDateString("en-GB")} ·{" "}
+                    {formatDate(r.returnDate)} ·{" "}
                     {r.lines.reduce((s, l) => s + l.qty, 0)} {labels.units.htee}
                   </span>
                   <div className="flex shrink-0 items-center gap-2">

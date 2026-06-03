@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError, type SupplierOrder } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
-import { formatKyat } from "@/lib/utils";
+import { formatKyat, formatDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui";
 
 interface Props {
@@ -322,7 +322,7 @@ export function OrderDetail({ order }: Props) {
                       {r.transportCost > 0 && ` + ${formatKyat(r.transportCost)} ${labels.admin.order.transportShort}`}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(r.receivedAt).toLocaleString("en-US", { hour12: true })}
+                      {formatDateTime(r.receivedAt)}
                       {voided && ` · ${labels.admin.order.cancelled}`}
                     </p>
                   </div>
@@ -361,7 +361,7 @@ export function OrderDetail({ order }: Props) {
                   <div className="min-w-0">
                     <p className={`font-medium ${voided ? "line-through" : ""}`}>{formatKyat(p.amount)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(p.paymentDate).toLocaleString("en-US", { hour12: true })} · {p.method}
+                      {formatDateTime(p.paymentDate)} · {p.method}
                       {voided && ` · ${labels.admin.order.cancelled}`}
                     </p>
                   </div>

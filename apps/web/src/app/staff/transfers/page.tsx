@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
-import { formatKyat } from "@/lib/utils";
+import { formatKyat, formatDateTime } from "@/lib/utils";
 import type { InventoryEvent } from "@/lib/api-client";
 import { EmptyState } from "@/components/ui";
 
@@ -53,7 +53,7 @@ export default async function StaffTransfersPage() {
                       {LOC[inLine?.location ?? ""] ?? inLine?.location}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(e.occurredAt).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}
+                      {formatDateTime(e.occurredAt)}
                       {e.voidedAt ? ` · ${labels.salesAdmin.voided}` : ""}
                     </p>
                     {e.expenses?.[0] && (

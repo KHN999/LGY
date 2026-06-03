@@ -1,5 +1,6 @@
 import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
+import { formatDateTime } from "@/lib/utils";
 import type { InventoryEvent } from "@/lib/api-client";
 import { PageHeader, EmptyState } from "@/components/ui";
 import { DateFilter } from "@/components/admin/date-filter";
@@ -32,7 +33,7 @@ export default async function TransfersPage({
             return (
               <li key={e.id} className="p-4">
                 <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
-                  <span>{new Date(e.occurredAt).toLocaleString("en-US", { hour12: true })}</span>
+                  <span>{formatDateTime(e.occurredAt)}</span>
                   {e.voidedAt && <span className="text-rose-600">VOIDED</span>}
                 </div>
                 <p className="mt-1 text-base">

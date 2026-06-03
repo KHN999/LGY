@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
+import { formatDateTime } from "@/lib/utils";
 import type { AuditLogRow, Page } from "@/lib/api-client";
 import { PageHeader, EmptyState } from "@/components/ui";
 import { DateFilter } from "@/components/admin/date-filter";
@@ -103,7 +104,7 @@ export default async function AuditPage({
                   )}
                 </div>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {r.username ?? "—"} · {new Date(r.createdAt).toLocaleString("en-GB")}
+                  {r.username ?? "—"} · {formatDateTime(r.createdAt)}
                   {r.durationMs != null ? ` · ${r.durationMs}ms` : ""}
                 </p>
                 {!r.ok && r.error && (

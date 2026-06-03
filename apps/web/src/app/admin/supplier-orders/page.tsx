@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
-import { formatKyat } from "@/lib/utils";
+import { formatKyat, formatDate } from "@/lib/utils";
 import type { SupplierOrder } from "@/lib/api-client";
 import { PageHeader, EmptyState, buttonClass } from "@/components/ui";
 
@@ -128,7 +128,7 @@ export default async function SupplierOrdersPage({
                       {o.itemType?.emoji} {o.itemType?.labelMy} ×{" "}
                       <span className="font-medium">{received}</span> / {o.expectedQty}
                       {" · "}
-                      {new Date(o.orderDate).toLocaleDateString("en-US")}
+                      {formatDate(o.orderDate)}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">

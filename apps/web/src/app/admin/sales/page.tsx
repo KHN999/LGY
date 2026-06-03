@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
-import { formatKyat } from "@/lib/utils";
+import { formatKyat, formatDate } from "@/lib/utils";
 import type { Page, Sale } from "@/lib/api-client";
 import { PageHeader, EmptyState } from "@/components/ui";
 import { DateFilter } from "@/components/admin/date-filter";
@@ -104,7 +104,7 @@ export default async function SalesPage({
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {s.lines.length} {labels.sell.line} ·{" "}
-                      {new Date(s.saleDate).toLocaleDateString("en-US")}
+                      {formatDate(s.saleDate)}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">

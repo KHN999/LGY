@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { serverFetch } from "@/lib/auth-server";
 import { TailorForm } from "../tailor-form";
 import { labels } from "@/lib/labels";
+import { formatDate } from "@/lib/utils";
 import type { TailorDetail, StockRow, ItemType, InventoryEvent } from "@/lib/api-client";
 import { PageHeader, Card } from "@/components/ui";
 import { TailorLedger } from "./tailor-ledger";
@@ -43,7 +44,7 @@ export default async function EditTailorPage({ params }: { params: Promise<{ id:
                     <span className="text-sm">
                       {isReceive ? "↩ " : "📤 "}
                       {isReceive ? labels.tailorWork.receiveSlip : labels.tailorWork.sendSlip} ·{" "}
-                      {new Date(j.occurredAt).toLocaleDateString("en-GB")}
+                      {formatDate(j.occurredAt)}
                     </span>
                     <span className="shrink-0 text-sm text-muted-foreground">
                       {out} {labels.units.htee}

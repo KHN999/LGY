@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { serverFetch } from "@/lib/auth-server";
 import { DriverForm } from "../driver-form";
 import { labels } from "@/lib/labels";
-import { formatKyat } from "@/lib/utils";
+import { formatKyat, formatDate, yangonYmd } from "@/lib/utils";
 import type { Driver, ExpenseRow } from "@/lib/api-client";
 import { PageHeader, Card } from "@/components/ui";
 import { PaidTrendChart } from "@/components/admin/customer-charts";
@@ -26,7 +26,7 @@ export default async function DriverDetailPage({
 
   const map = new Map<string, number>();
   for (const e of rows) {
-    const k = new Date(e.expenseDate).toLocaleDateString("en-CA");
+    const k = yangonYmd(e.expenseDate);
     map.set(k, (map.get(k) ?? 0) + e.amount);
   }
   const trend = [...map.entries()]
@@ -75,7 +75,7 @@ export default async function DriverDetailPage({
             {rows.slice(0, 20).map((e) => (
               <li key={e.id} className="flex items-center justify-between gap-2 py-2">
                 <span className="min-w-0 text-sm">
-                  {new Date(e.expenseDate).toLocaleDateString("en-GB")} · {e.category.labelMy}
+                  {formatDate(e.expenseDate)} · {e.category.labelMy}
                   {e.notes ? ` · ${e.notes}` : ""}
                 </span>
                 <span className="shrink-0 text-sm font-medium tabular-nums text-rose-600">

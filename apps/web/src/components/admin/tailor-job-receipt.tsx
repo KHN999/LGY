@@ -1,7 +1,7 @@
 "use client";
 
 import { labels } from "@/lib/labels";
-import { formatKyat } from "@/lib/utils";
+import { formatKyat, formatDateTime } from "@/lib/utils";
 import type { ShopSettings } from "@/lib/api-client";
 
 export interface TailorJobSlip {
@@ -35,7 +35,7 @@ export function TailorJobReceipt({ data, shop }: { data: TailorJobSlip; shop?: S
         <span>
           {labels.receipt.no}: {data.jobId}
         </span>
-        <span>{d.toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}</span>
+        <span>{formatDateTime(d)}</span>
       </div>
       <div className="text-sm">
         {labels.domain.tailor}: <span className="font-medium">{data.tailorName}</span>
