@@ -51,6 +51,7 @@ const GROUPS: { title: string; items: NavItem[] }[] = [
     items: [
       { href: "/admin/exceptions", label: labels.admin.exceptions, icon: "⚠️" },
       { href: "/admin/users", label: labels.admin.users, icon: "🔐" },
+      { href: "/admin/audit", label: labels.admin.audit, icon: "📋" },
       { href: "/admin/settings", label: labels.admin.settings, icon: "⚙️" },
     ],
   },

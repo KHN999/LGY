@@ -104,6 +104,26 @@ export interface ManagedUser {
   createdAt: string;
 }
 
+/** One mutating action recorded by the server-side audit interceptor. */
+export interface AuditLogRow {
+  id: number;
+  createdAt: string;
+  userId: number | null;
+  username: string | null;
+  shop: ShopId;
+  method: string;
+  path: string;
+  entity: string | null;
+  entityId: string | null;
+  summary: string | null;
+  status: number;
+  ok: boolean;
+  error: string | null;
+  payload: unknown;
+  ip: string | null;
+  durationMs: number | null;
+}
+
 export interface Supplier {
   id: number;
   name: string;

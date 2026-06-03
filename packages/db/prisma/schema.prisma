@@ -717,3 +717,33 @@ model ShopSetting {
   updatedById   Int?
   updatedBy     User?    @relation("ShopSettingUpdatedBy", fields: [updatedById], references: [id])
 }
+
+// ─── Audit log (system-wide accountability) ──────────────────────
+// One row per mutating HTTP request (POST/PATCH/PUT/DELETE) from staff or admin,
+// written non-blocking via the MAIN client so it lives in one place (public
+// schema), tagged with the originating shop. Read-only in the admin app. No FK to
+// User on purpose: the trail must survive user rename/disable, so username is a
+// denormalized snapshot.
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  createdAt  DateTime @default(now())
+  userId     Int?
+  username   String? // snapshot — survives rename/disable
+  shop       String   @default("main") // main | playground
+  method     String // POST | PATCH | PUT | DELETE
+  path       String // e.g. /api/sales/123/void
+  entity     String? // first path segment, e.g. "sales"
+  entityId   String? // affected id when derivable
+  summary    String?
+  status     Int // HTTP status
+  ok         Boolean // success vs failure
+  error      String? // message when ok = false
+  payload    Json? // sanitized request body (secrets redacted)
+  ip         String?
+  durationMs Int?
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([entity, entityId])
+  @@index([ok, createdAt])
+}

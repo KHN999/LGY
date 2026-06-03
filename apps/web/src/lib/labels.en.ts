@@ -323,6 +323,7 @@ export const en = {
     expenses: "Expenses",
     settings: "Settings",
     users: "Users",
+    audit: "Audit log",
     userMgmt: {
       title: "User accounts",
       add: "Add user",
@@ -503,6 +504,21 @@ export const en = {
     paid: "Paid",
     remaining: "Remaining",
     thanks: "Thank you!",
+  },
+
+  audit: {
+    title: "Audit log",
+    subtitle: "Every change made in the system — newest first.",
+    failuresOnly: "Failures only",
+    all: "All",
+    searchPlaceholder: "Search action / user / route…",
+    success: "OK",
+    failed: "Failed",
+    noData: "No activity recorded yet.",
+    shopMain: "Main",
+    shopTest: "Test",
+    older: "Older",
+    newer: "Newer",
   },
 
   errors: {

@@ -25,6 +25,7 @@ import { ShopModule } from "./shop/shop.module";
 import { ExpensesModule } from "./expenses/expenses.module";
 import { UsersModule } from "./users/users.module";
 import { DashboardModule } from "./dashboard/dashboard.module";
+import { AuditModule } from "./audit/audit.module";
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { DashboardModule } from "./dashboard/dashboard.module";
     ExpensesModule,
     UsersModule,
     DashboardModule,
+    AuditModule,
   ],
   controllers: [HealthController],
 })
