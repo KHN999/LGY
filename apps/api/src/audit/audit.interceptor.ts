@@ -50,6 +50,94 @@ function deriveEntity(path: string, params: Record<string, string>) {
   return { entity, entityId };
 }
 
+const ENTITY_NOUN: Record<string, string> = {
+  sales: "Sale",
+  "customer-payments": "Customer payment",
+  "supplier-payments": "Supplier payment",
+  "tailor-payments": "Tailor payment",
+  transfers: "Transfer",
+  adjustments: "Stock count",
+  "opening-stock": "Opening stock",
+  expenses: "Expense",
+  returns: "Sale return",
+  "daily-close": "Daily close",
+  "supplier-orders": "Supplier order",
+  customers: "Customer",
+  suppliers: "Supplier",
+  tailors: "Tailor",
+  drivers: "Driver",
+  employees: "Employee",
+  "item-types": "Item type",
+  users: "User",
+  settings: "Settings",
+  "stock-exceptions": "Stock exception",
+};
+
+const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+const hasNum = (v: unknown): boolean => typeof v === "number" && Number.isFinite(v);
+const ks = (v: unknown): string => `${num(v).toLocaleString("en-US")} Ks`;
+const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
+
+/**
+ * Turn a mutating request into a human, business-readable line for the activity
+ * feed — "Sale · 25×500 = 12,500 Ks · walk-in", "Received payment 50,000 Ks
+ * (cash)" — rather than a raw "POST /api/sales". Derived from the request body, so
+ * no extra DB lookups; falls back to a friendly entity/verb for anything unmapped.
+ */
+function summarize(method: string, path: string, params: Record<string, string>, rawBody: unknown): string {
+  const segs = path.replace(/^\/api\//, "").split("/").filter(Boolean);
+  const entity = segs[0] ?? "";
+  const sub = segs[2];
+  const id =
+    params.id ?? params.saleId ?? params.orderId ?? params.returnId ??
+    (segs[1] && /^\d+$/.test(segs[1]) ? segs[1] : undefined);
+  const b = (rawBody && typeof rawBody === "object" ? rawBody : {}) as Record<string, unknown>;
+  const noun = ENTITY_NOUN[entity] ?? entity;
+  const items = Array.isArray(b.items) ? (b.items as Array<Record<string, unknown>>) : [];
+
+  if (entity === "auth") {
+    if (path.endsWith("/login")) return "Signed in";
+    if (path.endsWith("/logout")) return "Signed out";
+    if (path.includes("password")) return "Changed password";
+    return "Auth action";
+  }
+  if (sub === "void" || sub === "cancel") return `Voided ${noun.toLowerCase()} #${id}`;
+  if (entity === "sales" && sub === "payments") return `Payment ${ks(b.amount)} on sale #${id}`;
+  if (entity === "sales" && method === "POST" && !sub) {
+    const total = items.reduce((s, i) => s + num(i.qty) * num(i.unitPrice), 0) - num(b.discount);
+    const who = str(b.customerName) ?? (b.customerId ? `customer #${String(b.customerId)}` : "walk-in");
+    if (items.length === 1) {
+      return `Sale · ${num(items[0].qty)}×${num(items[0].unitPrice).toLocaleString("en-US")} = ${total.toLocaleString("en-US")} Ks · ${who}`;
+    }
+    return `Sale · ${items.length} items = ${total.toLocaleString("en-US")} Ks · ${who}`;
+  }
+  if (entity === "customer-payments" && method === "POST") {
+    const m = str(b.method);
+    return `Received payment ${ks(b.amount)}${m ? ` (${m.toLowerCase().replace(/_/g, " ")})` : ""}`;
+  }
+  if (entity === "supplier-payments" && method === "POST") return `Paid supplier ${ks(b.amount)}`;
+  if (entity === "expenses" && method === "POST") return `Expense ${ks(b.amount)}`;
+  if (entity === "transfers" && method === "POST") {
+    const qty = items.length ? items.reduce((s, i) => s + num(i.qty), 0) : num(b.qty);
+    return `Transfer ${qty} pcs · ${String(b.fromLocation ?? "?")} → ${String(b.toLocation ?? "?")}`;
+  }
+  if (entity === "adjustments" && method === "POST") {
+    const n = Array.isArray(b.counts) ? (b.counts as unknown[]).length : 1;
+    return `Stock count · ${n} item${n === 1 ? "" : "s"}`;
+  }
+  if (entity === "returns" && method === "POST") {
+    return `Return on sale #${String(b.saleId ?? id ?? "")}${hasNum(b.refundAmount) ? ` · refund ${ks(b.refundAmount)}` : ""}`;
+  }
+  if (entity === "daily-close" && method === "POST") return `Daily close · counted ${ks(b.countedCash)}`;
+  if (entity === "opening-stock" && method === "POST") return "Opening stock set";
+
+  if (method === "POST" && !id) return `New ${noun.toLowerCase()}${str(b.name) ? `: ${str(b.name)}` : ""}`;
+  if (method === "POST") return `${noun} #${id}${sub ? ` · ${sub}` : ""}`;
+  if (method === "PATCH" || method === "PUT") return `Updated ${noun.toLowerCase()}${id ? ` #${id}` : ""}`;
+  if (method === "DELETE") return `Deleted ${noun.toLowerCase()}${id ? ` #${id}` : ""}`;
+  return `${noun} · ${method}`;
+}
+
 type ReqWithUser = Request & {
   user?: AuthenticatedUser;
   cookies?: Record<string, string>;
@@ -83,6 +171,7 @@ export class AuditInterceptor implements NestInterceptor {
       null;
     const params = (req.params ?? {}) as Record<string, string>;
     const { entity, entityId } = deriveEntity(path, params);
+    const summary = summarize(req.method, path, params, req.body);
     const payload = sanitize(req.body) as Prisma.InputJsonValue;
     // Login etc. are unguarded, so req.user is unset — keep the attempted username.
     const bodyUsername =
@@ -103,7 +192,7 @@ export class AuditInterceptor implements NestInterceptor {
             path,
             entity,
             entityId,
-            summary: `${req.method} ${path}`,
+            summary,
             status,
             ok,
             error,

@@ -8,12 +8,6 @@ import { DateFilter } from "@/components/admin/date-filter";
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 50;
-const METHOD_TONE: Record<string, string> = {
-  POST: "bg-emerald-100 text-emerald-900",
-  PATCH: "bg-amber-100 text-amber-900",
-  PUT: "bg-amber-100 text-amber-900",
-  DELETE: "bg-rose-100 text-rose-900",
-};
 
 export default async function AuditPage({
   searchParams,
@@ -97,19 +91,15 @@ export default async function AuditPage({
             <li key={r.id} className="flex items-start justify-between gap-3 p-3">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className={
-                      "rounded px-1.5 py-0.5 text-xs font-bold " +
-                      (METHOD_TONE[r.method] ?? "bg-muted text-foreground")
-                    }
-                  >
-                    {r.method}
-                  </span>
-                  <span className="truncate font-mono text-sm">{r.path}</span>
+                  <p className="font-medium leading-snug">{r.summary ?? `${r.method} ${r.path}`}</p>
+                  {r.shop === "playground" && (
+                    <span className="rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-900">
+                      {labels.audit.shopTest}
+                    </span>
+                  )}
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {r.username ?? "—"} · {new Date(r.createdAt).toLocaleString("en-GB")} ·{" "}
-                  {r.shop === "playground" ? labels.audit.shopTest : labels.audit.shopMain}
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {r.username ?? "—"} · {new Date(r.createdAt).toLocaleString("en-GB")}
                   {r.durationMs != null ? ` · ${r.durationMs}ms` : ""}
                 </p>
                 {!r.ok && r.error && (

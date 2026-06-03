@@ -325,7 +325,6 @@ export const my: DeepPartial<Labels> = {
     expenses: "ကုန်ကျစရိတ်",
     settings: "ဆက်တင်များ",
     users: "အသုံးပြုသူများ",
-    audit: "စနစ်မှတ်တမ်း",
     userMgmt: {
       title: "အကောင့်များ",
       add: "အသုံးပြုသူ ထည့်မယ်",
@@ -506,21 +505,6 @@ export const my: DeepPartial<Labels> = {
     paid: "ပေးပြီး",
     remaining: "ကျန်ငွေ",
     thanks: "ကျေးဇူးတင်ပါသည်",
-  },
-
-  audit: {
-    title: "စနစ်မှတ်တမ်း",
-    subtitle: "စနစ်ထဲတွင် ပြုလုပ်ခဲ့သမျှ — အသစ်ဆုံးက အပေါ်ဆုံး။",
-    failuresOnly: "မအောင်မြင်တာများသာ",
-    all: "အားလုံး",
-    searchPlaceholder: "လုပ်ဆောင်ချက် / အသုံးပြုသူ ရှာရန်…",
-    success: "အောင်မြင်",
-    failed: "မအောင်မြင်",
-    noData: "မှတ်တမ်း မရှိသေးပါ။",
-    shopMain: "ပင်မဆိုင်",
-    shopTest: "စမ်းသပ်ဆိုင်",
-    older: "အဟောင်း",
-    newer: "အသစ်",
   },
 
   errors: {
