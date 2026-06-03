@@ -356,7 +356,7 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
   if (step === "items") {
     if (draft) {
       return (
-        <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-3 p-3 sm:gap-4 sm:p-6">
+        <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-2 p-3 sm:gap-3 sm:p-6">
           <button
             type="button"
             onClick={() => {
@@ -369,8 +369,8 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
             ← {labels.common.back}
           </button>
           {draft.type ? (
-            <div className="flex items-center gap-3 rounded-2xl border bg-card px-4 py-3">
-              <span className="text-3xl">{draft.type.emoji}</span>
+            <div className="flex items-center gap-3 rounded-2xl border bg-card px-4 py-2.5">
+              <span className="text-2xl">{draft.type.emoji}</span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-lg font-bold leading-tight">{draft.type.labelMy}</p>
                 <p className="text-xs text-muted-foreground">
@@ -393,19 +393,19 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
             </label>
           )}
 
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
             <button
               type="button"
               onClick={() => setActiveField("qty")}
               className={
-                "flex items-center justify-between rounded-2xl border bg-card px-5 py-3 text-left transition " +
+                "flex items-center justify-between rounded-2xl border bg-card px-5 py-2.5 text-left transition" +
                 (activeField === "qty" ? "ring-2 ring-primary" : "")
               }
             >
               <span className="text-base text-muted-foreground">{labels.sell.chooseQty}</span>
               <span
                 className={
-                  "text-4xl font-bold tabular-nums " +
+                  "text-3xl font-bold tabular-nums " +
                   (draft.qty === 0 ? "text-muted-foreground/40" : "")
                 }
               >
@@ -417,7 +417,7 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
               type="button"
               onClick={() => setActiveField("price")}
               className={
-                "flex items-center justify-between rounded-2xl border bg-card px-5 py-3 text-left transition " +
+                "flex items-center justify-between rounded-2xl border bg-card px-5 py-2.5 text-left transition" +
                 (activeField === "price" ? "ring-2 ring-primary" : "")
               }
             >
@@ -425,7 +425,7 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
               <span className="flex items-baseline gap-1">
                 <span
                   className={
-                    "text-4xl font-bold tabular-nums " +
+                    "text-3xl font-bold tabular-nums " +
                     (draft.price === 0 ? "text-muted-foreground/40" : "")
                   }
                 >
@@ -436,9 +436,9 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
             </button>
           </div>
 
-          <div className="rounded-2xl bg-muted/50 px-5 py-3 text-center">
+          <div className="rounded-2xl bg-muted/50 px-4 py-2 text-center">
             <span className="text-base text-muted-foreground">{labels.common.total}: </span>
-            <span className="text-2xl font-bold">{formatKyat(draft.qty * draft.price)}</span>
+            <span className="text-xl font-bold">{formatKyat(draft.qty * draft.price)}</span>
           </div>
 
           {freeNotePrompt && (
@@ -467,7 +467,7 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
             </p>
           )}
 
-          <div className="mt-auto flex flex-col gap-3 pt-1">
+          <div className="mt-auto flex flex-col gap-2 pt-1">
             <NumberPad onDigit={padDigit} onBackspace={padBackspace} onClear={padClear} />
             <button
               type="button"
@@ -478,7 +478,7 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
                 else setActiveField(draft.qty === 0 ? "qty" : "price");
               }}
               disabled={!draft.type && !draft.name.trim()}
-              className="rounded-2xl bg-emerald-600 py-4 text-2xl font-bold text-white shadow-lg disabled:opacity-50 active:scale-[0.98]"
+              className="rounded-2xl bg-emerald-600 py-3.5 text-xl font-bold text-white shadow-lg disabled:opacity-50 active:scale-[0.98]"
             >
               {draft.qty > 0 && activeField === "price"
                 ? editingIndex !== null
@@ -492,14 +492,26 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
     }
 
     return (
-      <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 p-4 pb-32 sm:p-6">
-        <button
-          type="button"
-          onClick={() => setStep("customer")}
-          className="self-start rounded-lg border px-4 py-2"
-        >
-          ← {labels.common.back}
-        </button>
+      <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 p-4 pb-8 sm:p-6">
+        <div className="sticky top-0 z-10 -mx-4 -mt-4 flex items-center justify-between gap-2 border-b bg-background/95 px-4 pb-2 pt-4 backdrop-blur sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6">
+          <button
+            type="button"
+            onClick={() => setStep("customer")}
+            className="rounded-lg border px-4 py-2"
+          >
+            ← {labels.common.back}
+          </button>
+          {/* Checkout lives top-right (away from the thumb's item-tapping zone and
+              the browser toolbar) so it can't be pressed by accident mid-order. */}
+          <button
+            type="button"
+            disabled={cart.length === 0}
+            onClick={() => setStep("review")}
+            className="rounded-xl bg-emerald-600 px-5 py-2.5 text-base font-bold text-white shadow disabled:opacity-40 active:scale-[0.97]"
+          >
+            {labels.sell.review}{cart.length > 0 ? ` (${cart.length})` : ""} →
+          </button>
+        </div>
 
         <div className="rounded-2xl border bg-card p-3 text-sm">
           <span className="text-muted-foreground">{labels.domain.customer}: </span>
@@ -573,18 +585,6 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
           </p>
         )}
 
-        <div className="fixed inset-x-0 bottom-0 border-t bg-background p-3 sm:p-4">
-          <div className="mx-auto flex max-w-2xl gap-3">
-            <button
-              type="button"
-              disabled={cart.length === 0}
-              onClick={() => setStep("review")}
-              className="flex-1 rounded-2xl bg-emerald-600 py-4 text-xl font-bold text-white shadow disabled:opacity-50 active:scale-[0.98]"
-            >
-              {labels.sell.review} →
-            </button>
-          </div>
-        </div>
       </main>
     );
   }

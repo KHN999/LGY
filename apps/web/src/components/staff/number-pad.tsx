@@ -13,7 +13,7 @@ interface Props {
  */
 export function NumberPad({ onDigit, onBackspace, onClear }: Props) {
   const digitClass =
-    "rounded-2xl border bg-card py-4 text-2xl font-bold tabular-nums shadow-sm active:scale-95 active:bg-accent";
+    "rounded-2xl border bg-card py-3 text-2xl font-bold tabular-nums shadow-sm active:scale-95 active:bg-accent";
   return (
     <div className="grid grid-cols-3 gap-2 sm:gap-3">
       {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((k) => (
@@ -25,7 +25,7 @@ export function NumberPad({ onDigit, onBackspace, onClear }: Props) {
         type="button"
         onClick={onClear}
         aria-label="clear"
-        className="rounded-2xl border bg-card py-4 text-xl font-semibold text-muted-foreground shadow-sm active:scale-95"
+        className="rounded-2xl border bg-card py-3 text-xl font-semibold text-muted-foreground shadow-sm active:scale-95"
       >
         C
       </button>
@@ -36,7 +36,7 @@ export function NumberPad({ onDigit, onBackspace, onClear }: Props) {
         type="button"
         onClick={onBackspace}
         aria-label="backspace"
-        className="rounded-2xl border bg-card py-4 text-2xl shadow-sm active:scale-95"
+        className="rounded-2xl border bg-card py-3 text-2xl shadow-sm active:scale-95"
       >
         ⌫
       </button>
