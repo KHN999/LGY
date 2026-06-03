@@ -38,20 +38,22 @@ export class ExportService {
    *  is the carry-forward from the last close before the period; running balance
    *  threads through every cash movement (payments in, supplier/tailor/expense/
    *  refund out). */
-  async statement(fromStr: string, toStr: string): Promise<Statement> {
-    const from = new Date(fromStr);
+  async statement(fromStr: string | undefined, toStr: string): Promise<Statement> {
     // The DateFilter sends full ISO instants (Yangon-anchored, end-of-day for
-    // `to`) — use them as-is. A bare YYYY-MM-DD means "the whole of that day".
-    const range = toStr.includes("T")
-      ? { gte: from, lte: new Date(toStr) }
-      : { gte: from, lt: addDays(new Date(toStr), 1) };
+    // `to`); a bare YYYY-MM-DD means "the whole of that day". No `from` means
+    // all-time — the complete ledger from a zero opening balance.
+    const from = fromStr ? new Date(fromStr) : undefined;
+    const upper = toStr.includes("T") ? { lte: new Date(toStr) } : { lt: addDays(new Date(toStr), 1) };
+    const range = from ? { gte: from, ...upper } : upper;
 
     const [opening, custPays, supPays, tailPays, expenses, returns, sales] = await Promise.all([
-      this.prisma.dailyClose.findFirst({
-        where: { closeDate: { lt: from } },
-        orderBy: { closeDate: "desc" },
-        select: { carryForward: true },
-      }),
+      from
+        ? this.prisma.dailyClose.findFirst({
+            where: { closeDate: { lt: from } },
+            orderBy: { closeDate: "desc" },
+            select: { carryForward: true },
+          })
+        : Promise.resolve(null),
       this.prisma.customerPayment.findMany({
         where: { voidedAt: null, paymentDate: range },
         select: { paymentDate: true, amount: true, saleId: true, customer: { select: { name: true } } },
@@ -98,7 +100,11 @@ export class ExportService {
     const totalOut = raw.reduce((s, r) => s + r.out, 0);
 
     return {
-      from: toYangonYmd(from),
+      from: from
+        ? toYangonYmd(from)
+        : raw.length
+          ? toYangonYmd(raw[0].date)
+          : toYangonYmd(new Date(toStr)),
       to: toYangonYmd(new Date(toStr)),
       openingCash,
       closingCash: openingCash + totalIn - totalOut,

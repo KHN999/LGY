@@ -5,14 +5,10 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { ExportService, type Statement } from "./export.service";
 
-/** Default period = this calendar month (UTC) when from/to aren't supplied. */
-function range(from?: string, to?: string): { from: string; to: string } {
-  const now = new Date();
-  const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  return {
-    from: from || first.toISOString().slice(0, 10),
-    to: to || now.toISOString().slice(0, 10),
-  };
+/** No `from` ⇒ all-time (the complete ledger); no `to` ⇒ up to today. The
+ *  DateFilter's Today/Week/Month presets supply both to narrow the period. */
+function range(from?: string, to?: string): { from?: string; to: string } {
+  return { from, to: to || new Date().toISOString().slice(0, 10) };
 }
 
 @Controller("export")
