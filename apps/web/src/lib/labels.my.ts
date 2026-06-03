@@ -370,6 +370,8 @@ export const my: DeepPartial<Labels> = {
       itemTypeSortOrder: "အစီအစဉ်",
       itemTypeIsActive: "သုံးနေသည်",
       itemTypeSellable: "ဆိုင်တွင် ရောင်းနိုင်",
+      itemTypeDeleteConfirm: "ဤပစ္စည်းအမျိုးအစားကို အပြီးဖျက်မလား။",
+      itemTypeDeleteHint: "ရောင်းချမှု၊ စတော့၊ မှာယူမှု မရှိမှသာ ဖျက်နိုင်သည်။ မဟုတ်ပါက သုံးမနေတော့ (inactive) လုပ်ပါ။",
       qty: "အရေအတွက်",
       unitCost: "တစ်ထည်ဈေး (ဝယ်ဈေး)",
       location: "နေရာ",

@@ -370,6 +370,8 @@ export const en = {
       itemTypeSortOrder: "Order",
       itemTypeIsActive: "Active",
       itemTypeSellable: "Sellable in shop",
+      itemTypeDeleteConfirm: "Delete this item type permanently?",
+      itemTypeDeleteHint: "Only possible if it has no sales, stock, or orders. Otherwise set it inactive.",
       qty: "Quantity",
       unitCost: "Cost per piece (buy price)",
       location: "Location",

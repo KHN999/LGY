@@ -54,4 +54,33 @@ export class ItemTypesService {
       },
     });
   }
+
+  /** Hard-delete an item type, but only if nothing references it. Anything with
+   *  history (sales, stock movements, supplier orders, exceptions, returns) must
+   *  be deactivated instead — deleting it would break those records. */
+  async remove(id: number) {
+    const [saleLines, inventoryLines, supplierOrders, stockExceptions, saleReturnLines] =
+      await Promise.all([
+        this.prisma.saleLine.count({ where: { itemTypeId: id } }),
+        this.prisma.inventoryLine.count({ where: { itemTypeId: id } }),
+        this.prisma.supplierOrder.count({ where: { itemTypeId: id } }),
+        this.prisma.stockException.count({ where: { itemTypeId: id } }),
+        this.prisma.saleReturnLine.count({ where: { itemTypeId: id } }),
+      ]);
+    const refs = saleLines + inventoryLines + supplierOrders + stockExceptions + saleReturnLines;
+    if (refs > 0) {
+      throw new ConflictException(
+        "This item type has history (sales, stock, or orders) and can't be deleted. Set it inactive instead.",
+      );
+    }
+    try {
+      await this.prisma.itemType.delete({ where: { id } });
+    } catch (e: unknown) {
+      if ((e as { code?: string }).code === "P2025") {
+        throw new NotFoundException(`ItemType ${id} not found`);
+      }
+      throw e;
+    }
+    return { ok: true };
+  }
 }

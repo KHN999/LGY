@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -49,5 +50,12 @@ export class ItemTypesController {
   @Roles("admin")
   update(@Param("id", ParseIntPipe) id: number, @Body() dto: UpdateItemTypeDto) {
     return this.service.update(id, dto);
+  }
+
+  @Delete(":id")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  remove(@Param("id", ParseIntPipe) id: number) {
+    return this.service.remove(id);
   }
 }

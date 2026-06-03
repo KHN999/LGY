@@ -22,6 +22,24 @@ export function ItemTypeForm({ initial }: Props) {
   const [sellable, setSellable] = useState(initial?.sellable ?? true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function onDelete() {
+    if (!initial) return;
+    setError(null);
+    setDeleting(true);
+    try {
+      await api.del(`/item-types/${initial.id}`);
+      router.push("/admin/item-types?saved=1");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : labels.errors.unknown);
+      setConfirmDelete(false);
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -128,6 +146,43 @@ export function ItemTypeForm({ initial }: Props) {
           {submitting ? labels.common.saving : labels.common.save}
         </Button>
       </div>
+
+      {isEdit && (
+        <div className="mt-2 border-t pt-4">
+          {!confirmDelete ? (
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              className="rounded-lg border border-destructive/40 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10"
+            >
+              🗑 {labels.common.delete}
+            </button>
+          ) : (
+            <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
+              <p className="text-sm">{labels.admin.fields.itemTypeDeleteConfirm}</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={deleting}
+                  className="rounded-lg border px-4 py-2 text-sm"
+                >
+                  {labels.common.cancel}
+                </button>
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  disabled={deleting}
+                  className="rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground disabled:opacity-50"
+                >
+                  {deleting ? labels.common.loading : labels.common.delete}
+                </button>
+              </div>
+            </div>
+          )}
+          <p className="mt-2 text-xs text-muted-foreground">{labels.admin.fields.itemTypeDeleteHint}</p>
+        </div>
+      )}
     </form>
   );
 }
