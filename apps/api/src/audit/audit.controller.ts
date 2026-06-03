@@ -1,4 +1,5 @@
-import { Controller, Get, Query, UseGuards } from "@nestjs/common";
+import { Controller, Get, Param, ParseIntPipe, Query, UseGuards } from "@nestjs/common";
+import type { AuditLog } from "@lgy/db";
 import { Type } from "class-transformer";
 import { IsBooleanString, IsInt, IsOptional, IsString, MaxLength } from "class-validator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -38,5 +39,10 @@ export class AuditController {
       from: q.from,
       to: q.to,
     });
+  }
+
+  @Get(":id")
+  getOne(@Param("id", ParseIntPipe) id: number): Promise<AuditLog> {
+    return this.audit.getOne(id);
   }
 }

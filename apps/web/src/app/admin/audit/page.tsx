@@ -88,8 +88,12 @@ export default async function AuditPage({
       ) : (
         <ul className="flex flex-col divide-y rounded-2xl border bg-card">
           {rows.map((r) => (
-            <li key={r.id} className="flex items-start justify-between gap-3 p-3">
-              <div className="min-w-0 flex-1">
+            <li key={r.id}>
+              <Link
+                href={`/admin/audit/${r.id}`}
+                className="flex items-start justify-between gap-3 p-3 hover:bg-accent"
+              >
+                <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-medium leading-snug">{r.summary ?? `${r.method} ${r.path}`}</p>
                   {r.shop === "playground" && (
@@ -114,8 +118,9 @@ export default async function AuditPage({
                   (r.ok ? "bg-emerald-100 text-emerald-900" : "bg-rose-100 text-rose-900")
                 }
               >
-                {r.ok ? labels.audit.success : labels.audit.failed}
-              </span>
+                  {r.ok ? labels.audit.success : labels.audit.failed}
+                </span>
+              </Link>
             </li>
           ))}
         </ul>

@@ -1,5 +1,5 @@
-import { Injectable } from "@nestjs/common";
-import { Prisma } from "@lgy/db";
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma, type AuditLog } from "@lgy/db";
 import { PrismaService } from "../prisma/prisma.service";
 import type { PageResult } from "../common/pagination.dto";
 
@@ -56,5 +56,11 @@ export class AuditService {
     ]);
 
     return { data, page: q.page, limit: q.limit, total };
+  }
+
+  async getOne(id: number): Promise<AuditLog> {
+    const row = await this.prisma.main.auditLog.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException(`AuditLog ${id} not found`);
+    return row;
   }
 }

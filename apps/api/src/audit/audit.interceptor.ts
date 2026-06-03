@@ -101,6 +101,9 @@ function summarize(method: string, path: string, params: Record<string, string>,
     if (path.includes("password")) return "Changed password";
     return "Auth action";
   }
+  if (entity === "shop" && method === "POST") {
+    return `Switched to ${b.shop === "playground" ? "Test" : "Main"} shop`;
+  }
   if (sub === "void" || sub === "cancel") return `Voided ${noun.toLowerCase()} #${id}`;
   if (entity === "sales" && sub === "payments") return `Payment ${ks(b.amount)} on sale #${id}`;
   if (entity === "sales" && method === "POST" && !sub) {
@@ -320,6 +323,20 @@ export class AuditInterceptor implements NestInterceptor {
         items.slice(0, 3).map((i) => `${num(i.qty)}×${names.get(Number(i.itemTypeId)) ?? `item#${String(i.itemTypeId)}`}`).join(" + ") ||
         `${num(body.qty)} pcs`;
       return `Transfer ${desc} · ${String(body.fromLocation ?? "?")} → ${String(body.toLocation ?? "?")}`;
+    }
+    if (entity === "supplier-orders" && method === "POST") {
+      const item =
+        (Number.isInteger(Number(body.itemTypeId)) ? await this.lookupName("item-types", Number(body.itemTypeId)) : null) ??
+        `item#${String(body.itemTypeId ?? "?")}`;
+      const sup = (await party("suppliers", body.supplierId)) ?? `supplier #${String(body.supplierId ?? "?")}`;
+      return `Roll order: ${num(body.expectedQty)} × ${item} from ${sup} · ${ks(body.expectedTotal)}`;
+    }
+    if (entity === "expenses" && method === "POST") {
+      const cat =
+        shop === "main" && Number.isInteger(Number(body.categoryId))
+          ? (await this.prisma.main.expenseCategory.findUnique({ where: { id: Number(body.categoryId) }, select: { labelMy: true } }))?.labelMy ?? null
+          : null;
+      return cat ? `Expense: ${cat} · ${ks(body.amount)}` : `Expense ${ks(body.amount)}`;
     }
     if (id && (method === "PATCH" || method === "DELETE") && shop === "main") {
       const name = await this.lookupName(entity, Number(id));
