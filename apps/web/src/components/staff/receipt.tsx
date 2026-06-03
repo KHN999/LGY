@@ -51,7 +51,7 @@ export function Receipt({ data, shop }: { data: ReceiptData; shop?: ShopSettings
         aria-hidden="true"
         onError={hideOnError}
         className="pointer-events-none absolute left-1/2 top-1/2 z-0 w-3/4 -translate-x-1/2 -translate-y-1/2 select-none"
-        style={{ opacity: 0.06, printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" }}
+        style={{ opacity: 0.08, printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" }}
       />
 
       <div className="relative z-10">
