@@ -501,7 +501,7 @@ export const my: DeepPartial<Labels> = {
     shopName: "LGY",
     title: "ပြေစာ",
     no: "နံပါတ်",
-    customer: "ဖောက်သည်",
+    customer: "Customer",
     item: "ပစ္စည်း",
     qty: "အထည်",
     price: "ဈေး",
