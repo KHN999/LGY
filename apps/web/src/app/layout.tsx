@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Noto_Sans_Myanmar, Inter } from "next/font/google";
 import "./globals.css";
+import { ServiceWorkerRegister } from "@/components/sw-register";
 
 const notoMyanmar = Noto_Sans_Myanmar({
   subsets: ["myanmar"],
@@ -18,12 +19,20 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "LGY",
   description: "Theingyi market longyi management",
+  appleWebApp: { capable: true, title: "LGY", statusBarStyle: "default" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#059669",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="my" className={`${notoMyanmar.variable} ${inter.variable}`}>
-      <body className="font-myanmar antialiased">{children}</body>
+      <body className="font-myanmar antialiased">
+        {children}
+        <ServiceWorkerRegister />
+      </body>
     </html>
   );
 }
