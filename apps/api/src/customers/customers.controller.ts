@@ -15,6 +15,7 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { CustomersService } from "./customers.service";
 import { CreateCustomerDto, UpdateCustomerDto } from "./dto/customer.dto";
+import { ImportCustomersDto } from "./dto/import-customers.dto";
 import { PaginationQueryDto } from "../common/pagination.dto";
 
 class ListCustomersQueryDto extends PaginationQueryDto {
@@ -53,6 +54,13 @@ export class CustomersController {
   @Roles("admin")
   create(@Body() dto: CreateCustomerDto) {
     return this.customers.create(dto);
+  }
+
+  @Post("import")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  importContacts(@Body() dto: ImportCustomersDto) {
+    return this.customers.importContacts(dto);
   }
 
   @Patch(":id")

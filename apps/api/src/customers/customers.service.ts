@@ -3,6 +3,7 @@ import { Prisma } from "@lgy/db";
 import { PrismaService } from "../prisma/prisma.service";
 import type { PageResult } from "../common/pagination.dto";
 import { CreateCustomerDto, UpdateCustomerDto } from "./dto/customer.dto";
+import { ImportCustomersDto } from "./dto/import-customers.dto";
 
 export interface CustomerWithBalance {
   id: number;
@@ -134,6 +135,41 @@ export class CustomersService {
       },
     });
     return { ...customer, balance: 0 };
+  }
+
+  /** Bulk-create customers from picked phone contacts. Skips anyone whose phone
+   *  already exists (or whose name already exists when they have no phone), and
+   *  de-dupes within the batch too. One createMany round-trip. */
+  async importContacts(dto: ImportCustomersDto): Promise<{ created: number; skipped: number }> {
+    const digits = (s: string | null | undefined) => (s ?? "").replace(/\D/g, "");
+
+    const existing = await this.prisma.customer.findMany({ select: { name: true, contact: true } });
+    const seenPhones = new Set(existing.map((c) => digits(c.contact)).filter(Boolean));
+    const seenNames = new Set(existing.map((c) => c.name.trim().toLowerCase()));
+
+    const toCreate: { name: string; contact: string | null }[] = [];
+    let skipped = 0;
+    for (const c of dto.contacts) {
+      const name = c.name.trim();
+      const phone = digits(c.contact);
+      if (!name) {
+        skipped++;
+        continue;
+      }
+      const dup = phone ? seenPhones.has(phone) : seenNames.has(name.toLowerCase());
+      if (dup) {
+        skipped++;
+        continue;
+      }
+      if (phone) seenPhones.add(phone);
+      else seenNames.add(name.toLowerCase());
+      toCreate.push({ name, contact: c.contact?.trim() || null });
+    }
+
+    if (toCreate.length > 0) {
+      await this.prisma.customer.createMany({ data: toCreate });
+    }
+    return { created: toCreate.length, skipped };
   }
 
   async update(id: number, dto: UpdateCustomerDto): Promise<CustomerWithBalance> {

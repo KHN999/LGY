@@ -323,6 +323,10 @@ export const my: DeepPartial<Labels> = {
     },
     itemTypes: "ပစ္စည်းအမျိုးအစားများ",
     customers: "ဖောက်သည်များ",
+    importContacts: "ဖုန်းမှ ထည့်သွင်း",
+    importUnsupported: "ဖုန်းအဆက်အသွယ်များ ထည့်သွင်းရန် Android ဖုန်း (Chrome) တွင် ဖွင့်ပါ။",
+    importResult: (added: number, skipped: number) =>
+      `${added} ဦး ထည့်ပြီး၊ ${skipped} ဦး (ရှိပြီးသား) ကျော်လွှားပြီး`,
     suppliers: "ပစ္စည်းရှင်များ",
     tailors: "ချုပ်သမားများ",
     drivers: "ကားသမားများ",

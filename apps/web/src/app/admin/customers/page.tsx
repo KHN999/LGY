@@ -5,6 +5,7 @@ import { formatKyat } from "@/lib/utils";
 import type { Page, Customer } from "@/lib/api-client";
 import { PageHeader, EmptyState, Card, buttonClass } from "@/components/ui";
 import { DebtComparisonChart } from "@/components/admin/customer-charts";
+import { ImportContacts } from "./import-contacts";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,8 @@ export default async function CustomersPage({
           {labels.admin.saved}
         </p>
       )}
+
+      <ImportContacts />
 
       <div className="flex gap-3 text-sm">
         <Link

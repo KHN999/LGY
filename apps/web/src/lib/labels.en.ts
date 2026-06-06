@@ -321,6 +321,10 @@ export const en = {
     },
     itemTypes: "Item types",
     customers: "Customers",
+    importContacts: "Import from contacts",
+    importUnsupported: "Open this on an Android phone (Chrome) to import contacts.",
+    importResult: (added: number, skipped: number) =>
+      `Added ${added}, skipped ${skipped} already in the system`,
     suppliers: "Suppliers",
     tailors: "Tailors",
     drivers: "Drivers",
