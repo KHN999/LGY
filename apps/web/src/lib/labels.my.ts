@@ -534,6 +534,17 @@ export const my: DeepPartial<Labels> = {
     methodOther: "အခြား",
   },
 
+  addOn: {
+    title: "ပစ္စည်း ထပ်ထည့်",
+    button: "ထပ်ထည့်",
+    pickItem: "ထည့်မည့် ပစ္စည်းရွေးပါ",
+    addLine: "ထည့်မယ်",
+    addedTotal: "ထပ်ထည့် စုစုပေါင်း",
+    paidNow: "ယခုပေးငွေ",
+    confirm: "ဤအရောင်းသို့ ထည့်မယ်",
+    walkInFull: "ဖြတ်သွားဝယ်သူ — အပြည့်ပေးချေရပါမည်",
+  },
+
   rollOrders: {
     title: "အလိပ်မှာယူမှု",
     open: "မှာထားဆဲ",

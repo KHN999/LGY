@@ -16,6 +16,7 @@ import type { AuthenticatedUser } from "../auth/jwt-payload";
 import { SalesService } from "./sales.service";
 import { CreateSaleDto } from "./dto/create-sale.dto";
 import { AddPaymentDto } from "./dto/add-payment.dto";
+import { AddItemsDto } from "./dto/add-items.dto";
 import { VoidSaleDto } from "./dto/void-sale.dto";
 import { ListSalesQueryDto } from "./dto/list-sales.query.dto";
 
@@ -46,6 +47,15 @@ export class SalesController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.sales.addPayment(id, dto, user.sub);
+  }
+
+  @Post(":id/add-items")
+  addItems(
+    @Param("id", ParseIntPipe) id: number,
+    @Body() dto: AddItemsDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.sales.addItems(id, dto, user.sub);
   }
 
   @Post(":id/void")

@@ -534,6 +534,17 @@ export const en = {
     methodOther: "Other",
   },
 
+  addOn: {
+    title: "Add items",
+    button: "Add items",
+    pickItem: "Pick an item to add",
+    addLine: "Add",
+    addedTotal: "Add-on total",
+    paidNow: "Paid now",
+    confirm: "Add to this sale",
+    walkInFull: "A walk-in sale must be paid in full",
+  },
+
   rollOrders: {
     title: "Roll orders",
     open: "Open orders",

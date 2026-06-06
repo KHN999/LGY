@@ -11,6 +11,7 @@ import {
   type ShopSettings,
 } from "@/lib/api-client";
 import { Receipt, type ReceiptData } from "@/components/staff/receipt";
+import { AddOnFlow } from "./add-on-flow";
 import { labels } from "@/lib/labels";
 import { formatKyat, formatDate } from "@/lib/utils";
 
@@ -26,6 +27,7 @@ export function ReceiptView({
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [returning, setReturning] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [voidingId, setVoidingId] = useState<number | null>(null);
   const [voidError, setVoidError] = useState<string | null>(null);
   useEffect(() => setMounted(true), []);
@@ -113,20 +115,40 @@ export function ReceiptView({
         <ReturnForm sale={sale} onClose={() => setReturning(false)} />
       )}
 
+      {!voided && adding && <AddOnFlow sale={sale} onClose={() => setAdding(false)} />}
+
+      {/* Clearance so the last content isn't hidden behind the fixed action bar. */}
+      <div aria-hidden className="h-24" />
+
       <div className="fixed inset-x-0 bottom-0 border-t bg-background p-3 sm:p-4">
-        <div className="mx-auto flex max-w-2xl gap-3">
+        <div className="mx-auto flex max-w-2xl gap-2">
           <button
             type="button"
             onClick={() => window.print()}
-            className="flex-1 rounded-2xl border-2 border-emerald-600 py-4 text-lg font-bold text-emerald-700 active:scale-[0.98]"
+            className="flex-1 rounded-2xl border-2 border-emerald-600 py-4 text-sm font-bold text-emerald-700 active:scale-[0.98]"
           >
             🖨 {labels.history.reprint}
           </button>
           {!voided && (
             <button
               type="button"
-              onClick={() => setReturning((v) => !v)}
-              className="flex-1 rounded-2xl bg-rose-600 py-4 text-lg font-bold text-white shadow active:scale-[0.98]"
+              onClick={() => {
+                setAdding((v) => !v);
+                setReturning(false);
+              }}
+              className="flex-1 rounded-2xl bg-emerald-600 py-4 text-sm font-bold text-white shadow active:scale-[0.98]"
+            >
+              ➕ {labels.addOn.button}
+            </button>
+          )}
+          {!voided && (
+            <button
+              type="button"
+              onClick={() => {
+                setReturning((v) => !v);
+                setAdding(false);
+              }}
+              className="flex-1 rounded-2xl bg-rose-600 py-4 text-sm font-bold text-white shadow active:scale-[0.98]"
             >
               ↩ {labels.returns.action}
             </button>

@@ -9,6 +9,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import type { PageResult } from "../common/pagination.dto";
 import { CreateSaleDto } from "./dto/create-sale.dto";
 import { AddPaymentDto } from "./dto/add-payment.dto";
+import { AddItemsDto } from "./dto/add-items.dto";
 import { ListSalesQueryDto } from "./dto/list-sales.query.dto";
 
 function statusFor(grandTotal: number, paidAmount: number): TxnStatus {
@@ -725,6 +726,81 @@ export class SalesService {
 
       return payment;
     });
+  }
+
+  /**
+   * Add-on: append more line items to a posted sale so it stays a single
+   * receipt (e.g. the buyer comes back 5 minutes later for 5 more). Deducts shop
+   * stock via a SALE event (physical-truth, same as a normal sale), bumps the
+   * sale totals, and records the cash taken now as a CustomerPayment.
+   */
+  async addItems(saleId: number, dto: AddItemsDto, createdById: number) {
+    for (const it of dto.items) {
+      if (it.itemTypeId === undefined && !it.itemName?.trim()) {
+        throw new BadRequestException("Each item needs an itemTypeId or itemName");
+      }
+    }
+    const addedGoods = dto.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
+    const paidNow = dto.paidAmount ?? 0;
+    if (paidNow > addedGoods) {
+      throw new BadRequestException("Paid amount cannot exceed the added items total");
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const sale = await tx.sale.findUnique({ where: { id: saleId } });
+      if (!sale) throw new NotFoundException(`Sale ${saleId} not found`);
+      if (sale.voidedAt) throw new ConflictException("Cannot add to a voided sale");
+      if (sale.customerId == null && paidNow !== addedGoods) {
+        throw new BadRequestException("A walk-in sale's add-on must be paid in full");
+      }
+
+      await tx.saleLine.createMany({
+        data: dto.items.map((i) => ({
+          saleId,
+          itemTypeId: i.itemTypeId ?? null,
+          itemName: i.itemTypeId !== undefined ? null : i.itemName?.trim() || null,
+          qty: i.qty,
+          unitPrice: i.unitPrice,
+          lineTotal: i.unitPrice * i.qty,
+          note: i.note?.trim() || null,
+        })),
+      });
+
+      // Deduct shop stock for catalog items (ad-hoc itemName lines aren't tracked).
+      const outLines = dto.items
+        .filter((i) => i.itemTypeId !== undefined)
+        .map((i) => ({
+          direction: "OUT" as const,
+          location: "SHOP" as const,
+          itemTypeId: i.itemTypeId!,
+          qty: i.qty,
+        }));
+      if (outLines.length > 0) {
+        await tx.inventoryEvent.create({
+          data: { kind: "SALE", saleId, createdById, lines: { create: outLines } },
+        });
+      }
+
+      const newGrand = sale.grandTotal + addedGoods;
+      const newPaid = sale.paidAmount + paidNow;
+      await tx.sale.update({
+        where: { id: saleId },
+        data: {
+          goodsTotal: sale.goodsTotal + addedGoods,
+          grandTotal: newGrand,
+          paidAmount: newPaid,
+          status: statusFor(newGrand, newPaid),
+        },
+      });
+
+      if (paidNow > 0) {
+        await tx.customerPayment.create({
+          data: { customerId: sale.customerId, saleId, amount: paidNow, method: "CASH", createdById },
+        });
+      }
+    });
+
+    return this.getOne(saleId);
   }
 
   /**
