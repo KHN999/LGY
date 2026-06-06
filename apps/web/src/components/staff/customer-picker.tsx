@@ -13,6 +13,25 @@ interface Props {
   debtorsOnly?: boolean;
 }
 
+// Stale-while-revalidate cache so the picker works offline (and opens instantly).
+// Refreshed in the background whenever online, mirroring ItemTypeGrid.
+const CUSTOMERS_LS = "lgy.customers";
+function readCustomerCache(): Customer[] {
+  try {
+    const v = typeof localStorage !== "undefined" ? localStorage.getItem(CUSTOMERS_LS) : null;
+    return v ? (JSON.parse(v) as Customer[]) : [];
+  } catch {
+    return [];
+  }
+}
+function writeCustomerCache(list: Customer[]) {
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem(CUSTOMERS_LS, JSON.stringify(list));
+  } catch {
+    /* quota / private mode — ignore */
+  }
+}
+
 export function CustomerPicker({ open, onClose, onPick, debtorsOnly }: Props) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
@@ -21,14 +40,22 @@ export function CustomerPicker({ open, onClose, onPick, debtorsOnly }: Props) {
 
   useEffect(() => {
     if (!open) return;
+    // Show cached customers immediately (works offline), then refresh online.
+    const cached = readCustomerCache();
+    if (cached.length) setCustomers(cached);
     const ctrl = new AbortController();
-    setLoading(true);
+    setLoading(cached.length === 0);
     setError(null);
     api
       .get<Page<Customer>>("/customers?limit=200", ctrl.signal)
-      .then((r) => setCustomers(r.data))
+      .then((r) => {
+        setCustomers(r.data);
+        writeCustomerCache(r.data);
+      })
       .catch((e: Error) => {
-        if (e.name !== "AbortError") setError(e.message);
+        if (e.name === "AbortError") return;
+        // Offline / failed: fall back to the cache; only error if we have nothing.
+        if (readCustomerCache().length === 0) setError(e.message);
       })
       .finally(() => setLoading(false));
     return () => ctrl.abort();

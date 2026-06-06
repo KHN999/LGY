@@ -59,6 +59,10 @@ export const my: DeepPartial<Labels> = {
     admin: "Admin",
   },
 
+  offline: {
+    noInternet: "အင်တာနက် မရှိပါ — အော့ဖ်လိုင်း ကြည့်ရှုနေသည်",
+  },
+
   staff: {
     home: "LGY ဆိုင်",
     sell: "အရောင်း",

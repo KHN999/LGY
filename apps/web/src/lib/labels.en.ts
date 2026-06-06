@@ -57,6 +57,10 @@ export const en = {
     admin: "Admin",
   },
 
+  offline: {
+    noInternet: "No internet — viewing offline",
+  },
+
   staff: {
     home: "LGY Shop",
     sell: "Sell",
