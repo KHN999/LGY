@@ -1,15 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { api, ApiError, type Customer } from "@/lib/api-client";
+import {
+  api,
+  ApiError,
+  type Customer,
+  type PaymentResult,
+  type ShopSettings,
+} from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 import { formatKyat } from "@/lib/utils";
 import { speak } from "@/lib/speech";
 import { CustomerPicker } from "@/components/staff/customer-picker";
+import { PaymentReceipt, type PaymentReceiptData } from "@/components/staff/payment-receipt";
 
-export function ReceiveMoneyFlow() {
+export function ReceiveMoneyFlow({ shop }: { shop?: ShopSettings }) {
   const router = useRouter();
   const params = useSearchParams();
   const initialCustomerName = params.get("customerName");
@@ -34,6 +42,9 @@ export function ReceiveMoneyFlow() {
   const [amount, setAmount] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<PaymentReceiptData | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   async function onSubmit() {
     if (!customer) {
@@ -47,18 +58,63 @@ export function ReceiveMoneyFlow() {
     setError(null);
     setSubmitting(true);
     try {
-      await api.post("/customer-payments", {
+      const res = await api.post<PaymentResult>("/customer-payments", {
         customerId: customer.id,
         amount,
       });
       speak(labels.receive.voiceReceived(formatKyat(amount)));
-      router.push("/staff?saved=receive");
+      setDone({
+        paymentId: res.id,
+        date: res.paymentDate,
+        customerName: res.customerName,
+        amount: res.amount,
+        method: res.method,
+        balanceAfter: res.balanceAfter,
+      });
       router.refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : labels.errors.unknown);
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // After recording: show the printable payment receipt to hand the payer.
+  if (done) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 p-4 sm:p-6">
+        <p className="rounded-xl bg-emerald-100 p-3 text-center font-semibold text-emerald-900">
+          ✓ {formatKyat(done.amount)} · {labels.paymentReceipt.remaining}: {formatKyat(done.balanceAfter)}
+        </p>
+        <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+          <PaymentReceipt data={done} shop={shop} />
+        </div>
+        <div className="flex gap-3 pb-4">
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="flex-1 rounded-2xl border-2 border-emerald-600 py-4 text-lg font-bold text-emerald-700 active:scale-[0.98]"
+          >
+            🖨 {labels.common.print}
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/staff?saved=receive")}
+            className="flex-1 rounded-2xl bg-primary py-4 text-lg font-bold text-primary-foreground active:scale-[0.98]"
+          >
+            {labels.common.done}
+          </button>
+        </div>
+
+        {mounted &&
+          createPortal(
+            <div id="print-receipt" className="hidden print:block">
+              <PaymentReceipt data={done} shop={shop} />
+            </div>,
+            document.body,
+          )}
+      </main>
+    );
   }
 
   return (

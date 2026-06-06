@@ -333,6 +333,20 @@ export interface CustomerPayment {
   notes: string | null;
 }
 
+/** Response from POST /customer-payments — the payment plus the customer name
+ *  and authoritative balance after, for printing the payment receipt. */
+export interface PaymentResult {
+  id: number;
+  customerId: number | null;
+  saleId: number | null;
+  amount: number;
+  method: "CASH" | "BANK_TRANSFER" | "MOBILE_MONEY" | "OTHER";
+  paymentDate: string;
+  notes: string | null;
+  customerName: string;
+  balanceAfter: number;
+}
+
 export interface DailyClosePreview {
   date: string;
   openingCash: number;

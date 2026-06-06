@@ -35,6 +35,61 @@ function splitEntries(s?: string | null): string[] {
     .filter(Boolean);
 }
 
+/** Faint centered logo watermark behind the content (survives printing). */
+export function ReceiptWatermark() {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/logo.svg"
+      alt=""
+      aria-hidden="true"
+      onError={hideOnError}
+      className="pointer-events-none absolute left-1/2 top-1/2 z-0 w-3/4 -translate-x-1/2 -translate-y-1/2 select-none"
+      style={{ opacity: 0.08, printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" }}
+    />
+  );
+}
+
+/** Shared centered header — logo, shop name, subtitle, address, phones, socials.
+ *  Reused by every printable document (sale receipt, payment receipt, …) so the
+ *  contact block stays identical across them. */
+export function ReceiptHeader({ shop }: { shop?: ShopSettings }) {
+  const shopName = shop?.shopName?.trim() || labels.receipt.shopName;
+  const subtitle = shop?.receiptHeader?.trim() || labels.receipt.title;
+  const phones = splitEntries(shop?.phone);
+  const socials = splitEntries(shop?.social);
+  return (
+    <div className="text-center">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/logo.svg"
+        alt={shopName}
+        onError={hideOnError}
+        className="mx-auto mb-2 h-16 w-auto object-contain"
+      />
+      <h2 className="text-2xl font-extrabold tracking-wide">{shopName}</h2>
+      <p className="text-sm font-medium text-neutral-700">{subtitle}</p>
+      {shop?.addressLine?.trim() && (
+        <p className="mt-1 whitespace-pre-line text-xs leading-snug text-neutral-600">
+          {shop.addressLine.trim()}
+        </p>
+      )}
+      {phones.length > 0 && (
+        <div className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-0.5 text-xs leading-snug text-neutral-600">
+          {phones.map((p, i) => (
+            <span key={i} className="whitespace-nowrap">
+              📞 {p}
+            </span>
+          ))}
+        </div>
+      )}
+      {socials.length > 0 && (
+        <p className="text-xs leading-snug text-neutral-600">{socials.join("  ·  ")}</p>
+      )}
+    </div>
+  );
+}
+
 /**
  * Receipt — sized for A5 paper (see the print rules in globals.css). Used both
  * as the on-screen preview and the printed copy. The header/footer text comes
@@ -47,53 +102,13 @@ function splitEntries(s?: string | null): string[] {
 export function Receipt({ data, shop }: { data: ReceiptData; shop?: ShopSettings }) {
   const remaining = data.grandTotal - data.paid;
   const d = new Date(data.date);
-  const shopName = shop?.shopName?.trim() || labels.receipt.shopName;
-  const subtitle = shop?.receiptHeader?.trim() || labels.receipt.title;
   const footer = shop?.receiptFooter?.trim() || labels.receipt.thanks;
-  const phones = splitEntries(shop?.phone);
-  const socials = splitEntries(shop?.social);
   return (
     <div className="relative mx-auto w-full max-w-[150mm] overflow-hidden bg-white p-6 text-black">
-      {/* Faint, centered logo watermark behind the content. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/logo.svg"
-        alt=""
-        aria-hidden="true"
-        onError={hideOnError}
-        className="pointer-events-none absolute left-1/2 top-1/2 z-0 w-3/4 -translate-x-1/2 -translate-y-1/2 select-none"
-        style={{ opacity: 0.08, printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" }}
-      />
+      <ReceiptWatermark />
 
       <div className="relative z-10">
-        <div className="text-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/logo.svg"
-            alt={shopName}
-            onError={hideOnError}
-            className="mx-auto mb-2 h-16 w-auto object-contain"
-          />
-          <h2 className="text-2xl font-extrabold tracking-wide">{shopName}</h2>
-          <p className="text-sm font-medium text-neutral-700">{subtitle}</p>
-          {shop?.addressLine?.trim() && (
-            <p className="mt-1 whitespace-pre-line text-xs leading-snug text-neutral-600">
-              {shop.addressLine.trim()}
-            </p>
-          )}
-          {phones.length > 0 && (
-            <div className="mt-1 flex flex-wrap justify-center gap-x-3 gap-y-0.5 text-xs leading-snug text-neutral-600">
-              {phones.map((p, i) => (
-                <span key={i} className="whitespace-nowrap">
-                  📞 {p}
-                </span>
-              ))}
-            </div>
-          )}
-          {socials.length > 0 && (
-            <p className="text-xs leading-snug text-neutral-600">{socials.join("  ·  ")}</p>
-          )}
-        </div>
+        <ReceiptHeader shop={shop} />
 
         <div className="mt-4 flex justify-between text-sm">
           <span>

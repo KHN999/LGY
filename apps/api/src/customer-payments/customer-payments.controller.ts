@@ -15,7 +15,7 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import type { AuthenticatedUser } from "../auth/jwt-payload";
-import { CustomerPaymentsService } from "./customer-payments.service";
+import { CustomerPaymentsService, type PaymentResult } from "./customer-payments.service";
 import {
   CreateCustomerPaymentDto,
   VoidCustomerPaymentDto,
@@ -36,7 +36,10 @@ export class CustomerPaymentsController {
   constructor(private readonly service: CustomerPaymentsService) {}
 
   @Post()
-  create(@Body() dto: CreateCustomerPaymentDto, @CurrentUser() user: AuthenticatedUser) {
+  create(
+    @Body() dto: CreateCustomerPaymentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<PaymentResult> {
     return this.service.create(dto, user.sub);
   }
 

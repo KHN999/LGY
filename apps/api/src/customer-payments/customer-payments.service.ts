@@ -1,5 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { CustomersService } from "../customers/customers.service";
 import { CreateCustomerPaymentDto } from "./dto/customer-payment.dto";
 
 function statusFor(grandTotal: number, paidAmount: number): "UNPAID" | "PARTIAL" | "PAID" {
@@ -8,14 +9,31 @@ function statusFor(grandTotal: number, paidAmount: number): "UNPAID" | "PARTIAL"
   return "PARTIAL";
 }
 
+/** Returned to the client so it can print a payment receipt with the customer's
+ *  name and authoritative remaining balance, without another round-trip. */
+export interface PaymentResult {
+  id: number;
+  customerId: number | null;
+  saleId: number | null;
+  amount: number;
+  method: string;
+  paymentDate: Date;
+  notes: string | null;
+  customerName: string;
+  balanceAfter: number;
+}
+
 @Injectable()
 export class CustomerPaymentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly customers: CustomersService,
+  ) {}
 
-  async create(dto: CreateCustomerPaymentDto, createdById: number) {
+  async create(dto: CreateCustomerPaymentDto, createdById: number): Promise<PaymentResult> {
     const customer = await this.prisma.customer.findUnique({ where: { id: dto.customerId } });
     if (!customer) throw new NotFoundException(`Customer ${dto.customerId} not found`);
-    return this.prisma.customerPayment.create({
+    const payment = await this.prisma.customerPayment.create({
       data: {
         customerId: dto.customerId,
         amount: dto.amount,
@@ -25,6 +43,18 @@ export class CustomerPaymentsService {
         createdById,
       },
     });
+    const balanceAfter = await this.customers.getBalance(dto.customerId);
+    return {
+      id: payment.id,
+      customerId: payment.customerId,
+      saleId: payment.saleId,
+      amount: payment.amount,
+      method: payment.method,
+      paymentDate: payment.paymentDate,
+      notes: payment.notes,
+      customerName: customer.name,
+      balanceAfter,
+    };
   }
 
   async listForCustomer(customerId: number, limit = 50) {

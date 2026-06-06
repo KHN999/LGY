@@ -20,6 +20,7 @@ export const en = {
     addNew: "Add new",
     search: "Search",
     loading: "Loading...",
+    print: "Print",
     today: "Today",
     total: "Total",
     noData: "No data yet",
@@ -132,6 +133,15 @@ export const en = {
     title: "Debts",
     none: "No one owes money",
     clickToReceive: "Tap to receive money",
+    tapForHistory: "Tap to see history",
+    ledgerTitle: "Transaction history",
+    currentBalance: "Owes now",
+    receiveMoney: "Receive money",
+    noHistory: "No transactions yet",
+    bought: "Bought (credit)",
+    paid: "Paid",
+    rowBalance: "Balance",
+    settled: "Settled — nothing owed",
   },
 
   transfer: {
@@ -510,6 +520,18 @@ export const en = {
     paid: "Paid",
     remaining: "Remaining",
     thanks: "Thank you!",
+  },
+
+  paymentReceipt: {
+    title: "Payment Receipt",
+    received: "Received",
+    method: "Method",
+    previousDebt: "Previous debt",
+    remaining: "Remaining",
+    methodCash: "Cash",
+    methodBank: "Bank transfer",
+    methodMobile: "Mobile money",
+    methodOther: "Other",
   },
 
   rollOrders: {

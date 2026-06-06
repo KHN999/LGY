@@ -26,7 +26,7 @@ export default async function DebtsPage() {
           {debtors.map((c) => (
             <li key={c.id}>
               <Link
-                href={`/staff/receive?customerId=${c.id}&customerName=${encodeURIComponent(c.name)}&balance=${c.balance}`}
+                href={`/staff/customers/${c.id}`}
                 className="flex items-center justify-between gap-3 rounded-2xl border bg-card p-4 active:scale-[0.99]"
               >
                 <div className="min-w-0 flex-1">
@@ -37,7 +37,7 @@ export default async function DebtsPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-lg font-bold text-rose-600">{formatKyat(c.balance)}</p>
-                  <p className="text-xs text-muted-foreground">{labels.debts.clickToReceive}</p>
+                  <p className="text-xs text-muted-foreground">{labels.debts.tapForHistory}</p>
                 </div>
               </Link>
             </li>

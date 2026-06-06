@@ -22,6 +22,7 @@ export const my: DeepPartial<Labels> = {
     addNew: "အသစ်ထည့်မယ်",
     search: "ရှာမယ်",
     loading: "ခဏစောင့်ပါ...",
+    print: "ပုံနှိပ်မယ်",
     today: "ဒီနေ့",
     total: "စုစုပေါင်း",
     noData: "အချက်အလက်မရှိသေးပါ",
@@ -134,6 +135,15 @@ export const my: DeepPartial<Labels> = {
     title: "အကြွေးစာရင်း",
     none: "အကြွေးကျန်ရှိသူ မရှိပါ",
     clickToReceive: "ငွေလက်ခံရန် နှိပ်ပါ",
+    tapForHistory: "မှတ်တမ်းကြည့်ရန် နှိပ်ပါ",
+    ledgerTitle: "ငွေပေးငွေယူ မှတ်တမ်း",
+    currentBalance: "လက်ကျန်ကြွေး",
+    receiveMoney: "ငွေလက်ခံမယ်",
+    noHistory: "မှတ်တမ်း မရှိသေးပါ",
+    bought: "ဝယ်ယူ (အကြွေး)",
+    paid: "ပေးချေ",
+    rowBalance: "လက်ကျန်",
+    settled: "ပြီးပြတ် — ကြွေးမကျန်တော့ပါ",
   },
 
   transfer: {
@@ -510,6 +520,18 @@ export const my: DeepPartial<Labels> = {
     paid: "ပေးပြီး",
     remaining: "ကျန်ငွေ",
     thanks: "ကျေးဇူးတင်ပါသည်",
+  },
+
+  paymentReceipt: {
+    title: "ငွေလက်ခံ ပြေစာ",
+    received: "လက်ခံငွေ",
+    method: "နည်းလမ်း",
+    previousDebt: "ယခင်ကြွေး",
+    remaining: "ကျန်ကြွေး",
+    methodCash: "ငွေသား",
+    methodBank: "ဘဏ်လွှဲ",
+    methodMobile: "မိုဘိုင်းငွေ",
+    methodOther: "အခြား",
   },
 
   rollOrders: {
