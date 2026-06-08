@@ -1,3 +1,5 @@
 packages:
   - "apps/*"
   - "packages/*"
+  # Standalone Expo (React Native) staff app — its own npm install, not pnpm.
+  - "!apps/staff-native"

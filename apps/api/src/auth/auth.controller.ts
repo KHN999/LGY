@@ -25,7 +25,8 @@ export class AuthController {
     // Always start a fresh session in the real shop — never inherit a leftover
     // "playground" selection from a previous user of this browser.
     res.cookie(SHOP_COOKIE, "main", this.cookieOptions());
-    return { user };
+    // Cookie for the web; token in the body for the native app (no cookies).
+    return { user, token };
   }
 
   @Post("logout")

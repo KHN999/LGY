@@ -16,7 +16,10 @@ export class JwtAuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<Request & { user?: AuthenticatedUser }>();
-    const token = req.cookies?.[COOKIE_NAME];
+    // Web uses the httpOnly cookie; the native app sends `Authorization: Bearer`.
+    const header = req.headers.authorization;
+    const bearer = header?.startsWith("Bearer ") ? header.slice(7) : undefined;
+    const token = req.cookies?.[COOKIE_NAME] || bearer;
     if (!token || typeof token !== "string") {
       throw new UnauthorizedException("Not authenticated");
     }

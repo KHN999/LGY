@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "LGY Staff",
+    "slug": "lgy-staff",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "com.lgy.staff",
+      "versionCode": 1
+    },
+    "newArchEnabled": false
+  }
+}
