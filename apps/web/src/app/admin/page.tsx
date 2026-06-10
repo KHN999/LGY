@@ -103,37 +103,43 @@ export default async function AdminHomePage({
 
         {/* Total pieces sold per item over the selected period, ranked. */}
         <Card className="p-4">
-          <div className="mb-3 flex items-end justify-between gap-2">
-            <div>
-              <h3 className="text-sm font-semibold">{labels.dash.itemsSold}</h3>
-              <p className="text-xs text-muted-foreground">{periodText}</p>
+          {/* Capped width so the name and count sit close together, not stretched
+              across the whole card. */}
+          <div className="max-w-md">
+            <div className="mb-3 flex items-end justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold">{labels.dash.itemsSold}</h3>
+                <p className="text-xs text-muted-foreground">{periodText}</p>
+              </div>
+              {summary.itemsSold.length > 0 && (
+                <span className="text-base font-bold tabular-nums">
+                  {totalPiecesSold.toLocaleString("en-US")}
+                </span>
+              )}
             </div>
-            {summary.itemsSold.length > 0 && (
-              <span className="text-base font-bold tabular-nums">
-                Σ {totalPiecesSold.toLocaleString("en-US")}
-              </span>
+            {summary.itemsSold.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                {labels.common.noData}
+              </p>
+            ) : (
+              <ul className="flex flex-col divide-y">
+                {summary.itemsSold.map((it) => (
+                  <li
+                    key={it.itemTypeId ?? `n:${it.label}`}
+                    className="flex items-center justify-between gap-3 py-2"
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      {it.emoji ? <span className="text-lg">{it.emoji}</span> : null}
+                      <span className="truncate">{it.label}</span>
+                    </span>
+                    <span className="text-lg font-bold tabular-nums">
+                      {it.qty.toLocaleString("en-US")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
-          {summary.itemsSold.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">{labels.common.noData}</p>
-          ) : (
-            <ul className="flex flex-col divide-y">
-              {summary.itemsSold.map((it) => (
-                <li
-                  key={it.itemTypeId ?? `n:${it.label}`}
-                  className="flex items-center justify-between gap-2 py-2"
-                >
-                  <span className="flex min-w-0 items-center gap-2">
-                    {it.emoji ? <span className="text-lg">{it.emoji}</span> : null}
-                    <span className="truncate">{it.label}</span>
-                  </span>
-                  <span className="text-lg font-bold tabular-nums">
-                    {it.qty.toLocaleString("en-US")}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
         </Card>
       </section>
 

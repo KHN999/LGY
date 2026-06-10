@@ -39,10 +39,12 @@ export class SuppliersService {
     limit: number;
     search?: string;
     activeOnly?: boolean;
+    inactiveOnly?: boolean;
   }): Promise<PageResult<SupplierWithBalance>> {
-    const { page, limit, search, activeOnly = true } = opts;
+    const { page, limit, search, activeOnly = true, inactiveOnly = false } = opts;
     const filters: Prisma.Sql[] = [];
-    if (activeOnly) filters.push(Prisma.sql`s.status = 'ACTIVE'::"PartyStatus"`);
+    if (inactiveOnly) filters.push(Prisma.sql`s.status = 'INACTIVE'::"PartyStatus"`);
+    else if (activeOnly) filters.push(Prisma.sql`s.status = 'ACTIVE'::"PartyStatus"`);
     if (search) {
       const q = `%${search}%`;
       filters.push(Prisma.sql`(s.name ILIKE ${q} OR COALESCE(s.contact, '') ILIKE ${q})`);

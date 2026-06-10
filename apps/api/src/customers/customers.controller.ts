@@ -36,11 +36,14 @@ export class CustomersController {
 
   @Get()
   list(@Query() q: ListCustomersQueryDto) {
+    // activeOnly=false from the "Inactive" tab now means "inactive only" (not "all").
+    const inactiveOnly = q.activeOnly === "false";
     return this.customers.list({
       page: q.page ?? 1,
       limit: q.limit ?? 50,
       search: q.search,
-      activeOnly: q.activeOnly !== "false",
+      activeOnly: !inactiveOnly,
+      inactiveOnly,
     });
   }
 

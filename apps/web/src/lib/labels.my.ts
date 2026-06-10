@@ -227,6 +227,20 @@ export const my: DeepPartial<Labels> = {
     void: "ပယ်ဖျက်",
   },
 
+  returnsAdmin: {
+    title: "ပြန်အမ်းမှုများ",
+    empty: "ပြန်အမ်းမှု မရှိသေးပါ",
+    customer: "ဖောက်သည်",
+    walkIn: "ဖြတ်သန်းဝယ်",
+    sale: "အရောင်း",
+    returnedValue: "ပြန်အမ်းတန်ဖိုး",
+    refund: "ပြန်အမ်းငွေ",
+    items: "ပစ္စည်းများ",
+    delete: "ဖျက်မယ်",
+    deleteConfirm:
+      "ဤပြန်အမ်းမှုကို ဖျက်မလား? ပစ္စည်းများ စတော့မှ ပြန်ထွက်သွားပြီး ဖောက်သည် လက်ကျန်/ပြန်အမ်းငွေ ပြန်ပြောင်းသွားမည်။",
+  },
+
   expenses: {
     title: "ကုန်ကျစရိတ်",
     add: "ကုန်ကျစရိတ် ထည့်မယ်",
@@ -301,10 +315,13 @@ export const my: DeepPartial<Labels> = {
     activity: "ဝယ်ယူ/ပေးချေမှု",
     bought: "ဝယ်ထား (အကြွေး)",
     paid: "ပေးပြီး",
+    returned: "ပြန်အမ်း",
     recentSales: "လတ်တလော အရောင်း",
     recentPayments: "လတ်တလော ပေးငွေ",
+    recentReturns: "လတ်တလော ပြန်အမ်းမှု",
     noSales: "အရောင်း မရှိသေးပါ",
     noPayments: "ပေးငွေ မရှိသေးပါ",
+    noReturns: "ပြန်အမ်းမှု မရှိသေးပါ",
     topDebtors: "အကြွေး အများဆုံး",
   },
 
@@ -360,6 +377,7 @@ export const my: DeepPartial<Labels> = {
     supplierOrders: "အလိပ်မှာစာရင်း",
     closes: "နေ့ပိတ်စာရင်း",
     sales: "အရောင်းစာရင်း",
+    returns: "ပြန်အမ်းမှုများ",
     stockCount: "စတော့ရေတွက်",
     exceptions: "လက်ကျန်မကိုက်မှု",
     expenses: "ကုန်ကျစရိတ်",
@@ -430,6 +448,7 @@ export const my: DeepPartial<Labels> = {
       transfers: "ပစ္စည်းပို့မှု မရှိသေးပါ",
       closes: "နေ့ပိတ်မှတ်တမ်း မရှိသေးပါ",
       supplierOrders: "မှာထားသော အလိပ်/ပစ္စည်း မရှိသေးပါ",
+      returns: "ပြန်အမ်းမှု မရှိသေးပါ",
     },
     openingStockHelp:
       "စတော့လက်ကျန်စာရင်း အစသိမ်းရန်။ ဂိုဒေါင် (သို့) ဆိုင်တွင် လက်ကျန်ရှိသမျှကို ဤနေရာတွင် တစ်ကြိမ်တည်း ထည့်နိုင်သည်။",

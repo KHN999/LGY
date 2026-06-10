@@ -225,6 +225,21 @@ export const en = {
     void: "Cancel",
   },
 
+  // Admin Returns screen (English admin context).
+  returnsAdmin: {
+    title: "Returns",
+    empty: "No returns yet",
+    customer: "Customer",
+    walkIn: "Walk-in",
+    sale: "Sale",
+    returnedValue: "Returned",
+    refund: "Refund",
+    items: "Items",
+    delete: "Delete",
+    deleteConfirm:
+      "Delete this return? The goods go back out of stock and the customer's balance / refund is reversed.",
+  },
+
   expenses: {
     title: "Expenses",
     add: "Add expense",
@@ -299,10 +314,13 @@ export const en = {
     activity: "Activity",
     bought: "Bought (on credit)",
     paid: "Paid",
+    returned: "Returned",
     recentSales: "Recent sales",
     recentPayments: "Recent payments",
+    recentReturns: "Recent returns",
     noSales: "No sales yet",
     noPayments: "No payments yet",
+    noReturns: "No returns yet",
     topDebtors: "Who owes most",
   },
 
@@ -358,6 +376,7 @@ export const en = {
     supplierOrders: "Supplier orders",
     closes: "Daily closes",
     sales: "Sales",
+    returns: "Returns",
     stockCount: "Stock count",
     exceptions: "Stock exceptions",
     expenses: "Expenses",
@@ -430,6 +449,7 @@ export const en = {
       transfers: "No transfers yet",
       closes: "No daily closes yet",
       supplierOrders: "No supplier orders yet",
+      returns: "No returns yet",
     },
     openingStockHelp:
       "Record your starting stock. Enter everything on hand at the warehouse or shop here, one time.",

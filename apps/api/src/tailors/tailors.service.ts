@@ -51,10 +51,15 @@ export class TailorsService {
     limit: number;
     search?: string;
     activeOnly?: boolean;
+    inactiveOnly?: boolean;
   }): Promise<PageResult<TailorWithBalance>> {
-    const { page, limit, search, activeOnly = true } = opts;
+    const { page, limit, search, activeOnly = true, inactiveOnly = false } = opts;
     const where = {
-      ...(activeOnly ? { status: "ACTIVE" as const } : {}),
+      ...(inactiveOnly
+        ? { status: "INACTIVE" as const }
+        : activeOnly
+          ? { status: "ACTIVE" as const }
+          : {}),
       ...(search
         ? {
             OR: [

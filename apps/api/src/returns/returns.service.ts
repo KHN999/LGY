@@ -230,6 +230,62 @@ export class ReturnsService {
     return rows.map((r) => ({ ...r, lines: jsonArray(r.lines) }));
   }
 
+  /** All (non-voided) returns, newest first — for the admin Returns screen. */
+  async list(range: { from?: string; to?: string } = {}) {
+    return this.prisma.saleReturn.findMany({
+      where: {
+        voidedAt: null,
+        ...(range.from || range.to
+          ? {
+              returnDate: {
+                ...(range.from ? { gte: new Date(range.from) } : {}),
+                ...(range.to ? { lte: new Date(range.to) } : {}),
+              },
+            }
+          : {}),
+      },
+      orderBy: [{ returnDate: "desc" }, { id: "desc" }],
+      take: 200,
+      select: {
+        id: true,
+        saleId: true,
+        returnDate: true,
+        returnTotal: true,
+        refundAmount: true,
+        notes: true,
+        voidedAt: true,
+        customer: { select: { id: true, name: true } },
+        lines: {
+          select: {
+            id: true,
+            itemTypeId: true,
+            itemName: true,
+            qty: true,
+            unitPrice: true,
+            lineTotal: true,
+            itemType: { select: { labelMy: true, emoji: true } },
+          },
+        },
+      },
+    });
+  }
+
+  /** All (non-voided) returns for one customer — for the customer detail page. */
+  async listForCustomer(customerId: number) {
+    return this.prisma.saleReturn.findMany({
+      where: { customerId, voidedAt: null },
+      orderBy: [{ returnDate: "desc" }, { id: "desc" }],
+      select: {
+        id: true,
+        saleId: true,
+        returnDate: true,
+        returnTotal: true,
+        refundAmount: true,
+        notes: true,
+      },
+    });
+  }
+
   /** Undo a return: voids the SaleReturn and its RETURN_FROM_CUSTOMER event
    * (so the goods leave stock again and the receivable/refund are reversed). */
   async voidReturn(returnId: number, reason: string | undefined, userId: number) {

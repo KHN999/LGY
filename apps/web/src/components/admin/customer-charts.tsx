@@ -16,15 +16,16 @@ import { formatKyat } from "@/lib/utils";
 const axisK = (v: number) => (Math.abs(v) >= 1000 ? `${Math.round(v / 1000)}k` : String(v));
 const money = (v: unknown) => formatKyat(Number(v) || 0);
 
-/** Per-customer: bought (on credit) vs paid, over time. */
+/** Per-customer: bought (on credit) vs paid vs returned, over time. */
 export function CustomerActivityChart({
   data,
 }: {
-  data: { date: string; bought: number; paid: number }[];
+  data: { date: string; bought: number; paid: number; returned: number }[];
 }) {
   if (data.length === 0) {
     return <p className="py-12 text-center text-sm text-muted-foreground">{labels.common.noData}</p>;
   }
+  const anyReturns = data.some((d) => d.returned > 0);
   return (
     <ResponsiveContainer width="100%" height={260}>
       <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
@@ -35,6 +36,9 @@ export function CustomerActivityChart({
         <Legend wrapperStyle={{ fontSize: 12 }} />
         <Bar name={labels.customerDetail.bought} dataKey="bought" fill="#ef4444" radius={[3, 3, 0, 0]} />
         <Bar name={labels.customerDetail.paid} dataKey="paid" fill="#10b981" radius={[3, 3, 0, 0]} />
+        {anyReturns && (
+          <Bar name={labels.customerDetail.returned} dataKey="returned" fill="#f59e0b" radius={[3, 3, 0, 0]} />
+        )}
       </BarChart>
     </ResponsiveContainer>
   );

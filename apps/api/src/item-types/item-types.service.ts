@@ -6,9 +6,13 @@ import { CreateItemTypeDto, UpdateItemTypeDto } from "./dto/item-type.dto";
 export class ItemTypesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(opts: { activeOnly?: boolean }) {
+  async list(opts: { activeOnly?: boolean; inactiveOnly?: boolean }) {
     return this.prisma.itemType.findMany({
-      where: opts.activeOnly !== false ? { isActive: true } : {},
+      where: opts.inactiveOnly
+        ? { isActive: false }
+        : opts.activeOnly !== false
+          ? { isActive: true }
+          : {},
       orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
     });
   }

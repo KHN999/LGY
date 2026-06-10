@@ -48,7 +48,9 @@ export function ItemTypeForm({ initial }: Props) {
     const body = {
       key: key.trim(),
       labelMy: labelMy.trim(),
-      emoji: emoji.trim() || undefined,
+      // null (not undefined) so clearing the emoji actually persists — undefined is
+      // dropped from the JSON body and the API's "update if defined" guard skips it.
+      emoji: emoji.trim() || null,
       sortOrder: Number(sortOrder) || 0,
       isActive,
       sellable,

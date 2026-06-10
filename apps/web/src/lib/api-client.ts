@@ -326,6 +326,37 @@ export interface SaleReturnRow {
   lines: SaleReturnLineRow[];
 }
 
+/** A row in the admin Returns list (GET /returns). */
+export interface AdminReturnRow {
+  id: number;
+  saleId: number;
+  returnDate: string;
+  returnTotal: number;
+  refundAmount: number;
+  notes: string | null;
+  voidedAt: string | null;
+  customer: { id: number; name: string } | null;
+  lines: {
+    id: number;
+    itemTypeId: number | null;
+    itemName: string | null;
+    qty: number;
+    unitPrice: number;
+    lineTotal: number;
+    itemType: { labelMy: string; emoji: string | null } | null;
+  }[];
+}
+
+/** A customer's returns (GET /returns/by-customer/:id). */
+export interface CustomerReturnRow {
+  id: number;
+  saleId: number;
+  returnDate: string;
+  returnTotal: number;
+  refundAmount: number;
+  notes: string | null;
+}
+
 export interface ShopSettings {
   shopName: string;
   addressLine: string | null;

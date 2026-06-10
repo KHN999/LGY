@@ -35,11 +35,14 @@ export class SuppliersController {
 
   @Get()
   list(@Query() q: ListSuppliersQueryDto) {
+    // activeOnly=false from the "Inactive" tab means "inactive only" (not "all").
+    const inactiveOnly = q.activeOnly === "false";
     return this.service.list({
       page: q.page ?? 1,
       limit: q.limit ?? 50,
       search: q.search,
-      activeOnly: q.activeOnly !== "false",
+      activeOnly: !inactiveOnly,
+      inactiveOnly,
     });
   }
 
