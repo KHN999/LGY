@@ -21,7 +21,7 @@ const EMPTY: DashboardSummary = {
   netSales: 0,
   moneyIn: 0,
   moneyOut: 0,
-  itemsSoldByDay: [],
+  itemsSold: [],
   warehouseStock: [],
   shopStock: [],
   rollOrders: { openOrders: 0, rollsOrdered: 0, rollsReceived: 0, committedToPay: 0, dueNow: 0 },
@@ -49,6 +49,16 @@ export default async function AdminHomePage({
     sales: t.sales,
     expenses: t.expenses,
   }));
+
+  const totalPiecesSold = summary.itemsSold.reduce((s, it) => s + it.qty, 0);
+  // Show the active range so the "Items sold" totals are clearly tied to the filter
+  // (a single-day range collapses to one date instead of "X – X").
+  const periodText = (() => {
+    if (!from || !to) return labels.filter.all;
+    const f = formatDate(from);
+    const t = formatDate(to);
+    return f === t ? f : `${f} – ${t}`;
+  })();
 
   return (
     <div className="flex flex-col gap-8">
@@ -91,27 +101,35 @@ export default async function AdminHomePage({
           </Card>
         </div>
 
-        {/* Pieces sold per item, broken down by day. */}
+        {/* Total pieces sold per item over the selected period, ranked. */}
         <Card className="p-4">
-          <h3 className="mb-3 text-sm font-semibold">{labels.dash.itemsSold}</h3>
-          {summary.itemsSoldByDay.length === 0 ? (
+          <div className="mb-3 flex items-end justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-semibold">{labels.dash.itemsSold}</h3>
+              <p className="text-xs text-muted-foreground">{periodText}</p>
+            </div>
+            {summary.itemsSold.length > 0 && (
+              <span className="text-base font-bold tabular-nums">
+                Σ {totalPiecesSold.toLocaleString("en-US")}
+              </span>
+            )}
+          </div>
+          {summary.itemsSold.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">{labels.common.noData}</p>
           ) : (
             <ul className="flex flex-col divide-y">
-              {summary.itemsSoldByDay.map((d) => (
-                <li key={d.date} className="py-3 first:pt-0 last:pb-0">
-                  <p className="text-sm font-medium text-muted-foreground">{formatDate(d.date)}</p>
-                  <ul className="mt-2 flex flex-wrap gap-2 text-sm">
-                    {d.items.map((it) => (
-                      <li
-                        key={it.itemTypeId ?? `n:${it.label}`}
-                        className="rounded-full bg-muted px-3 py-1"
-                      >
-                        {it.emoji ? `${it.emoji} ` : ""}
-                        {it.label} × <span className="font-semibold tabular-nums">{it.qty}</span>
-                      </li>
-                    ))}
-                  </ul>
+              {summary.itemsSold.map((it) => (
+                <li
+                  key={it.itemTypeId ?? `n:${it.label}`}
+                  className="flex items-center justify-between gap-2 py-2"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    {it.emoji ? <span className="text-lg">{it.emoji}</span> : null}
+                    <span className="truncate">{it.label}</span>
+                  </span>
+                  <span className="text-lg font-bold tabular-nums">
+                    {it.qty.toLocaleString("en-US")}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -144,12 +162,12 @@ export default async function AdminHomePage({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <KpiCard
-            label={labels.domain.customer + " " + labels.domain.debt}
+            label={labels.dash.customerDebt}
             value={formatKyat(summary.debts.customer)}
             tone={summary.debts.customer > 0 ? "warn" : "default"}
           />
           <KpiCard
-            label={labels.domain.supplier + " " + labels.domain.debt}
+            label={labels.dash.supplierDebt}
             value={formatKyat(summary.debts.supplier)}
             tone={summary.debts.supplier > 0 ? "warn" : "default"}
           />

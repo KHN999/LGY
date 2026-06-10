@@ -259,11 +259,8 @@ export interface DashboardSummary {
   moneyIn: number;
   /** All money paid out in the period (supplier + tailor + expenses + refunds). */
   moneyOut: number;
-  /** Pieces sold per item type, grouped by Yangon business day (newest first). */
-  itemsSoldByDay: {
-    date: string;
-    items: { itemTypeId: number | null; label: string; emoji: string | null; qty: number }[];
-  }[];
+  /** Total pieces sold per item type over the selected period (ranked, biggest first). */
+  itemsSold: { itemTypeId: number | null; label: string; emoji: string | null; qty: number }[];
   warehouseStock: StockRow[];
   shopStock: StockRow[];
   rollOrders: RollOrdersSummary;

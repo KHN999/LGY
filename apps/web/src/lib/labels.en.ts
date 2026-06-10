@@ -73,6 +73,8 @@ export const en = {
     cashReceivedToday: "Cash received (today)",
     expectedCashToday: "Expected cash (today)",
     itemsSold: "Items sold",
+    customerDebt: "Customer debt",
+    supplierDebt: "Supplier debt",
   },
 
   staff: {
