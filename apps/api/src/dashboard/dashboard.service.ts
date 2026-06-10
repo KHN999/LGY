@@ -36,6 +36,11 @@ export interface DashboardSummary {
   moneyIn: number;
   /** All money paid out in range: supplier + tailor payments + expenses + refunds. */
   moneyOut: number;
+  /** Pieces sold per item type, grouped by Yangon business day (newest day first). */
+  itemsSoldByDay: {
+    date: string;
+    items: { itemTypeId: number | null; label: string; emoji: string | null; qty: number }[];
+  }[];
   warehouseStock: DashboardStockRow[];
   shopStock: DashboardStockRow[];
   rollOrders: RollOrdersSummary;
@@ -104,7 +109,18 @@ export class DashboardService {
       this.prisma.itemType.findMany({ orderBy: [{ sortOrder: "asc" }, { id: "asc" }] }),
       this.prisma.sale.findMany({
         where: { voidedAt: null, ...dateFilter("saleDate") },
-        select: { saleDate: true, grandTotal: true },
+        select: {
+          saleDate: true,
+          grandTotal: true,
+          lines: {
+            select: {
+              itemTypeId: true,
+              itemName: true,
+              qty: true,
+              itemType: { select: { labelMy: true, emoji: true } },
+            },
+          },
+        },
       }),
       this.prisma.expense.findMany({
         where: { voidedAt: null, ...dateFilter("expenseDate") },
@@ -148,9 +164,33 @@ export class DashboardService {
     };
     let rangeSalesTotal = 0;
     let rangeExpenseTotal = 0;
+    // Pieces sold per item type, bucketed by Yangon day. Keyed by item-type id, or
+    // by the free-text name for ad-hoc (non-catalog) lines.
+    type SoldItem = { itemTypeId: number | null; label: string; emoji: string | null; qty: number };
+    const itemsDayMap = new Map<string, Map<string, SoldItem>>();
     for (const s of salesRows) {
-      bucket(toYangonYmd(s.saleDate)).sales += s.grandTotal;
+      const ymd = toYangonYmd(s.saleDate);
+      bucket(ymd).sales += s.grandTotal;
       rangeSalesTotal += s.grandTotal;
+      let dayItems = itemsDayMap.get(ymd);
+      if (!dayItems) {
+        dayItems = new Map();
+        itemsDayMap.set(ymd, dayItems);
+      }
+      for (const l of s.lines) {
+        const key = l.itemTypeId != null ? `t${l.itemTypeId}` : `n:${l.itemName ?? "—"}`;
+        const existing = dayItems.get(key);
+        if (existing) {
+          existing.qty += l.qty;
+        } else {
+          dayItems.set(key, {
+            itemTypeId: l.itemTypeId,
+            label: l.itemType?.labelMy ?? l.itemName ?? "—",
+            emoji: l.itemType?.emoji ?? null,
+            qty: l.qty,
+          });
+        }
+      }
     }
     const catMap = new Map<string, number>();
     for (const e of expenseRows) {
@@ -175,6 +215,13 @@ export class DashboardService {
     const expenseBreakdown = [...catMap.entries()]
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
+    // Newest day first; within a day, the best-selling item first.
+    const itemsSoldByDay = [...itemsDayMap.entries()]
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([date, items]) => ({
+        date,
+        items: [...items.values()].sort((a, b) => b.qty - a.qty),
+      }));
 
     const returnsTotal = returnsAgg._sum.returnTotal ?? 0;
     const refundsTotal = returnsAgg._sum.refundAmount ?? 0;
@@ -211,6 +258,7 @@ export class DashboardService {
       netSales: rangeSalesTotal - returnsTotal,
       moneyIn,
       moneyOut,
+      itemsSoldByDay,
       warehouseStock: rows(whMap),
       shopStock: rows(shopMap),
       rollOrders,

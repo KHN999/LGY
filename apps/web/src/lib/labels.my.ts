@@ -74,6 +74,7 @@ export const my: DeepPartial<Labels> = {
     moneyOut: "ထွက်ငွေ",
     cashReceivedToday: "လက်ခံငွေ (ဒီနေ့)",
     expectedCashToday: "လက်ကျန်ငွေ (ဒီနေ့)",
+    itemsSold: "ရောင်းရသော ပစ္စည်းများ",
   },
 
   staff: {

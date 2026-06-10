@@ -72,6 +72,7 @@ export const en = {
     moneyOut: "Money out",
     cashReceivedToday: "Cash received (today)",
     expectedCashToday: "Expected cash (today)",
+    itemsSold: "Items sold",
   },
 
   staff: {

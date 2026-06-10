@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
-import { formatKyat } from "@/lib/utils";
+import { formatKyat, formatDate } from "@/lib/utils";
 import type { DashboardSummary, StockRow } from "@/lib/api-client";
 import { PageHeader, Card } from "@/components/ui";
 import { DateFilter } from "@/components/admin/date-filter";
@@ -21,6 +21,7 @@ const EMPTY: DashboardSummary = {
   netSales: 0,
   moneyIn: 0,
   moneyOut: 0,
+  itemsSoldByDay: [],
   warehouseStock: [],
   shopStock: [],
   rollOrders: { openOrders: 0, rollsOrdered: 0, rollsReceived: 0, committedToPay: 0, dueNow: 0 },
@@ -89,6 +90,33 @@ export default async function AdminHomePage({
             <ExpenseBreakdownPie data={summary.expenseBreakdown} />
           </Card>
         </div>
+
+        {/* Pieces sold per item, broken down by day. */}
+        <Card className="p-4">
+          <h3 className="mb-3 text-sm font-semibold">{labels.dash.itemsSold}</h3>
+          {summary.itemsSoldByDay.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">{labels.common.noData}</p>
+          ) : (
+            <ul className="flex flex-col divide-y">
+              {summary.itemsSoldByDay.map((d) => (
+                <li key={d.date} className="py-3 first:pt-0 last:pb-0">
+                  <p className="text-sm font-medium text-muted-foreground">{formatDate(d.date)}</p>
+                  <ul className="mt-2 flex flex-wrap gap-2 text-sm">
+                    {d.items.map((it) => (
+                      <li
+                        key={it.itemTypeId ?? `n:${it.label}`}
+                        className="rounded-full bg-muted px-3 py-1"
+                      >
+                        {it.emoji ? `${it.emoji} ` : ""}
+                        {it.label} × <span className="font-semibold tabular-nums">{it.qty}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
       </section>
 
       {/* ── Today's cash drawer (physical CASH only) — a glance; actual count
