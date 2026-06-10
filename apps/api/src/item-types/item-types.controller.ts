@@ -30,10 +30,7 @@ export class ItemTypesController {
 
   @Get()
   list(@Query() q: ListItemTypesQueryDto) {
-    return this.service.list({
-      activeOnly: q.activeOnly !== "false",
-      inactiveOnly: q.activeOnly === "false",
-    });
+    return this.service.list({ activeOnly: q.activeOnly !== "false" });
   }
 
   @Get(":id")

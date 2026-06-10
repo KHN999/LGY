@@ -6,13 +6,12 @@ import { CreateItemTypeDto, UpdateItemTypeDto } from "./dto/item-type.dto";
 export class ItemTypesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(opts: { activeOnly?: boolean; inactiveOnly?: boolean }) {
+  // activeOnly=false means "all" here (the admin management list shows active +
+  // inactive, badging the inactive ones) — NOT "inactive only" like the party
+  // lists, which have an explicit Active/Inactive tab.
+  async list(opts: { activeOnly?: boolean }) {
     return this.prisma.itemType.findMany({
-      where: opts.inactiveOnly
-        ? { isActive: false }
-        : opts.activeOnly !== false
-          ? { isActive: true }
-          : {},
+      where: opts.activeOnly !== false ? { isActive: true } : {},
       orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
     });
   }
