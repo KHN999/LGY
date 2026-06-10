@@ -51,6 +51,7 @@ export default async function AdminHomePage({
   }));
 
   const totalPiecesSold = summary.itemsSold.reduce((s, it) => s + it.qty, 0);
+  const maxSold = summary.itemsSold.reduce((m, it) => Math.max(m, it.qty), 0);
   // Show the active range so the "Items sold" totals are clearly tied to the filter
   // (a single-day range collapses to one date instead of "X – X").
   const periodText = (() => {
@@ -103,9 +104,7 @@ export default async function AdminHomePage({
 
         {/* Total pieces sold per item over the selected period, ranked. */}
         <Card className="p-4">
-          {/* Capped width so the name and count sit close together, not stretched
-              across the whole card. */}
-          <div className="max-w-md">
+          <div className="max-w-2xl">
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
                 <h3 className="text-sm font-semibold">{labels.dash.itemsSold}</h3>
@@ -122,21 +121,31 @@ export default async function AdminHomePage({
                 {labels.common.noData}
               </p>
             ) : (
-              <ul className="flex flex-col divide-y">
-                {summary.itemsSold.map((it) => (
-                  <li
-                    key={it.itemTypeId ?? `n:${it.label}`}
-                    className="flex items-center justify-between gap-3 py-2"
-                  >
-                    <span className="flex min-w-0 items-center gap-2">
-                      {it.emoji ? <span className="text-lg">{it.emoji}</span> : null}
-                      <span className="truncate">{it.label}</span>
-                    </span>
-                    <span className="text-lg font-bold tabular-nums">
-                      {it.qty.toLocaleString("en-US")}
-                    </span>
-                  </li>
-                ))}
+              // Horizontal bar chart: each item's bar is scaled to the best-seller.
+              // A 2% floor keeps tiny sellers visible despite the big skew.
+              <ul className="flex flex-col gap-1.5">
+                {summary.itemsSold.map((it) => {
+                  const pct = maxSold > 0 ? Math.max(2, Math.round((it.qty / maxSold) * 100)) : 0;
+                  return (
+                    <li
+                      key={it.itemTypeId ?? `n:${it.label}`}
+                      className="relative flex items-center justify-between gap-3 overflow-hidden rounded-md px-2 py-1.5"
+                    >
+                      <div
+                        className="absolute inset-y-0 left-0 rounded-md bg-emerald-500/15"
+                        style={{ width: `${pct}%` }}
+                        aria-hidden
+                      />
+                      <span className="relative flex min-w-0 items-center gap-2 text-sm">
+                        {it.emoji ? <span>{it.emoji}</span> : null}
+                        <span className="truncate">{it.label}</span>
+                      </span>
+                      <span className="relative shrink-0 text-sm font-bold tabular-nums">
+                        {it.qty.toLocaleString("en-US")}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
