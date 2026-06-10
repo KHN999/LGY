@@ -63,6 +63,19 @@ export const my: DeepPartial<Labels> = {
     noInternet: "အင်တာနက် မရှိပါ — အော့ဖ်လိုင်း ကြည့်ရှုနေသည်",
   },
 
+  dash: {
+    selectedPeriod: "ရွေးထားသော ကာလ",
+    now: "ယခုအချိန်",
+    netSales: "အသားတင် ရောင်းရငွေ",
+    grossSales: "စုစုပေါင်း ရောင်းရငွေ",
+    returns: "ပြန်အမ်း",
+    operatingExpenses: "လုပ်ငန်းသုံးစရိတ်",
+    moneyIn: "ဝင်ငွေ",
+    moneyOut: "ထွက်ငွေ",
+    cashReceivedToday: "လက်ခံငွေ (ဒီနေ့)",
+    expectedCashToday: "လက်ကျန်ငွေ (ဒီနေ့)",
+  },
+
   staff: {
     home: "LGY ဆိုင်",
     sell: "အရောင်း",
@@ -171,6 +184,9 @@ export const my: DeepPartial<Labels> = {
     driverFee: "ကားခ",
     otherDriver: "အခြား / တက္ကစီ",
     noDriver: "— မရှိ —",
+    date: "ရက်စွဲ / အချိန်",
+    items: "ပစ္စည်းများ",
+    recordedBy: "မှတ်တမ်းတင်သူ",
   },
 
   close: {

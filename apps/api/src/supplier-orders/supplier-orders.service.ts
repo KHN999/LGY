@@ -63,7 +63,12 @@ export class SupplierOrdersService {
     return this.prisma.supplierOrder.findMany({
       where: {
         ...(q.supplierId ? { supplierId: q.supplierId } : {}),
-        ...(q.status ? { status: q.status as SupplierOrderStatus } : {}),
+        // A roll order is "deleted" by setting status = CANCELLED. Hide those by
+        // default so the list shows only live orders; an explicit status filter
+        // (e.g. to review cancelled ones) still overrides this.
+        ...(q.status
+          ? { status: q.status as SupplierOrderStatus }
+          : { status: { not: "CANCELLED" as SupplierOrderStatus } }),
       },
       orderBy: { orderDate: "desc" },
       include: {

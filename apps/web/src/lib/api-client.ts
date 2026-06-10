@@ -247,8 +247,18 @@ export interface DashboardSummary {
   debts: { customer: number; supplier: number };
   trend: { date: string; sales: number; expenses: number }[];
   expenseBreakdown: { name: string; value: number }[];
+  /** Gross sales in the selected period. */
   rangeSalesTotal: number;
+  /** Operating expenses (Expense table) in the period. */
   rangeExpenseTotal: number;
+  /** Returns (SaleReturn.returnTotal) in the period. */
+  returnsTotal: number;
+  /** Gross sales − returns. */
+  netSales: number;
+  /** All money received in the period (every method). */
+  moneyIn: number;
+  /** All money paid out in the period (supplier + tailor + expenses + refunds). */
+  moneyOut: number;
   warehouseStock: StockRow[];
   shopStock: StockRow[];
   rollOrders: RollOrdersSummary;

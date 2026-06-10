@@ -61,6 +61,19 @@ export const en = {
     noInternet: "No internet — viewing offline",
   },
 
+  dash: {
+    selectedPeriod: "Selected period",
+    now: "Right now",
+    netSales: "Net sales",
+    grossSales: "Gross sales",
+    returns: "Returns",
+    operatingExpenses: "Operating expenses",
+    moneyIn: "Money in",
+    moneyOut: "Money out",
+    cashReceivedToday: "Cash received (today)",
+    expectedCashToday: "Expected cash (today)",
+  },
+
   staff: {
     home: "LGY Shop",
     sell: "Sell",
@@ -169,6 +182,9 @@ export const en = {
     driverFee: "Fee",
     otherDriver: "Other / taxi",
     noDriver: "— none —",
+    date: "Date & time",
+    items: "Items",
+    recordedBy: "Recorded by",
   },
 
   close: {

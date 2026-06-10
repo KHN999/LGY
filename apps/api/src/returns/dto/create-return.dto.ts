@@ -11,6 +11,12 @@ import {
 } from "class-validator";
 
 export class ReturnItemDto {
+  /** Preferred: the exact original sale line being returned. */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  saleLineId?: number;
+
   @IsOptional()
   @IsInt()
   @Min(1)
@@ -25,9 +31,10 @@ export class ReturnItemDto {
   @Min(1)
   qty!: number;
 
+  @IsOptional()
   @IsInt()
   @Min(0)
-  unitPrice!: number;
+  unitPrice?: number;
 }
 
 export class CreateReturnDto {

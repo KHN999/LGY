@@ -1,9 +1,12 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Post, Query, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { Roles } from "../auth/decorators/roles.decorator";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import type { AuthenticatedUser } from "../auth/jwt-payload";
 import { TransfersService } from "./transfers.service";
 import { CreateTransferDto } from "./dto/transfer.dto";
+import { VoidTransferDto } from "./dto/void-transfer.dto";
 import { DateRangeQueryDto } from "../common/date-range.query.dto";
 
 @Controller("transfers")
@@ -24,5 +27,16 @@ export class TransfersController {
   @Get(":id")
   getOne(@Param("id", ParseIntPipe) id: number) {
     return this.service.getOne(id);
+  }
+
+  @Post(":id/void")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  void(
+    @Param("id", ParseIntPipe) id: number,
+    @Body() dto: VoidTransferDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.void(id, dto.reason, user.sub);
   }
 }

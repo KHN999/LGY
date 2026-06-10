@@ -1,11 +1,19 @@
+import Link from "next/link";
 import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
 import { formatDateTime } from "@/lib/utils";
 import type { InventoryEvent } from "@/lib/api-client";
 import { PageHeader, EmptyState } from "@/components/ui";
 import { DateFilter } from "@/components/admin/date-filter";
+import { VoidTransferButton } from "./void-transfer-button";
 
 export const dynamic = "force-dynamic";
+
+const LOC: Record<string, string> = {
+  WAREHOUSE: labels.transfer.locWarehouse,
+  SHOP: labels.transfer.locShop,
+  IN_TRANSIT: labels.transfer.locInTransit,
+};
 
 export default async function TransfersPage({
   searchParams,
@@ -31,27 +39,31 @@ export default async function TransfersPage({
             const out = e.lines.find((l) => l.direction === "OUT");
             const inLine = e.lines.find((l) => l.direction === "IN");
             return (
-              <li key={e.id} className="p-4">
-                <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
-                  <span>{formatDateTime(e.occurredAt)}</span>
-                  {e.voidedAt && <span className="text-rose-600">VOIDED</span>}
-                </div>
-                <p className="mt-1 text-base">
-                  <span className="font-medium">{out?.location}</span>
-                  {" → "}
-                  <span className="font-medium">{inLine?.location}</span>
-                </p>
-                <ul className="mt-1 flex flex-wrap gap-2 text-sm">
-                  {e.lines
-                    .filter((l) => l.direction === "OUT")
-                    .map((l) => (
-                      <li key={l.id} className="rounded-full bg-muted px-3 py-1">
-                        {l.itemType?.emoji ?? ""} {l.itemType?.labelMy ?? `#${l.itemTypeId}`} ×{" "}
-                        <span className="font-semibold">{l.qty}</span>
-                      </li>
-                    ))}
-                </ul>
-                {e.notes && <p className="mt-1 text-xs text-muted-foreground">{e.notes}</p>}
+              <li key={e.id} className="flex items-start justify-between gap-2 p-4">
+                <Link href={`/admin/transfers/${e.id}`} className="min-w-0 flex-1 hover:opacity-80">
+                  <span className="text-sm text-muted-foreground">{formatDateTime(e.occurredAt)}</span>
+                  <p className="mt-1 text-base">
+                    <span className="font-medium">{LOC[out?.location ?? ""] ?? out?.location}</span>
+                    {" → "}
+                    <span className="font-medium">{LOC[inLine?.location ?? ""] ?? inLine?.location}</span>
+                  </p>
+                  <ul className="mt-1 flex flex-wrap gap-2 text-sm">
+                    {e.lines
+                      .filter((l) => l.direction === "OUT")
+                      .map((l) => (
+                        <li key={l.id} className="rounded-full bg-muted px-3 py-1">
+                          {l.itemType?.emoji ?? ""} {l.itemType?.labelMy ?? `#${l.itemTypeId}`} ×{" "}
+                          <span className="font-semibold">{l.qty}</span>
+                        </li>
+                      ))}
+                  </ul>
+                  {e.notes && <p className="mt-1 text-xs text-muted-foreground">{e.notes}</p>}
+                </Link>
+                {e.voidedAt ? (
+                  <span className="text-sm text-rose-600">{labels.salesAdmin.voided}</span>
+                ) : (
+                  <VoidTransferButton id={e.id} />
+                )}
               </li>
             );
           })}

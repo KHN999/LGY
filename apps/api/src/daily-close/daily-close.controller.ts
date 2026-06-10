@@ -1,5 +1,7 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { Roles } from "../auth/decorators/roles.decorator";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import type { AuthenticatedUser } from "../auth/jwt-payload";
 import { DailyCloseService } from "./daily-close.service";
@@ -22,6 +24,8 @@ export class DailyCloseController {
   }
 
   @Get()
+  @UseGuards(RolesGuard)
+  @Roles("admin")
   list(@Query() q: DateRangeQueryDto) {
     return this.service.list(q);
   }

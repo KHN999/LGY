@@ -1,6 +1,8 @@
 import { Controller, Get, Param, ParseIntPipe, Query, UseGuards } from "@nestjs/common";
 import { IsEnum, IsOptional } from "class-validator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { Roles } from "../auth/decorators/roles.decorator";
 import { InventoryService } from "./inventory.service";
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -36,12 +38,16 @@ export class InventoryController {
 
   /** Stock currently with a specific tailor. */
   @Get("stock-at-tailor/:tailorId")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
   async stockAtTailor(@Param("tailorId", ParseIntPipe) tailorId: number) {
     return this.inventory.stockRowsAtTailor(tailorId);
   }
 
   /** Recent inventory events with their lines (debug / audit). */
   @Get("events")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
   async events(@Query() q: EventListQueryDto) {
     return this.prisma.inventoryEvent.findMany({
       where: q.kind ? { kind: q.kind as never } : {},

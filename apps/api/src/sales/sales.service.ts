@@ -7,6 +7,7 @@ import {
 import { Prisma, type TxnStatus } from "@lgy/db";
 import { PrismaService } from "../prisma/prisma.service";
 import type { PageResult } from "../common/pagination.dto";
+import { StockExceptionsService } from "../stock-exceptions/stock-exceptions.service";
 import { CreateSaleDto } from "./dto/create-sale.dto";
 import { AddPaymentDto } from "./dto/add-payment.dto";
 import { AddItemsDto } from "./dto/add-items.dto";
@@ -73,7 +74,10 @@ function jsonArray<T>(value: unknown): T[] {
 
 @Injectable()
 export class SalesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly stockExceptions: StockExceptionsService,
+  ) {}
 
   /**
    * Create a sale + lines + linked stock/payment/oversell rows in one Postgres
@@ -747,11 +751,66 @@ export class SalesService {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      const sale = await tx.sale.findUnique({ where: { id: saleId } });
+      const sale = await tx.sale.findUnique({
+        where: { id: saleId },
+        include: { inventoryEvent: true },
+      });
       if (!sale) throw new NotFoundException(`Sale ${saleId} not found`);
       if (sale.voidedAt) throw new ConflictException("Cannot add to a voided sale");
       if (sale.customerId == null && paidNow !== addedGoods) {
         throw new BadRequestException("A walk-in sale's add-on must be paid in full");
+      }
+
+      const requested = new Map<number, number>();
+      for (const it of dto.items) {
+        if (it.itemTypeId !== undefined) {
+          requested.set(it.itemTypeId, (requested.get(it.itemTypeId) ?? 0) + it.qty);
+        }
+      }
+
+      const stockShortfalls: { itemTypeId: number; qtyBeyond: number }[] = [];
+      const catalogIds = [...requested.keys()];
+      if (catalogIds.length > 0) {
+        const types = await tx.itemType.findMany({
+          where: { id: { in: catalogIds } },
+          select: { id: true, key: true, isActive: true },
+        });
+        const byId = new Map(types.map((t) => [t.id, t]));
+        for (const id of catalogIds) {
+          const type = byId.get(id);
+          if (!type) throw new BadRequestException(`ItemType ${id} not found`);
+          if (!type.isActive) throw new BadRequestException(`ItemType ${type.key} is inactive`);
+        }
+
+        const stockRows = await tx.inventoryLine.groupBy({
+          by: ["direction", "itemTypeId"],
+          where: {
+            location: "SHOP",
+            tailorId: null,
+            itemTypeId: { in: catalogIds },
+            event: { voidedAt: null },
+          },
+          _sum: { qty: true },
+        });
+        const stock = new Map<number, number>();
+        for (const row of stockRows) {
+          const qty = row._sum.qty ?? 0;
+          stock.set(row.itemTypeId, (stock.get(row.itemTypeId) ?? 0) + (row.direction === "IN" ? qty : -qty));
+        }
+
+        const enforceStock = process.env.SHOP_OVERSELL === "block";
+        for (const [id, qty] of requested) {
+          const have = stock.get(id) ?? 0;
+          if (have < qty) {
+            if (enforceStock) {
+              const type = byId.get(id);
+              throw new ConflictException(
+                `Not enough stock for ${type?.key ?? `#${id}`} at SHOP: have ${have}, need ${qty}`,
+              );
+            }
+            stockShortfalls.push({ itemTypeId: id, qtyBeyond: qty - Math.max(have, 0) });
+          }
+        }
       }
 
       await tx.saleLine.createMany({
@@ -776,9 +835,34 @@ export class SalesService {
           qty: i.qty,
         }));
       if (outLines.length > 0) {
-        await tx.inventoryEvent.create({
-          data: { kind: "SALE", saleId, createdById, lines: { create: outLines } },
+        const eventId =
+          sale.inventoryEvent?.id ??
+          (
+            await tx.inventoryEvent.create({
+              data: {
+                kind: "SALE",
+                occurredAt: sale.saleDate,
+                saleId,
+                createdById,
+              },
+              select: { id: true },
+            })
+          ).id;
+
+        await tx.inventoryLine.createMany({
+          data: outLines.map((line) => ({ eventId, ...line })),
         });
+
+        const now = new Date();
+        for (const shortfall of stockShortfalls) {
+          await this.stockExceptions.recordOversell(tx, {
+            itemTypeId: shortfall.itemTypeId,
+            location: "SHOP",
+            saleId,
+            qtyBeyond: shortfall.qtyBeyond,
+            when: now,
+          });
+        }
       }
 
       const newGrand = sale.grandTotal + addedGoods;

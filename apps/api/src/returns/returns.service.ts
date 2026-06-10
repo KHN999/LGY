@@ -24,6 +24,16 @@ function jsonArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
+function cleanText(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function returnLineKey(itemTypeId: number | null, itemName: string | null, unitPrice: number): string {
+  if (itemTypeId != null) return `item:${itemTypeId}:${unitPrice}`;
+  return `adhoc:${(cleanText(itemName) ?? "").toLowerCase()}:${unitPrice}`;
+}
+
 @Injectable()
 export class ReturnsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -34,14 +44,12 @@ export class ReturnsService {
    * RETURN_FROM_CUSTOMER event; refundAmount is the cash handed back.
    */
   async create(dto: CreateReturnDto, createdById: number) {
-    const returnTotal = dto.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
-    const refundAmount = dto.refundAmount ?? 0;
-    if (refundAmount > returnTotal) {
-      throw new BadRequestException("Refund cannot exceed the returned goods value");
-    }
     for (const it of dto.items) {
-      if (it.itemTypeId === undefined && !it.itemName?.trim()) {
-        throw new BadRequestException("Each return item needs an itemTypeId or itemName");
+      if (it.saleLineId === undefined && it.itemTypeId === undefined && !it.itemName?.trim()) {
+        throw new BadRequestException("Each return item needs a saleLineId, itemTypeId, or itemName");
+      }
+      if (it.saleLineId === undefined && it.unitPrice === undefined) {
+        throw new BadRequestException("Return items without saleLineId need a unitPrice");
       }
     }
 
@@ -56,36 +64,73 @@ export class ReturnsService {
       if (!sale) throw new NotFoundException(`Sale ${dto.saleId} not found`);
       if (sale.voidedAt) throw new BadRequestException("Cannot return against a voided sale");
 
-      // Don't allow returning more of a catalog item than was sold (minus prior returns).
-      const sold = new Map<number, number>();
+      // Resolve every requested return against the original sale, then compute
+      // the money value from the sale line itself instead of trusting the client.
+      const saleLineById = new Map(sale.lines.map((line) => [line.id, line]));
+      const sold = new Map<string, number>();
+      const returned = new Map<string, number>();
+      const sourceByKey = new Map<string, (typeof sale.lines)[number]>();
       for (const l of sale.lines) {
-        if (l.itemTypeId != null) sold.set(l.itemTypeId, (sold.get(l.itemTypeId) ?? 0) + l.qty);
+        const key = returnLineKey(l.itemTypeId, l.itemName, l.unitPrice);
+        sold.set(key, (sold.get(key) ?? 0) + l.qty);
+        if (!sourceByKey.has(key)) sourceByKey.set(key, l);
       }
-      const alreadyReturned = new Map<number, number>();
       for (const r of sale.returns) {
         for (const l of r.lines) {
-          if (l.itemTypeId != null) {
-            alreadyReturned.set(l.itemTypeId, (alreadyReturned.get(l.itemTypeId) ?? 0) + l.qty);
-          }
+          const key = returnLineKey(l.itemTypeId, l.itemName, l.unitPrice);
+          returned.set(key, (returned.get(key) ?? 0) + l.qty);
         }
       }
-      const requested = new Map<number, number>();
-      for (const it of dto.items) {
-        if (it.itemTypeId != null) {
-          requested.set(it.itemTypeId, (requested.get(it.itemTypeId) ?? 0) + it.qty);
+
+      const requested = new Map<string, number>();
+      const resolvedItems = dto.items.map((it) => {
+        const source =
+          it.saleLineId !== undefined
+            ? saleLineById.get(it.saleLineId)
+            : sourceByKey.get(
+                returnLineKey(
+                  it.itemTypeId ?? null,
+                  it.itemTypeId !== undefined ? null : cleanText(it.itemName),
+                  it.unitPrice!,
+                ),
+              );
+        if (!source) {
+          throw new BadRequestException("Return item does not match the original sale");
         }
-      }
-      for (const [id, qty] of requested) {
-        const available = (sold.get(id) ?? 0) - (alreadyReturned.get(id) ?? 0);
+        const key = returnLineKey(source.itemTypeId, source.itemName, source.unitPrice);
+        requested.set(key, (requested.get(key) ?? 0) + it.qty);
+        return {
+          key,
+          itemTypeId: source.itemTypeId,
+          itemName: source.itemTypeId == null ? cleanText(source.itemName) : null,
+          qty: it.qty,
+          unitPrice: source.unitPrice,
+          lineTotal: source.unitPrice * it.qty,
+        };
+      });
+
+      for (const [key, qty] of requested) {
+        const available = (sold.get(key) ?? 0) - (returned.get(key) ?? 0);
         if (qty > available) {
-          throw new BadRequestException(
-            `Cannot return more than sold for item #${id} (available ${available})`,
-          );
+          throw new BadRequestException(`Cannot return more than sold (available ${available})`);
+        }
+      }
+
+      const returnTotal = resolvedItems.reduce((s, i) => s + i.lineTotal, 0);
+      const refundAmount = dto.refundAmount ?? 0;
+      if (refundAmount > returnTotal) {
+        throw new BadRequestException("Refund cannot exceed the returned goods value");
+      }
+
+      const stockIn = new Map<number, number>();
+      for (const it of resolvedItems) {
+        if (it.itemTypeId != null) {
+          stockIn.set(it.itemTypeId, (stockIn.get(it.itemTypeId) ?? 0) + it.qty);
         }
       }
 
       // Stock back in (catalog items only) via a RETURN_FROM_CUSTOMER event.
-      const inLines = [...requested.entries()].map(([itemTypeId, qty]) => ({
+      const inLines = [...stockIn.entries()].map(([itemTypeId, qty]) => ({
         direction: "IN" as const,
         location: "SHOP" as const,
         itemTypeId,
@@ -114,12 +159,12 @@ export class ReturnsService {
           eventId,
           createdById,
           lines: {
-            create: dto.items.map((i) => ({
-              itemTypeId: i.itemTypeId ?? null,
-              itemName: i.itemTypeId !== undefined ? null : i.itemName?.trim() || null,
+            create: resolvedItems.map((i) => ({
+              itemTypeId: i.itemTypeId,
+              itemName: i.itemName,
               qty: i.qty,
               unitPrice: i.unitPrice,
-              lineTotal: i.unitPrice * i.qty,
+              lineTotal: i.lineTotal,
             })),
           },
         },

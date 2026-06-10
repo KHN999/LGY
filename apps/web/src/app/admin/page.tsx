@@ -17,6 +17,10 @@ const EMPTY: DashboardSummary = {
   expenseBreakdown: [],
   rangeSalesTotal: 0,
   rangeExpenseTotal: 0,
+  returnsTotal: 0,
+  netSales: 0,
+  moneyIn: 0,
+  moneyOut: 0,
   warehouseStock: [],
   shopStock: [],
   rollOrders: { openOrders: 0, rollsOrdered: 0, rollsReceived: 0, committedToPay: 0, dueNow: 0 },
@@ -46,94 +50,127 @@ export default async function AdminHomePage({
   }));
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <PageHeader title={labels.admin.dashboard} />
 
       <DateFilter />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          label={labels.close.received + " (" + labels.close.today + ")"}
-          value={formatKyat(summary.today.receivedTotal)}
-        />
-        <KpiCard
-          label={labels.close.expectedCash + " (" + labels.close.today + ")"}
-          value={formatKyat(summary.today.expectedCash)}
-        />
-        <KpiCard
-          label={labels.domain.customer + " " + labels.domain.debt}
-          value={formatKyat(summary.debts.customer)}
-          tone={summary.debts.customer > 0 ? "warn" : "default"}
-        />
-        <KpiCard
-          label={labels.domain.supplier + " " + labels.domain.debt}
-          value={formatKyat(summary.debts.supplier)}
-          tone={summary.debts.supplier > 0 ? "warn" : "default"}
-        />
-      </div>
-
-      <Link href="/admin/supplier-orders" className="rounded-2xl border bg-card p-4 hover:bg-accent">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-semibold">{labels.rollOrders.title}</h2>
-          <span className="text-sm text-muted-foreground">→</span>
+      {/* ── Selected period: the only section the date filter changes ── */}
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          {labels.dash.selectedPeriod}
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <KpiCard label={labels.dash.netSales} value={formatKyat(summary.netSales)} />
+          <KpiCard
+            label={labels.dash.returns}
+            value={formatKyat(summary.returnsTotal)}
+            tone={summary.returnsTotal > 0 ? "warn" : "default"}
+          />
+          <KpiCard label={labels.dash.operatingExpenses} value={formatKyat(summary.rangeExpenseTotal)} />
+          <KpiCard label={labels.dash.moneyIn} value={formatKyat(summary.moneyIn)} />
+          <KpiCard
+            label={labels.dash.moneyOut}
+            value={formatKyat(summary.moneyOut)}
+            tone={summary.moneyOut > 0 ? "warn" : "default"}
+          />
+          <KpiCard label={labels.dash.grossSales} value={formatKyat(summary.rangeSalesTotal)} />
         </div>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <div>
-            <p className="text-xs text-muted-foreground">{labels.rollOrders.open}</p>
-            <p className="text-2xl font-bold tabular-nums">{summary.rollOrders.openOrders}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">{labels.rollOrders.rolls}</p>
-            <p className="text-2xl font-bold tabular-nums">
-              {summary.rollOrders.rollsReceived}/{summary.rollOrders.rollsOrdered}
-            </p>
-            <p className="text-[11px] text-muted-foreground">{labels.rollOrders.received}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">{labels.rollOrders.committedToPay}</p>
-            <p className={"text-xl font-bold " + (summary.rollOrders.committedToPay > 0 ? "text-rose-600" : "")}>
-              {formatKyat(summary.rollOrders.committedToPay)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">{labels.rollOrders.dueNow}</p>
-            <p className={"text-xl font-bold " + (summary.rollOrders.dueNow > 0 ? "text-rose-600" : "")}>
-              {formatKyat(summary.rollOrders.dueNow)}
-            </p>
-          </div>
-        </div>
-      </Link>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="p-4">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card className="p-4">
+            <h3 className="mb-2 text-sm font-semibold">
               {labels.salesAdmin.title} / {labels.expenses.title}
-            </h2>
-            <span className="text-xs text-muted-foreground">
-              <span className="text-emerald-600">{formatKyat(summary.rangeSalesTotal)}</span> ·{" "}
-              <span className="text-rose-600">{formatKyat(summary.rangeExpenseTotal)}</span>
-            </span>
+            </h3>
+            <SalesExpenseBars data={trend} />
+          </Card>
+          <Card className="p-4">
+            <h3 className="mb-2 text-sm font-semibold">{labels.expenses.title}</h3>
+            <ExpenseBreakdownPie data={summary.expenseBreakdown} />
+          </Card>
+        </div>
+      </section>
+
+      {/* ── Today's cash drawer (physical CASH only) — a glance; actual count
+          + reconciliation happens on the Daily close page. ── */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            {labels.close.today}
+          </h2>
+          <Link href="/admin/closes" className="text-xs text-muted-foreground hover:underline">
+            {labels.admin.closes} →
+          </Link>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <KpiCard label={labels.dash.cashReceivedToday} value={formatKyat(summary.today.receivedTotal)} />
+          <KpiCard label={labels.dash.expectedCashToday} value={formatKyat(summary.today.expectedCash)} />
+        </div>
+      </section>
+
+      {/* ── Right now: current balances/stock — not affected by the filter ── */}
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          {labels.dash.now}
+        </h2>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <KpiCard
+            label={labels.domain.customer + " " + labels.domain.debt}
+            value={formatKyat(summary.debts.customer)}
+            tone={summary.debts.customer > 0 ? "warn" : "default"}
+          />
+          <KpiCard
+            label={labels.domain.supplier + " " + labels.domain.debt}
+            value={formatKyat(summary.debts.supplier)}
+            tone={summary.debts.supplier > 0 ? "warn" : "default"}
+          />
+        </div>
+
+        <Link href="/admin/supplier-orders" className="rounded-2xl border bg-card p-4 hover:bg-accent">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-base font-semibold">{labels.rollOrders.title}</h3>
+            <span className="text-sm text-muted-foreground">→</span>
           </div>
-          <SalesExpenseBars data={trend} />
-        </Card>
-        <Card className="p-4">
-          <h2 className="mb-2 text-sm font-semibold">{labels.expenses.title}</h2>
-          <ExpenseBreakdownPie data={summary.expenseBreakdown} />
-        </Card>
-      </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div>
+              <p className="text-xs text-muted-foreground">{labels.rollOrders.open}</p>
+              <p className="text-2xl font-bold tabular-nums">{summary.rollOrders.openOrders}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">{labels.rollOrders.rolls}</p>
+              <p className="text-2xl font-bold tabular-nums">
+                {summary.rollOrders.rollsReceived}/{summary.rollOrders.rollsOrdered}
+              </p>
+              <p className="text-[11px] text-muted-foreground">{labels.rollOrders.received}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">{labels.rollOrders.committedToPay}</p>
+              <p className={"text-xl font-bold " + (summary.rollOrders.committedToPay > 0 ? "text-rose-600" : "")}>
+                {formatKyat(summary.rollOrders.committedToPay)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">{labels.rollOrders.dueNow}</p>
+              <p className={"text-xl font-bold " + (summary.rollOrders.dueNow > 0 ? "text-rose-600" : "")}>
+                {formatKyat(summary.rollOrders.dueNow)}
+              </p>
+            </div>
+          </div>
+        </Link>
 
-      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        <CountCard href="/admin/item-types" title={labels.admin.itemTypes} count={summary.counts.itemTypes} />
-        <CountCard href="/admin/customers" title={labels.admin.customers} count={summary.counts.customers} />
-        <CountCard href="/admin/suppliers" title={labels.admin.suppliers} count={summary.counts.suppliers} />
-        <CountCard href="/admin/tailors" title={labels.admin.tailors} count={summary.counts.tailors} />
-      </div>
+        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <CountCard href="/admin/item-types" title={labels.admin.itemTypes} count={summary.counts.itemTypes} />
+          <CountCard href="/admin/customers" title={labels.admin.customers} count={summary.counts.customers} />
+          <CountCard href="/admin/suppliers" title={labels.admin.suppliers} count={summary.counts.suppliers} />
+          <CountCard href="/admin/tailors" title={labels.admin.tailors} count={summary.counts.tailors} />
+        </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <StockSection title={labels.transfer.locWarehouse} rows={summary.warehouseStock} />
-        <StockSection title={labels.transfer.locShop} rows={summary.shopStock} />
-      </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <StockSection title={labels.transfer.locWarehouse} rows={summary.warehouseStock} />
+          <StockSection title={labels.transfer.locShop} rows={summary.shopStock} />
+        </div>
+      </section>
     </div>
   );
 }

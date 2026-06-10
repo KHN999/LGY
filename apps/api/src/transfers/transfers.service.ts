@@ -108,6 +108,7 @@ export class TransfersService {
     return this.prisma.inventoryEvent.findMany({
       where: {
         kind: "TRANSFER",
+        voidedAt: null, // deleted (voided) transfers drop off the list
         ...(range.from || range.to
           ? {
               occurredAt: {
@@ -144,5 +145,30 @@ export class TransfersService {
     });
     if (!event) throw new NotFoundException(`Transfer ${id} not found`);
     return event;
+  }
+
+  /**
+   * Void (reverse) a transfer. The transfer is a single TRANSFER inventory event
+   * (OUT@from + IN@to); voiding it makes the ledger ignore both lines, so the
+   * stock moves back. Any linked delivery-fee expense is voided too. Soft — the
+   * record stays for the audit trail.
+   */
+  async void(id: number, reason: string | undefined, userId: number) {
+    return this.prisma.$transaction(async (tx) => {
+      const event = await tx.inventoryEvent.findFirst({ where: { id, kind: "TRANSFER" } });
+      if (!event) throw new NotFoundException(`Transfer ${id} not found`);
+      if (event.voidedAt) throw new ConflictException("Transfer is already voided");
+
+      // Reverse the delivery-fee expense, if one was recorded for this transfer.
+      await tx.expense.updateMany({
+        where: { eventId: id, voidedAt: null },
+        data: { voidedAt: new Date(), voidedById: userId, voidReason: reason ?? "Transfer voided" },
+      });
+
+      return tx.inventoryEvent.update({
+        where: { id },
+        data: { voidedAt: new Date(), voidedById: userId, voidReason: reason },
+      });
+    });
   }
 }

@@ -63,6 +63,7 @@ export class DailyCloseService {
             SELECT SUM(cp.amount)
             FROM "CustomerPayment" cp, args
             WHERE cp."voidedAt" IS NULL
+              AND cp.method::text = 'CASH'
               AND cp."paymentDate" >= args.day_start
               AND cp."paymentDate" < args.day_end
           ),
@@ -73,6 +74,7 @@ export class DailyCloseService {
             SELECT SUM(sp.amount)
             FROM "SupplierPayment" sp, args
             WHERE sp."voidedAt" IS NULL
+              AND sp.method::text = 'CASH'
               AND sp."paymentDate" >= args.day_start
               AND sp."paymentDate" < args.day_end
           ),
@@ -83,6 +85,7 @@ export class DailyCloseService {
             SELECT SUM(tp.amount)
             FROM "TailorPayment" tp, args
             WHERE tp."voidedAt" IS NULL
+              AND tp.method::text = 'CASH'
               AND tp."paymentDate" >= args.day_start
               AND tp."paymentDate" < args.day_end
           ),

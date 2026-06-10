@@ -104,7 +104,7 @@ function summarize(method: string, path: string, params: Record<string, string>,
   if (entity === "shop" && method === "POST") {
     return `Switched to ${b.shop === "playground" ? "Test" : "Main"} shop`;
   }
-  if (sub === "void" || sub === "cancel") return `Voided ${noun.toLowerCase()} #${id}`;
+  if (sub === "void" || sub === "cancel") return `Deleted ${noun.toLowerCase()} #${id}`;
   if (entity === "sales" && sub === "payments") return `Payment ${ks(b.amount)} on sale #${id}`;
   if (entity === "sales" && method === "POST" && !sub) {
     const total = items.reduce((s, i) => s + num(i.qty) * num(i.unitPrice), 0) - num(b.discount);
@@ -136,6 +136,15 @@ function summarize(method: string, path: string, params: Record<string, string>,
 
   if (method === "POST" && !id) return `New ${noun.toLowerCase()}${str(b.name) ? `: ${str(b.name)}` : ""}`;
   if (method === "POST") return `${noun} #${id}${sub ? ` · ${sub}` : ""}`;
+  // A roll order is "deleted" by patching its status to CANCELLED — log it as a
+  // deletion, not a generic update.
+  if (
+    entity === "supplier-orders" &&
+    (method === "PATCH" || method === "PUT") &&
+    str(b.status) === "CANCELLED"
+  ) {
+    return `Deleted roll order${id ? ` #${id}` : ""}`;
+  }
   if (method === "PATCH" || method === "PUT") return `Updated ${noun.toLowerCase()}${id ? ` #${id}` : ""}`;
   if (method === "DELETE") return `Deleted ${noun.toLowerCase()}${id ? ` #${id}` : ""}`;
   return `${noun} · ${method}`;
@@ -278,6 +287,9 @@ export class AuditInterceptor implements NestInterceptor {
     shop: string,
     method: string,
   ): Promise<string | null> {
+    // Void/cancel actions carry no useful body — let the plain summary ("Deleted
+    // <noun> #id") stand instead of mis-reading the empty body as a create.
+    if (sub === "void" || sub === "cancel") return null;
     const items = Array.isArray(body.items) ? (body.items as Array<Record<string, unknown>>) : [];
     const itemNames = async (): Promise<Map<number, string>> => {
       const ids = [...new Set(items.map((i) => Number(i.itemTypeId)).filter((n) => Number.isInteger(n)))];
