@@ -102,9 +102,9 @@ export default async function AdminHomePage({
           </Card>
         </div>
 
-        {/* Total pieces sold per item over the selected period, ranked. */}
-        <Card className="p-4">
-          <div className="max-w-2xl">
+        {/* Items sold — half width, matching the chart cards above. */}
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card className="p-4">
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
                 <h3 className="text-sm font-semibold">{labels.dash.itemsSold}</h3>
@@ -148,8 +148,8 @@ export default async function AdminHomePage({
                 })}
               </ul>
             )}
-          </div>
-        </Card>
+          </Card>
+        </div>
       </section>
 
       {/* ── Today's cash drawer (physical CASH only) — a glance; actual count

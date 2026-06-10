@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { labels } from "@/lib/labels";
 
@@ -33,34 +34,46 @@ export function DateFilter() {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
-  const active = (sp.get("range") as Preset) ?? "all";
+  const active = (sp.get("range") as Preset) ?? "today";
 
-  function apply(range: Preset, from?: Date, to?: Date) {
+  function apply(range: Preset, from?: Date, to?: Date, replace = false) {
     const params = new URLSearchParams(sp.toString());
     params.delete("from");
     params.delete("to");
-    params.delete("range");
+    // Always keep an explicit range marker — including range=all — so the
+    // "default to today" effect below only fires on a truly fresh URL (and
+    // choosing "All" doesn't get bounced back to today).
+    params.set("range", range);
     if (range !== "all") {
-      params.set("range", range);
       if (from) params.set("from", from.toISOString());
       if (to) params.set("to", to.toISOString());
     }
-    const qs = params.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname);
+    const url = `${pathname}?${params.toString()}`;
+    if (replace) router.replace(url);
+    else router.push(url);
   }
 
-  function preset(p: "today" | "week" | "month" | "all") {
+  function preset(p: "today" | "week" | "month" | "all", replace = false) {
     const now = new Date();
     const todayYmd = yangonYmd(now);
-    if (p === "today") apply("today", yangonStart(todayYmd), yangonEnd(todayYmd));
+    if (p === "today") apply("today", yangonStart(todayYmd), yangonEnd(todayYmd), replace);
     else if (p === "week") {
       const weekAgoYmd = yangonYmd(new Date(now.getTime() - 6 * 86_400_000));
-      apply("week", yangonStart(weekAgoYmd), yangonEnd(todayYmd));
+      apply("week", yangonStart(weekAgoYmd), yangonEnd(todayYmd), replace);
     } else if (p === "month") {
       const firstOfMonth = `${todayYmd.slice(0, 8)}01`; // YYYY-MM-01
-      apply("month", yangonStart(firstOfMonth), yangonEnd(todayYmd));
-    } else apply("all");
+      apply("month", yangonStart(firstOfMonth), yangonEnd(todayYmd), replace);
+    } else apply("all", undefined, undefined, replace);
   }
+
+  // Default the filter to Today when a page is opened with no range set, so the
+  // dashboard and lists show today by default instead of all-time. Uses replace
+  // so it adds no history entry; "All" sets range=all explicitly, so it won't
+  // bounce back here.
+  useEffect(() => {
+    if (!sp.get("range")) preset("today", true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function setCustom(which: "from" | "to", value: string) {
     if (!value) return;
