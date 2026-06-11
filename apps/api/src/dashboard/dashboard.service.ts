@@ -95,11 +95,11 @@ export class DashboardService {
       tailorPaidAgg,
     ] = await Promise.all([
       this.prisma.itemType.count({ where: { isActive: true } }),
-      this.prisma.customer.count({ where: { status: "ACTIVE" } }),
+      this.prisma.customer.count({ where: { status: "ACTIVE", deletedAt: null } }),
       this.prisma.supplier.count({ where: { status: "ACTIVE" } }),
       this.prisma.tailor.count({ where: { status: "ACTIVE" } }),
       this.dailyClose.preview(),
-      this.prisma.customer.findMany({ select: { id: true } }),
+      this.prisma.customer.findMany({ where: { deletedAt: null }, select: { id: true } }),
       this.prisma.supplier.findMany({ select: { id: true } }),
       this.inventory.stockMapAt("WAREHOUSE"),
       this.inventory.stockMapAt("SHOP"),

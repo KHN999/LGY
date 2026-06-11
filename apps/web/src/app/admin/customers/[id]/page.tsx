@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { serverFetch } from "@/lib/auth-server";
 import { CustomerForm } from "../customer-form";
+import { DeleteCustomerButton } from "../delete-customer-button";
 import { labels } from "@/lib/labels";
 import { formatKyat, formatDate, yangonYmd } from "@/lib/utils";
 import type { Customer, Page, Sale, CustomerPayment, CustomerReturnRow } from "@/lib/api-client";
@@ -195,8 +196,9 @@ export default async function CustomerDetailPage({
 
       <details className="rounded-2xl border bg-card p-4">
         <summary className="cursor-pointer text-sm font-medium">{labels.common.edit}</summary>
-        <div className="mt-3">
+        <div className="mt-3 flex flex-col gap-4">
           <CustomerForm initial={customer} />
+          <DeleteCustomerButton id={customer.id} />
         </div>
       </details>
     </div>

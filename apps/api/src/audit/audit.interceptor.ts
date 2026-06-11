@@ -160,6 +160,12 @@ function summarize(method: string, path: string, params: Record<string, string>,
 function summarizeFromResponse(data: unknown): string | null {
   if (!data || typeof data !== "object") return null;
   const d = data as Record<string, unknown>;
+  // Customer write-off (DELETE /customers/:id) → { id, name, clearedDebt }.
+  if (d.id != null && typeof d.name === "string" && typeof d.clearedDebt === "number") {
+    return d.clearedDebt > 0
+      ? `Deleted customer ${d.name} — debt ${ks(d.clearedDebt)} cleared`
+      : `Deleted customer ${d.name}`;
+  }
   if (d.kind !== "ADJUSTMENT" && d.kind !== "OPENING_STOCK") return null;
   const lines = Array.isArray(d.lines) ? (d.lines as Array<Record<string, unknown>>) : [];
   if (lines.length === 0) return null;

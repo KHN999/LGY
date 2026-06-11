@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@lgy/db";
 import { PrismaService } from "../prisma/prisma.service";
 import type { PageResult } from "../common/pagination.dto";
@@ -39,7 +39,8 @@ export class CustomersService {
     inactiveOnly?: boolean;
   }): Promise<PageResult<CustomerWithBalance>> {
     const { page, limit, search, activeOnly = true, inactiveOnly = false } = opts;
-    const filters: Prisma.Sql[] = [];
+    // Deleted customers are written off — never shown in any list.
+    const filters: Prisma.Sql[] = [Prisma.sql`c."deletedAt" IS NULL`];
     if (inactiveOnly) filters.push(Prisma.sql`c.status = 'INACTIVE'::"PartyStatus"`);
     else if (activeOnly) filters.push(Prisma.sql`c.status = 'ACTIVE'::"PartyStatus"`);
     if (search) {
@@ -125,6 +126,38 @@ export class CustomersService {
     return { ...customer, balance: await this.getBalance(id) };
   }
 
+  /**
+   * Find an existing customer by phone (digits) — or by name when there's no
+   * phone — else create one. For the staff sell flow's "import from phone",
+   * which must work for non-admins (POST /customers is admin-only). Dedupes so
+   * repeatedly importing the same contact doesn't pile up duplicates.
+   */
+  async findOrCreateFromContact(name: string, contact?: string): Promise<CustomerWithBalance> {
+    const cleanName = name.trim();
+    if (!cleanName) throw new BadRequestException("Contact name is required");
+    const cleanContact = contact?.trim() || null;
+    const digits = (s: string | null) => (s ?? "").replace(/\D/g, "");
+    const phone = digits(cleanContact);
+
+    const all = await this.prisma.customer.findMany({
+      where: { deletedAt: null },
+      select: { id: true, name: true, contact: true },
+    });
+    const match = phone
+      ? all.find((c) => digits(c.contact) === phone)
+      : all.find((c) => c.name.trim().toLowerCase() === cleanName.toLowerCase());
+
+    if (match) {
+      const existing = await this.prisma.customer.findUnique({ where: { id: match.id } });
+      return { ...existing!, balance: await this.getBalance(match.id) };
+    }
+
+    const created = await this.prisma.customer.create({
+      data: { name: cleanName, contact: cleanContact, defaultKind: "WHOLESALE", status: "ACTIVE" },
+    });
+    return { ...created, balance: 0 };
+  }
+
   async create(dto: CreateCustomerDto): Promise<CustomerWithBalance> {
     const customer = await this.prisma.customer.create({
       data: {
@@ -189,6 +222,21 @@ export class CustomersService {
       },
     });
     return { ...customer, balance: await this.getBalance(id) };
+  }
+
+  /**
+   * Soft-delete a customer and write off any outstanding debt: sets deletedAt so
+   * they drop out of every list/picker and the debt totals, while their past
+   * sales/payments stay intact. Returns the name + the balance that was cleared
+   * (for the audit log). Idempotent — re-deleting clears nothing more.
+   */
+  async softDelete(id: number): Promise<{ id: number; name: string; clearedDebt: number }> {
+    const customer = await this.prisma.customer.findUnique({ where: { id } });
+    if (!customer) throw new NotFoundException(`Customer ${id} not found`);
+    if (customer.deletedAt) return { id: customer.id, name: customer.name, clearedDebt: 0 };
+    const clearedDebt = Math.max(0, await this.getBalance(id));
+    await this.prisma.customer.update({ where: { id }, data: { deletedAt: new Date() } });
+    return { id: customer.id, name: customer.name, clearedDebt };
   }
 
   async getBalance(

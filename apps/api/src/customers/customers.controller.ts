@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -15,7 +16,7 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { CustomersService } from "./customers.service";
 import { CreateCustomerDto, UpdateCustomerDto } from "./dto/customer.dto";
-import { ImportCustomersDto } from "./dto/import-customers.dto";
+import { ImportContactDto, ImportCustomersDto } from "./dto/import-customers.dto";
 import { PaginationQueryDto } from "../common/pagination.dto";
 
 class ListCustomersQueryDto extends PaginationQueryDto {
@@ -52,6 +53,13 @@ export class CustomersController {
     return this.customers.getOne(id);
   }
 
+  /** Staff-accessible (no admin role): import a buyer from a phone contact during
+   *  the sell flow — finds an existing customer by phone or creates a new one. */
+  @Post("from-contact")
+  fromContact(@Body() dto: ImportContactDto) {
+    return this.customers.findOrCreateFromContact(dto.name, dto.contact);
+  }
+
   @Post()
   @UseGuards(RolesGuard)
   @Roles("admin")
@@ -71,5 +79,13 @@ export class CustomersController {
   @Roles("admin")
   update(@Param("id", ParseIntPipe) id: number, @Body() dto: UpdateCustomerDto) {
     return this.customers.update(id, dto);
+  }
+
+  /** Soft-delete a customer and write off their debt (admin only). */
+  @Delete(":id")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  remove(@Param("id", ParseIntPipe) id: number) {
+    return this.customers.softDelete(id);
   }
 }

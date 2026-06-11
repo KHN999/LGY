@@ -322,6 +322,9 @@ export const en = {
     noPayments: "No payments yet",
     noReturns: "No returns yet",
     topDebtors: "Who owes most",
+    delete: "Delete customer",
+    deleteConfirm:
+      "Delete this customer? Their outstanding debt is written off and they're removed from all lists. Past sales stay in the records.",
   },
 
   shop: {

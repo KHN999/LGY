@@ -55,6 +55,7 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [walkIn, setWalkIn] = useState(false); // one-time buyer (no account, cash only)
   const [saveAsNew, setSaveAsNew] = useState(false); // create a new customer on submit
   const [newName, setNewName] = useState("");
@@ -171,6 +172,46 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
     setCart((prev) => prev.filter((_, idx) => idx !== i));
   }
 
+  // Import a buyer straight from the phone's address book (Android Chrome) and
+  // select them for this sale — finds an existing customer by phone (so repeats
+  // don't duplicate) or creates one, keeping the name + first phone number.
+  async function importFromPhone() {
+    setError(null);
+    const cm = (
+      navigator as Navigator & {
+        contacts?: {
+          select: (
+            props: string[],
+            opts?: { multiple?: boolean },
+          ) => Promise<Array<{ name?: string[]; tel?: string[] }>>;
+        };
+      }
+    ).contacts;
+    if (!cm || typeof cm.select !== "function") {
+      setError(labels.admin.importUnsupported);
+      return;
+    }
+    setImporting(true);
+    try {
+      const [picked] = await cm.select(["name", "tel"], { multiple: false });
+      const name = picked?.name?.[0]?.trim() ?? "";
+      const contact = picked?.tel?.[0]?.trim() || undefined;
+      if (!name) return;
+      const c = await api.post<Customer>("/customers/from-contact", { name, contact });
+      setCustomer(c);
+      setKind(c.defaultKind);
+      setWalkIn(false);
+      setSaveAsNew(false);
+      setCustMode("choose");
+    } catch (err) {
+      // Cancelling the picker rejects with AbortError — not a real error.
+      if ((err as { name?: string })?.name === "AbortError") return;
+      setError(err instanceof ApiError ? err.message : labels.errors.unknown);
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function onSubmit(print: boolean) {
     if (!customer && !saveAsNew && !walkIn) {
       setError(labels.sell.noCustomer);
@@ -230,27 +271,42 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
         <h1 className="text-center text-2xl font-bold">{labels.sell.whoBuyer}</h1>
 
         {custMode === "choose" && !customer && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setPickerOpen(true)}
+                className="flex flex-col items-center gap-2 rounded-2xl bg-primary px-6 py-8 text-xl font-bold text-primary-foreground shadow-lg active:scale-[0.98]"
+              >
+                <span className="text-4xl">👤</span>
+                {labels.sell.existingBuyer}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCustMode("new");
+                  setError(null);
+                }}
+                className="flex flex-col items-center gap-2 rounded-2xl border-2 border-primary/40 px-6 py-8 text-xl font-bold text-primary active:scale-[0.98]"
+              >
+                <span className="text-4xl">➕</span>
+                {labels.sell.newBuyer}
+              </button>
+            </div>
             <button
               type="button"
-              onClick={() => setPickerOpen(true)}
-              className="flex flex-col items-center gap-2 rounded-2xl bg-primary px-6 py-8 text-xl font-bold text-primary-foreground shadow-lg active:scale-[0.98]"
+              onClick={importFromPhone}
+              disabled={importing}
+              className="flex items-center justify-center gap-2 rounded-2xl border px-6 py-4 text-base font-medium hover:bg-accent disabled:opacity-50"
             >
-              <span className="text-4xl">👤</span>
-              {labels.sell.existingBuyer}
+              📇 {importing ? labels.common.loading : labels.admin.importContacts}
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setCustMode("new");
-                setError(null);
-              }}
-              className="flex flex-col items-center gap-2 rounded-2xl border-2 border-primary/40 px-6 py-8 text-xl font-bold text-primary active:scale-[0.98]"
-            >
-              <span className="text-4xl">➕</span>
-              {labels.sell.newBuyer}
-            </button>
-          </div>
+            {error && (
+              <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-center text-destructive">
+                {error}
+              </p>
+            )}
+          </>
         )}
 
         {custMode === "new" && !customer && (
