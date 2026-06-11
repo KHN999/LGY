@@ -16,6 +16,7 @@ export interface ReceiptData {
   saleId: number | null;
   date: string | Date;
   customerName?: string | null; // omitted from the receipt when empty (walk-in)
+  customerContact?: string | null; // phone, shown under the name when present
   lines: ReceiptLine[];
   grandTotal: number;
   paid: number;
@@ -119,30 +120,41 @@ export function Receipt({ data, shop }: { data: ReceiptData; shop?: ShopSettings
         {data.customerName?.trim() && (
           <div className="text-sm">
             {labels.receipt.customer}: <span className="font-medium">{data.customerName}</span>
+            {data.customerContact?.trim() && (
+              <span className="text-muted-foreground"> · {data.customerContact}</span>
+            )}
           </div>
         )}
 
         <table className="mt-4 w-full border-collapse text-sm">
           <thead>
             <tr className="border-b-2 border-black">
-              <th className="py-1 text-left font-semibold">{labels.receipt.item}</th>
-              <th className="py-1 text-right font-semibold">{labels.receipt.qty}</th>
-              <th className="py-1 text-right font-semibold">{labels.receipt.price}</th>
-              <th className="py-1 text-right font-semibold">{labels.receipt.amount}</th>
+              <th className="py-1 pr-2 text-left font-semibold">{labels.receipt.item}</th>
+              <th className="px-2 py-1 text-right font-semibold">{labels.receipt.qty}</th>
+              <th className="border-l border-neutral-400 px-2 py-1 text-right font-semibold">
+                {labels.receipt.price}
+              </th>
+              <th className="border-l border-neutral-400 px-2 py-1 text-right font-semibold">
+                {labels.receipt.amount}
+              </th>
             </tr>
           </thead>
           <tbody>
             {data.lines.map((l, i) => (
-              <tr key={i} className="border-b border-neutral-300 align-top">
+              <tr key={i} className="align-top">
                 <td className="py-1 pr-2">
                   {l.label}
                   {l.note ? (
                     <span className="block text-xs italic text-neutral-500">{l.note}</span>
                   ) : null}
                 </td>
-                <td className="py-1 text-right tabular-nums">{l.qty}</td>
-                <td className="py-1 text-right tabular-nums">{l.unitPrice.toLocaleString("en-US")}</td>
-                <td className="py-1 text-right tabular-nums">{l.lineTotal.toLocaleString("en-US")}</td>
+                <td className="px-2 py-1 text-right tabular-nums">{l.qty}</td>
+                <td className="border-l border-neutral-400 px-2 py-1 text-right tabular-nums">
+                  {l.unitPrice.toLocaleString("en-US")}
+                </td>
+                <td className="border-l border-neutral-400 px-2 py-1 text-right tabular-nums">
+                  {l.lineTotal.toLocaleString("en-US")}
+                </td>
               </tr>
             ))}
           </tbody>

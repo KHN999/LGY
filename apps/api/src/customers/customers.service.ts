@@ -247,7 +247,9 @@ export class CustomersService {
       LEFT JOIN returns ON returns."customerId" = selected.id
     `);
     for (const r of rows) {
-      map.set(r.customerId, r.balance);
+      // $queryRaw returns the VALUES id as a BigInt; the map is looked up with a
+      // Number in getBalance, so coerce or the lookup misses and returns 0.
+      map.set(Number(r.customerId), Number(r.balance));
     }
     return map;
   }

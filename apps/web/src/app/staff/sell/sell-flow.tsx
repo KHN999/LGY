@@ -398,8 +398,10 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
               type="button"
               onClick={() => setActiveField("qty")}
               className={
-                "flex items-center justify-between rounded-2xl border bg-card px-5 py-2.5 text-left transition" +
-                (activeField === "qty" ? "ring-2 ring-primary" : "")
+                "flex items-center justify-between rounded-2xl border-2 px-5 py-2.5 text-left transition " +
+                (activeField === "qty"
+                  ? "border-emerald-500 bg-emerald-50 ring-2 ring-emerald-500/40"
+                  : "border-border bg-card")
               }
             >
               <span className="text-base text-muted-foreground">{labels.sell.chooseQty}</span>
@@ -417,8 +419,10 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
               type="button"
               onClick={() => setActiveField("price")}
               className={
-                "flex items-center justify-between rounded-2xl border bg-card px-5 py-2.5 text-left transition" +
-                (activeField === "price" ? "ring-2 ring-primary" : "")
+                "flex items-center justify-between rounded-2xl border-2 px-5 py-2.5 text-left transition " +
+                (activeField === "price"
+                  ? "border-emerald-500 bg-emerald-50 ring-2 ring-emerald-500/40"
+                  : "border-border bg-card")
               }
             >
               <span className="text-base text-muted-foreground">{labels.sell.choosePrice}</span>
@@ -506,7 +510,12 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
           <button
             type="button"
             disabled={cart.length === 0}
-            onClick={() => setStep("review")}
+            onClick={() => {
+              // Default paid to the full amount (most sales settle in full); the
+              // staffer taps "as credit" or edits it down for a credit sale.
+              if (!walkIn) setPaid(goodsTotal);
+              setStep("review");
+            }}
             className="rounded-xl bg-emerald-600 px-5 py-2.5 text-base font-bold text-white shadow disabled:opacity-40 active:scale-[0.97]"
           >
             {labels.sell.review}{cart.length > 0 ? ` (${cart.length})` : ""} →
@@ -594,6 +603,7 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
     saleId: savedSale?.id ?? null,
     date: savedSale?.date ?? new Date().toISOString(),
     customerName: customer?.name ?? (newName.trim() || null),
+    customerContact: customer?.contact ?? null,
     lines: cart.map((l) => ({
       label: l.itemType?.labelMy ?? l.itemName ?? "",
       qty: l.qty,

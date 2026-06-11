@@ -180,7 +180,9 @@ export class SuppliersService {
       LEFT JOIN payments ON payments."supplierId" = selected.id
     `);
     for (const r of rows) {
-      map.set(r.supplierId, r.balance);
+      // $queryRaw returns the VALUES id as a BigInt; getBalance looks it up with a
+      // Number, so coerce or the lookup misses and returns 0.
+      map.set(Number(r.supplierId), Number(r.balance));
     }
     return map;
   }

@@ -117,11 +117,18 @@ export function AddOnFlow({ sale, onClose }: { sale: SaleDetail; onClose: () => 
           </button>
           <button
             type="button"
-            onClick={addDraft}
+            onClick={() => {
+              // qty → Next → price → Add. Price 0 is allowed (free / replacement),
+              // so Add becomes available once you're on the price field.
+              if (draft.qty > 0 && activeField === "price") addDraft();
+              else setActiveField(draft.qty === 0 ? "qty" : "price");
+            }}
             disabled={draft.qty <= 0}
             className="flex-1 rounded-lg bg-emerald-600 py-3 font-bold text-white disabled:opacity-50"
           >
-            {labels.addOn.addLine} ({formatKyat(draft.qty * draft.price)})
+            {draft.qty > 0 && activeField === "price"
+              ? `${labels.addOn.addLine} (${formatKyat(draft.qty * draft.price)})`
+              : labels.common.next}
           </button>
         </div>
       </div>
