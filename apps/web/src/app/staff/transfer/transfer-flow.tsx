@@ -14,6 +14,7 @@ import {
 import { labels } from "@/lib/labels";
 import { ItemTypeGrid } from "@/components/staff/item-type-grid";
 import { QtyStepper } from "@/components/staff/qty-stepper";
+import { useStaffDate } from "@/components/staff/staff-date";
 
 interface DraftLine {
   itemType: ItemType;
@@ -29,6 +30,7 @@ const LOC_LABEL: Record<"WAREHOUSE" | "SHOP" | "IN_TRANSIT", string> = {
 
 export function TransferFlow({ drivers, shopId }: { drivers: Driver[]; shopId: ShopId }) {
   const router = useRouter();
+  const { backdateIso, resetToToday } = useStaffDate();
   const [from, setFrom] = useState<"WAREHOUSE" | "SHOP" | "IN_TRANSIT">("WAREHOUSE");
   const [to, setTo] = useState<"WAREHOUSE" | "SHOP" | "IN_TRANSIT">("SHOP");
   const [lines, setLines] = useState<DraftLine[]>([]);
@@ -69,6 +71,7 @@ export function TransferFlow({ drivers, shopId }: { drivers: Driver[]; shopId: S
         fromLocation: from,
         toLocation: to,
         items: lines.map((l) => ({ itemTypeId: l.itemType.id, qty: l.qty })),
+        occurredAt: backdateIso(),
         ...(fee > 0
           ? {
               driverFee: fee,
@@ -80,6 +83,7 @@ export function TransferFlow({ drivers, shopId }: { drivers: Driver[]; shopId: S
             }
           : {}),
       });
+      resetToToday();
       // Land on the printable transfer slip (also the history detail).
       router.push(`/staff/transfers/${ev.id}${print ? "?print=1" : ""}`);
       router.refresh();

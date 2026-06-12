@@ -7,6 +7,7 @@ import {
 import { Prisma, type TxnStatus } from "@lgy/db";
 import { PrismaService } from "../prisma/prisma.service";
 import type { PageResult } from "../common/pagination.dto";
+import { assertDateNotClosed } from "../common/backdate";
 import { StockExceptionsService } from "../stock-exceptions/stock-exceptions.service";
 import { CreateSaleDto } from "./dto/create-sale.dto";
 import { AddPaymentDto } from "./dto/add-payment.dto";
@@ -108,6 +109,8 @@ export class SalesService {
     }
 
     const saleDate = dto.saleDate ? new Date(dto.saleDate) : new Date();
+    // Backdated sales can't land on a closed day (only the explicit-date case).
+    await assertDateNotClosed(this.prisma, dto.saleDate ? saleDate : null);
     const oneTimeName =
       dto.customerId === undefined && !willCreateCustomer ? cleanText(dto.customerName) : null;
     const items: CreateSaleItemInput[] = dto.items.map((i) => ({
@@ -699,6 +702,7 @@ export class SalesService {
   }
 
   async addPayment(saleId: number, dto: AddPaymentDto, createdById: number) {
+    await assertDateNotClosed(this.prisma, dto.paymentDate ? new Date(dto.paymentDate) : null);
     return this.prisma.$transaction(async (tx) => {
       const sale = await tx.sale.findUnique({ where: { id: saleId } });
       if (!sale) throw new NotFoundException(`Sale ${saleId} not found`);

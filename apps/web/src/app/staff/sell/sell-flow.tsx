@@ -20,6 +20,7 @@ import { CustomerPicker } from "@/components/staff/customer-picker";
 import { ItemTypeGrid } from "@/components/staff/item-type-grid";
 import { NumberPad } from "@/components/staff/number-pad";
 import { Receipt, type ReceiptData } from "@/components/staff/receipt";
+import { useStaffDate } from "@/components/staff/staff-date";
 
 type Step = "customer" | "items" | "review" | "done";
 
@@ -39,6 +40,7 @@ interface CartLine {
  */
 export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId }) {
   const router = useRouter();
+  const { backdateIso, resetToToday } = useStaffDate();
   const [step, setStep] = useState<Step>("customer");
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [kind, setKind] = useState<SaleKind>("WHOLESALE");
@@ -243,7 +245,10 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
         })),
         paidAmount: paidAmount > 0 ? paidAmount : undefined,
         paymentMethod: paidAmount > 0 ? "CASH" : undefined,
+        saleDate: backdateIso(),
       });
+      resetToToday(); // a backdate never carries into the next sale
+
       // Voice confirmation — best-effort, silent on devices without my-MM.
       const totalPieces = cart.reduce((s, l) => s + l.qty, 0);
       const firstLabel = cart[0]?.itemType?.labelMy ?? cart[0]?.itemName ?? labels.units.htee;
@@ -657,7 +662,9 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
   // ─── STEP 3: Review = receipt preview + save / save & print ───────
   const receiptData: ReceiptData = {
     saleId: savedSale?.id ?? null,
-    date: savedSale?.date ?? new Date().toISOString(),
+    // Preview reflects the selected backdate (noon of that day); after save we
+    // use the authoritative saleDate the server returned.
+    date: savedSale?.date ?? backdateIso() ?? new Date().toISOString(),
     customerName: customer?.name ?? (newName.trim() || null),
     customerContact: customer?.contact ?? null,
     lines: cart.map((l) => ({

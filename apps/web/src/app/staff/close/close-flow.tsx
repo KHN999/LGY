@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError, type DailyClosePreview } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 import { formatKyat } from "@/lib/utils";
+import { useStaffDate } from "@/components/staff/staff-date";
 
 interface Props {
   preview: DailyClosePreview;
@@ -12,16 +13,40 @@ interface Props {
 
 export function CloseFlow({ preview }: Props) {
   const router = useRouter();
+  const { ymd } = useStaffDate();
+  const [pv, setPv] = useState<DailyClosePreview>(preview);
   const [counted, setCounted] = useState<number>(preview.expectedCash);
   const [keep, setKeep] = useState<number>(0);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const difference = counted - preview.expectedCash;
+  // The page server-renders today's preview; when a different day is selected
+  // (backdate), fetch that day's preview so the close reconciles THAT day.
+  useEffect(() => {
+    let cancel = false;
+    if (ymd === preview.date) {
+      setPv(preview);
+      setCounted(preview.expectedCash);
+      return;
+    }
+    api
+      .get<DailyClosePreview>(`/daily-close/preview?date=${ymd}`)
+      .then((p) => {
+        if (cancel) return;
+        setPv(p);
+        setCounted(p.expectedCash);
+      })
+      .catch(() => {});
+    return () => {
+      cancel = true;
+    };
+  }, [ymd, preview]);
+
+  const difference = counted - pv.expectedCash;
 
   async function onSubmit() {
-    if (preview.alreadyClosed) {
+    if (pv.alreadyClosed) {
       setError(labels.close.alreadyClosed);
       return;
     }
@@ -29,7 +54,7 @@ export function CloseFlow({ preview }: Props) {
     setSubmitting(true);
     try {
       await api.post("/daily-close", {
-        date: preview.date,
+        date: pv.date,
         countedCash: counted,
         carryForward: Math.min(keep, counted),
         notes: notes.trim() || undefined,
@@ -46,21 +71,21 @@ export function CloseFlow({ preview }: Props) {
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-2xl border bg-card p-4">
-        <p className="text-sm text-muted-foreground">{labels.close.today}: {preview.date}</p>
-        {preview.alreadyClosed && (
+        <p className="text-sm text-muted-foreground">{labels.backdate.date}: {pv.date}</p>
+        {pv.alreadyClosed && (
           <p className="mt-2 rounded-lg bg-amber-100 px-3 py-2 text-amber-900">
             {labels.close.alreadyClosed}
           </p>
         )}
       </div>
 
-      <Row label={labels.close.openingCash} value={preview.openingCash} />
-      <Row label={labels.close.received} value={preview.receivedTotal} positive />
-      <Row label={labels.close.paidOut} value={preview.paidOutTotal} negative />
+      <Row label={labels.close.openingCash} value={pv.openingCash} />
+      <Row label={labels.close.received} value={pv.receivedTotal} positive />
+      <Row label={labels.close.paidOut} value={pv.paidOutTotal} negative />
 
       <div className="rounded-2xl border-2 border-primary/30 bg-card p-4">
         <p className="text-sm text-muted-foreground">{labels.close.expectedCash}</p>
-        <p className="mt-1 text-3xl font-bold">{formatKyat(preview.expectedCash)}</p>
+        <p className="mt-1 text-3xl font-bold">{formatKyat(pv.expectedCash)}</p>
       </div>
 
       <div className="rounded-2xl border bg-card p-4">
@@ -127,7 +152,7 @@ export function CloseFlow({ preview }: Props) {
       <button
         type="button"
         onClick={onSubmit}
-        disabled={submitting || preview.alreadyClosed}
+        disabled={submitting || pv.alreadyClosed}
         className="rounded-2xl bg-emerald-600 py-5 text-2xl font-bold text-white shadow-lg disabled:opacity-50"
       >
         {submitting ? labels.common.saving : labels.close.save}

@@ -3,11 +3,23 @@ import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
 import { formatKyat, formatDateTime } from "@/lib/utils";
 import type { Page, Sale } from "@/lib/api-client";
+import { SalesDateFilter } from "./sales-date-filter";
 
 export const dynamic = "force-dynamic";
 
-export default async function StaffSalesHistoryPage() {
-  const page = await serverFetch<Page<Sale>>("/api/sales?limit=50");
+export default async function StaffSalesHistoryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string }>;
+}) {
+  const { date } = await searchParams;
+  const params = new URLSearchParams({ limit: "50" });
+  if (date) {
+    // Filter to that single Yangon (+06:30) business day.
+    params.set("fromDate", new Date(`${date}T00:00:00.000+06:30`).toISOString());
+    params.set("toDate", new Date(`${date}T23:59:59.999+06:30`).toISOString());
+  }
+  const page = await serverFetch<Page<Sale>>(`/api/sales?${params.toString()}`);
   const rows = page?.data ?? [];
 
   return (
@@ -16,6 +28,7 @@ export default async function StaffSalesHistoryPage() {
         ← {labels.common.back}
       </Link>
       <h1 className="text-xl font-bold">{labels.history.title}</h1>
+      <SalesDateFilter />
 
       {rows.length === 0 ? (
         <div className="rounded-2xl border bg-card p-8 text-center text-muted-foreground">

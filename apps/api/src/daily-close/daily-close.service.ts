@@ -34,6 +34,16 @@ type DailyClosePreviewSqlRow = {
 export class DailyCloseService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** The latest closed Yangon business day (YYYY-MM-DD), or null if never closed.
+   *  The staff backdate selector uses this as its floor (earliest = the next day). */
+  async latestCloseDate(): Promise<{ date: string | null }> {
+    const last = await this.prisma.dailyClose.findFirst({
+      orderBy: { closeDate: "desc" },
+      select: { closeDate: true },
+    });
+    return { date: last ? toYangonYmd(last.closeDate) : null };
+  }
+
   /**
    * Compute (but do NOT persist) what a close on a given Yangon day would look like.
    * Frozen at compute time so callers can show "expected vs counted" before saving.

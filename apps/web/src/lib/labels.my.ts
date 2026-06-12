@@ -63,6 +63,13 @@ export const my: DeepPartial<Labels> = {
     noInternet: "အင်တာနက် မရှိပါ — အော့ဖ်လိုင်း ကြည့်ရှုနေသည်",
   },
 
+  backdate: {
+    recordingFor: "မှတ်တမ်းတင်နေသည့်ရက်",
+    backToToday: "ဒီနေ့သို့ ပြန်ရန်",
+    date: "ရက်စွဲ",
+    today: "ဒီနေ့",
+  },
+
   dash: {
     selectedPeriod: "ရွေးထားသော ကာလ",
     now: "ယခုအချိန်",

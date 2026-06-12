@@ -59,6 +59,11 @@ export class CreateReturnDto {
   @IsString()
   @MaxLength(500)
   notes?: string;
+
+  /** Optional backdate (ISO). Omitted = now. Must be an unclosed day. */
+  @IsOptional()
+  @IsString()
+  returnDate?: string;
 }
 
 export class VoidReturnDto {

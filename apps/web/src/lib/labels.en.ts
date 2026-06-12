@@ -61,6 +61,13 @@ export const en = {
     noInternet: "No internet — viewing offline",
   },
 
+  backdate: {
+    recordingFor: "Recording for",
+    backToToday: "Back to today",
+    date: "Date",
+    today: "Today",
+  },
+
   dash: {
     selectedPeriod: "Selected period",
     now: "Right now",

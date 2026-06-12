@@ -3,6 +3,7 @@ import { getCurrentUser, hasRole, serverFetch } from "@/lib/auth-server";
 import type { ShopState } from "@/lib/api-client";
 import { ShopBanner } from "@/components/shop/shop-banner";
 import { OfflineBanner } from "@/components/staff/offline-banner";
+import { StaffDateProvider } from "@/components/staff/staff-date";
 
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
   // Fire both round-trips in parallel — they're independent.
@@ -21,7 +22,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
     <div className="min-h-screen bg-background">
       <ShopBanner shop={shopState?.shop ?? "main"} isAdmin={hasRole(user, "admin")} />
       <OfflineBanner />
-      {children}
+      <StaffDateProvider>{children}</StaffDateProvider>
     </div>
   );
 }

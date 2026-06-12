@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CustomersService } from "../customers/customers.service";
+import { assertDateNotClosed } from "../common/backdate";
 import { CreateCustomerPaymentDto } from "./dto/customer-payment.dto";
 
 function statusFor(grandTotal: number, paidAmount: number): "UNPAID" | "PARTIAL" | "PAID" {
@@ -33,6 +34,7 @@ export class CustomerPaymentsService {
   async create(dto: CreateCustomerPaymentDto, createdById: number): Promise<PaymentResult> {
     const customer = await this.prisma.customer.findUnique({ where: { id: dto.customerId } });
     if (!customer) throw new NotFoundException(`Customer ${dto.customerId} not found`);
+    await assertDateNotClosed(this.prisma, dto.paymentDate ? new Date(dto.paymentDate) : null);
     const payment = await this.prisma.customerPayment.create({
       data: {
         customerId: dto.customerId,

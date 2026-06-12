@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { InventoryService } from "../inventory/inventory.service";
+import { assertDateNotClosed } from "../common/backdate";
 import { CreateTransferDto } from "./dto/transfer.dto";
 
 @Injectable()
@@ -17,6 +18,8 @@ export class TransfersService {
     if (dto.items.length === 0) {
       throw new BadRequestException("At least one item is required");
     }
+    const occurredAt = dto.occurredAt ? new Date(dto.occurredAt) : undefined;
+    await assertDateNotClosed(this.prisma, occurredAt ?? null);
 
     return this.prisma.$transaction(async (tx) => {
       // Aggregate requested qty per item (in case the same item appears twice).
@@ -73,6 +76,7 @@ export class TransfersService {
       const event = await tx.inventoryEvent.create({
         data: {
           kind: "TRANSFER",
+          ...(occurredAt ? { occurredAt } : {}),
           notes: dto.notes,
           createdById,
           lines: { create: linesData },
@@ -91,6 +95,7 @@ export class TransfersService {
           data: {
             categoryId: category.id,
             amount: dto.driverFee,
+            ...(occurredAt ? { expenseDate: occurredAt } : {}),
             paidToDriverId: dto.driverId ?? null,
             paidTo: dto.driverId ? null : dto.driverName?.trim() || "Taxi",
             eventId: event.id,

@@ -18,6 +18,12 @@ export class DailyCloseController {
     return this.service.preview(q.date);
   }
 
+  /** Latest closed day — the floor for the staff backdate selector. */
+  @Get("latest")
+  latest() {
+    return this.service.latestCloseDate();
+  }
+
   @Post()
   create(@Body() dto: CreateDailyCloseDto, @CurrentUser() user: AuthenticatedUser) {
     return this.service.create(dto, user.sub);

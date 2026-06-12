@@ -16,9 +16,11 @@ import { formatKyat } from "@/lib/utils";
 import { speak } from "@/lib/speech";
 import { CustomerPicker } from "@/components/staff/customer-picker";
 import { PaymentReceipt, type PaymentReceiptData } from "@/components/staff/payment-receipt";
+import { useStaffDate } from "@/components/staff/staff-date";
 
 export function ReceiveMoneyFlow({ shop }: { shop?: ShopSettings }) {
   const router = useRouter();
+  const { backdateIso, resetToToday } = useStaffDate();
   const params = useSearchParams();
   const initialCustomerName = params.get("customerName");
   const initialCustomerId = params.get("customerId");
@@ -61,7 +63,9 @@ export function ReceiveMoneyFlow({ shop }: { shop?: ShopSettings }) {
       const res = await api.post<PaymentResult>("/customer-payments", {
         customerId: customer.id,
         amount,
+        paymentDate: backdateIso(),
       });
+      resetToToday();
       speak(labels.receive.voiceReceived(formatKyat(amount)));
       setDone({
         paymentId: res.id,
@@ -209,7 +213,13 @@ export function ReceiveMoneyFlow({ shop }: { shop?: ShopSettings }) {
         {submitting ? labels.common.saving : labels.common.save}
       </button>
 
-      <CustomerPicker open={pickerOpen} onClose={() => setPickerOpen(false)} onPick={setCustomer} />
+      {/* Receiving money = collecting debt → only show customers who owe. */}
+      <CustomerPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onPick={setCustomer}
+        debtorsOnly
+      />
     </main>
   );
 }

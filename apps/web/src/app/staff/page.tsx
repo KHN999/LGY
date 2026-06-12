@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth-server";
 import { UserMenu } from "@/components/user-menu";
 import { AppSwitchButton } from "@/components/app-switch-button";
+import { StaffDatePicker } from "@/components/staff/staff-date";
 import { labels } from "@/lib/labels";
 
 const actions = [
@@ -44,6 +45,9 @@ export default async function StaffHomePage({
           {flash}
         </p>
       )}
+      <div className="mb-4">
+        <StaffDatePicker />
+      </div>
       <div className="grid grid-cols-2 gap-4">
         {actions.map((a) => (
           <Link

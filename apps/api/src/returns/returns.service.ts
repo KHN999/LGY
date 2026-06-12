@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@lgy/db";
 import { PrismaService } from "../prisma/prisma.service";
+import { assertDateNotClosed } from "../common/backdate";
 import { CreateReturnDto } from "./dto/create-return.dto";
 
 type SaleReturnSqlRow = {
@@ -52,6 +53,8 @@ export class ReturnsService {
         throw new BadRequestException("Return items without saleLineId need a unitPrice");
       }
     }
+    const returnDate = dto.returnDate ? new Date(dto.returnDate) : undefined;
+    await assertDateNotClosed(this.prisma, returnDate ?? null);
 
     return this.prisma.$transaction(async (tx) => {
       const sale = await tx.sale.findUnique({
@@ -141,6 +144,7 @@ export class ReturnsService {
         const event = await tx.inventoryEvent.create({
           data: {
             kind: "RETURN_FROM_CUSTOMER",
+            ...(returnDate ? { occurredAt: returnDate } : {}),
             notes: dto.notes,
             createdById,
             lines: { create: inLines },
@@ -155,6 +159,7 @@ export class ReturnsService {
           customerId: sale.customerId,
           returnTotal,
           refundAmount,
+          ...(returnDate ? { returnDate } : {}),
           notes: dto.notes,
           eventId,
           createdById,

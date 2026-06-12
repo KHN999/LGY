@@ -45,6 +45,11 @@ export class CreateTransferDto {
   @MaxLength(500)
   notes?: string;
 
+  /** Optional backdate (ISO). Omitted = now. Must be an unclosed day. */
+  @IsOptional()
+  @IsString()
+  occurredAt?: string;
+
   // ── Optional delivery / driver (records a transport expense) ──────
   @IsOptional()
   @IsInt()
