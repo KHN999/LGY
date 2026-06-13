@@ -38,10 +38,11 @@
 
 /* Print only the receipt (rendered into a body-level #print-receipt portal).
    Mobile print dialogs (iOS/Android) won't reliably offer A5 paper, so we print
-   the job as A4 and the user loads A5 sheets: the receipt is sized to A5 width
-   and anchored TOP-LEFT of the A4 page, so it lands on the A5 sheet whether the
-   printer prints at 100% (clips the blank A4 remainder) or scales to fit (just
-   shrinks — nothing is cut off). Everything else is hidden when printing. */
+   the job as A4 and the user loads A5 sheets fed CENTERED in the tray: the
+   receipt is sized to A5 width and centered horizontally (top-aligned) on the
+   A4 page, so it lands on the centered A5 sheet whether the printer prints at
+   100% (the blank A4 remainder falls off) or scales to fit (just shrinks —
+   nothing is cut off). Everything else is hidden when printing. */
 @media print {
   @page {
     size: A4;
@@ -53,5 +54,6 @@
   #print-receipt {
     display: block !important;
     width: 148mm; /* A5 width; the receipt's own padding keeps content off the edges */
+    margin: 0 auto; /* horizontally centered (sheet sits centered in the feed); top-aligned */
   }
 }
