@@ -15,7 +15,7 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { CustomersService } from "./customers.service";
-import { CreateCustomerDto, UpdateCustomerDto } from "./dto/customer.dto";
+import { CreateCustomerDto, MergeCustomersDto, UpdateCustomerDto } from "./dto/customer.dto";
 import { ImportContactDto, ImportCustomersDto } from "./dto/import-customers.dto";
 import { PaginationQueryDto } from "../common/pagination.dto";
 
@@ -46,6 +46,14 @@ export class CustomersController {
       activeOnly: !inactiveOnly,
       inactiveOnly,
     });
+  }
+
+  /** Customers whose (normalized) name matches — for the create-time duplicate
+   *  warning and merge suggestions. Declared before :id so "similar" isn't parsed
+   *  as an id. Any authenticated user (read-only). */
+  @Get("similar")
+  similar(@Query("name") name?: string, @Query("excludeId") excludeId?: string) {
+    return this.customers.similar(name ?? "", excludeId ? Number(excludeId) : undefined);
   }
 
   @Get(":id")
@@ -79,6 +87,15 @@ export class CustomersController {
   @Roles("admin")
   update(@Param("id", ParseIntPipe) id: number, @Body() dto: UpdateCustomerDto) {
     return this.customers.update(id, dto);
+  }
+
+  /** Merge duplicate customers into this one (admin only) — moves all their
+   *  sales/payments/returns here, then retires the duplicates. */
+  @Post(":id/merge")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  merge(@Param("id", ParseIntPipe) id: number, @Body() dto: MergeCustomersDto) {
+    return this.customers.merge(id, dto.sourceIds);
   }
 
   /** Soft-delete a customer and write off their debt (admin only). */

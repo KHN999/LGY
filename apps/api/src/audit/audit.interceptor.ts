@@ -160,6 +160,11 @@ function summarize(method: string, path: string, params: Record<string, string>,
 function summarizeFromResponse(data: unknown): string | null {
   if (!data || typeof data !== "object") return null;
   const d = data as Record<string, unknown>;
+  // Customer merge (POST /customers/:id/merge) → survivor + { mergedCount, mergedNames }.
+  if (typeof d.mergedCount === "number" && typeof d.name === "string") {
+    const names = Array.isArray(d.mergedNames) ? (d.mergedNames as unknown[]).join(", ") : "";
+    return `Merged ${d.mergedCount} customer(s)${names ? ` (${names})` : ""} into ${d.name}`;
+  }
   // Customer write-off (DELETE /customers/:id) → { id, name, clearedDebt }.
   if (d.id != null && typeof d.name === "string" && typeof d.clearedDebt === "number") {
     return d.clearedDebt > 0

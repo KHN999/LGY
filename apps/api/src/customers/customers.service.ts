@@ -239,6 +239,93 @@ export class CustomersService {
     return { id: customer.id, name: customer.name, clearedDebt };
   }
 
+  /**
+   * Find non-deleted customers whose name matches `name` after stripping case,
+   * spaces and punctuation — so "B-204", "B 204" and "B204" all collide. Used to
+   * warn at creation time and to suggest merge candidates. Empty for <2 chars.
+   */
+  async similar(
+    name: string,
+    excludeId?: number,
+  ): Promise<{ id: number; name: string; contact: string | null }[]> {
+    // Strip only separators (spaces, . _ -) and lowercase, so "B-204"/"B 204"/
+    // "B204" collapse to "b204" while Burmese letters/digits are preserved (a
+    // "keep only a-z0-9" rule would erase Burmese names entirely).
+    const norm = name.toLowerCase().replace(/[\s._-]/g, "");
+    if (norm.length < 2) return [];
+    // Escape LIKE metacharacters that could survive normalization.
+    const like = `%${norm.replace(/[%\\]/g, (m) => "\\" + m)}%`;
+    const rows = await this.prisma.$queryRaw<
+      { id: number; name: string; contact: string | null }[]
+    >(Prisma.sql`
+      SELECT id, name, contact
+      FROM "Customer"
+      WHERE "deletedAt" IS NULL
+        AND regexp_replace(lower(name), '[[:space:]._-]', '', 'g') LIKE ${like}
+        ${excludeId ? Prisma.sql`AND id <> ${excludeId}` : Prisma.empty}
+      ORDER BY name ASC
+      LIMIT 8
+    `);
+    return rows.map((r) => ({ id: Number(r.id), name: r.name, contact: r.contact }));
+  }
+
+  /**
+   * Merge duplicate customers INTO `survivorId`: repoint every record they own
+   * (sales, payments, returns) onto the survivor, then soft-delete the emptied
+   * duplicates. Debt is NOT written off here (unlike softDelete) — their ledger
+   * moved to the survivor, so the survivor's balance recomputes to include it and
+   * the duplicates carry nothing. Returns the survivor (with fresh balance) plus
+   * merge metadata for the audit log.
+   */
+  async merge(
+    survivorId: number,
+    sourceIdsRaw: number[],
+  ): Promise<CustomerWithBalance & { mergedCount: number; mergedNames: string[] }> {
+    const survivor = await this.prisma.customer.findUnique({ where: { id: survivorId } });
+    if (!survivor) throw new NotFoundException(`Customer ${survivorId} not found`);
+    if (survivor.deletedAt) throw new BadRequestException("Cannot merge into a deleted customer");
+
+    const ids = [...new Set(sourceIdsRaw)].filter((id) => id !== survivorId);
+    if (ids.length === 0) {
+      throw new BadRequestException("Pick at least one other customer to merge in");
+    }
+    const sources = await this.prisma.customer.findMany({
+      where: { id: { in: ids }, deletedAt: null },
+      select: { id: true, name: true, contact: true, notes: true },
+    });
+    if (sources.length === 0) throw new BadRequestException("No valid customers to merge");
+    const sourceIds = sources.map((s) => s.id);
+
+    await this.prisma.$transaction(async (tx) => {
+      const where = { customerId: { in: sourceIds } };
+      await tx.sale.updateMany({ where, data: { customerId: survivorId } });
+      await tx.customerPayment.updateMany({ where, data: { customerId: survivorId } });
+      await tx.saleReturn.updateMany({ where, data: { customerId: survivorId } });
+
+      // Backfill a missing contact/notes on the survivor from a duplicate.
+      const fill: { contact?: string; notes?: string } = {};
+      if (!survivor.contact) {
+        const c = sources.find((s) => s.contact?.trim())?.contact;
+        if (c) fill.contact = c;
+      }
+      if (!survivor.notes) {
+        const n = sources.find((s) => s.notes?.trim())?.notes;
+        if (n) fill.notes = n;
+      }
+      if (Object.keys(fill).length > 0) {
+        await tx.customer.update({ where: { id: survivorId }, data: fill });
+      }
+
+      await tx.customer.updateMany({
+        where: { id: { in: sourceIds } },
+        data: { deletedAt: new Date(), status: "INACTIVE" },
+      });
+    });
+
+    const updated = await this.getOne(survivorId);
+    return { ...updated, mergedCount: sources.length, mergedNames: sources.map((s) => s.name) };
+  }
+
   async getBalance(
     customerId: number,
     tx: Prisma.TransactionClient | PrismaService = this.prisma,

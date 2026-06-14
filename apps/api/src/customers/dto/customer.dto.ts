@@ -1,5 +1,8 @@
 import {
+  ArrayNotEmpty,
+  IsArray,
   IsEnum,
+  IsInt,
   IsOptional,
   IsString,
   IsUrl,
@@ -48,3 +51,11 @@ export class CreateCustomerDto {
 }
 
 export class UpdateCustomerDto extends PartialType(CreateCustomerDto) {}
+
+/** Merge one or more duplicate customers INTO the :id in the route (the survivor). */
+export class MergeCustomersDto {
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsInt({ each: true })
+  sourceIds!: number[];
+}

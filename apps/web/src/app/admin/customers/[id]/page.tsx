@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { serverFetch } from "@/lib/auth-server";
 import { CustomerForm } from "../customer-form";
 import { DeleteCustomerButton } from "../delete-customer-button";
+import { MergeCustomer } from "../merge-customer";
 import { labels } from "@/lib/labels";
 import { formatKyat, formatDate, yangonYmd } from "@/lib/utils";
 import type { Customer, Page, Sale, CustomerPayment, CustomerReturnRow } from "@/lib/api-client";
@@ -198,6 +199,7 @@ export default async function CustomerDetailPage({
         <summary className="cursor-pointer text-sm font-medium">{labels.common.edit}</summary>
         <div className="mt-3 flex flex-col gap-4">
           <CustomerForm initial={customer} />
+          <MergeCustomer id={customer.id} name={customer.name} />
           <DeleteCustomerButton id={customer.id} />
         </div>
       </details>

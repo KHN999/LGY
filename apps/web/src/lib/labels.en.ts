@@ -332,6 +332,16 @@ export const en = {
     delete: "Delete customer",
     deleteConfirm:
       "Delete this customer? Their outstanding debt is written off and they're removed from all lists. Past sales stay in the records.",
+    merge: "Merge duplicates",
+    mergeTitle: "Merge duplicate customers into this one",
+    mergeHelp:
+      "Pick the duplicate record(s). Their sales, payments and returns move here, then they're removed — nothing is lost.",
+    mergeSearch: "Search customers by name…",
+    mergeEmpty: "No other matching customers",
+    mergeAction: "Merge selected",
+    mergeConfirm:
+      "Move all history from the selected customer(s) into this one and remove them? This can't be undone.",
+    similarExists: "Similar customer already exists — reuse it instead of making a new one:",
   },
 
   shop: {

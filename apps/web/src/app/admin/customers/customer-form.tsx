@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, ApiError, type Customer, type SaleKind } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
@@ -25,6 +26,30 @@ export function CustomerForm({ initial }: Props) {
   const [status, setStatus] = useState<Status>(initial?.status ?? "ACTIVE");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [similar, setSimilar] = useState<{ id: number; name: string; contact: string | null }[]>(
+    [],
+  );
+
+  // Warn (non-blocking) if a same/similar name already exists, so we don't pile
+  // up "B-204 / B 204 / B204" duplicates. Normalized match, excludes self on edit.
+  useEffect(() => {
+    const q = name.trim();
+    if (q.length < 2) {
+      setSimilar([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const rows = await api.get<{ id: number; name: string; contact: string | null }[]>(
+          `/customers/similar?name=${encodeURIComponent(q)}${initial?.id ? `&excludeId=${initial.id}` : ""}`,
+        );
+        setSimilar(rows);
+      } catch {
+        setSimilar([]);
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [name, initial?.id]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -57,6 +82,21 @@ export function CustomerForm({ initial }: Props) {
       <Field label={labels.admin.fields.name}>
         <input required maxLength={150} value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
       </Field>
+      {similar.length > 0 && (
+        <div className="rounded-lg border border-amber-400 bg-amber-50 p-3 text-sm text-amber-900">
+          <p className="font-medium">{labels.customerDetail.similarExists}</p>
+          <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+            {similar.map((c) => (
+              <li key={c.id}>
+                <Link href={`/admin/customers/${c.id}`} className="underline">
+                  {c.name}
+                  {c.contact ? ` (${c.contact})` : ""}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <Field label={labels.admin.fields.contact}>
         <input maxLength={100} value={contact} onChange={(e) => setContact(e.target.value)} className={inputClass} />
       </Field>
