@@ -170,8 +170,8 @@ export function EditSaleLines({ sale, itemTypes }: { sale: SaleDetail; itemTypes
                 className={inputCls + " mt-2 w-full"}
               />
             )}
-            <div className="mt-2 flex items-center gap-2">
-              <label className="flex items-center gap-1 text-xs text-muted-foreground">
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <label className="flex flex-col gap-0.5 text-xs text-muted-foreground">
                 {labels.domain.quantity}
                 <input
                   type="number"
@@ -179,24 +179,26 @@ export function EditSaleLines({ sale, itemTypes }: { sale: SaleDetail; itemTypes
                   min={1}
                   value={l.qty}
                   onChange={(e) => update(l.key, { qty: e.target.value })}
-                  className={inputCls + " w-16 text-right"}
+                  className={inputCls + " w-full text-right"}
                 />
               </label>
-              <span className="text-muted-foreground">×</span>
-              <label className="flex flex-1 items-center justify-end gap-1 text-xs text-muted-foreground">
+              <label className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+                {labels.domain.unitPrice}
                 <input
                   type="number"
                   inputMode="numeric"
                   min={0}
                   value={l.unitPrice}
                   onChange={(e) => update(l.key, { unitPrice: e.target.value })}
-                  className={inputCls + " w-28 text-right"}
+                  className={inputCls + " w-full text-right"}
                 />
-                {labels.units.kyat}
               </label>
-              <span className="w-28 shrink-0 text-right text-sm font-medium tabular-nums">
-                {formatKyat(toNum(l.qty) * toNum(l.unitPrice))}
-              </span>
+              <p className="col-span-2 text-right text-xs tabular-nums text-muted-foreground">
+                {toNum(l.qty)} × {formatKyat(toNum(l.unitPrice))} ={" "}
+                <span className="text-sm font-semibold text-foreground">
+                  {formatKyat(toNum(l.qty) * toNum(l.unitPrice))}
+                </span>
+              </p>
             </div>
           </li>
         ))}
