@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getCurrentUser } from "@/lib/auth-server";
+import { getCurrentUser, serverFetch } from "@/lib/auth-server";
+import type { ShopState } from "@/lib/api-client";
 import { UserMenu } from "@/components/user-menu";
 import { AppSwitchButton } from "@/components/app-switch-button";
 import { StaffDatePicker } from "@/components/staff/staff-date";
@@ -30,14 +31,18 @@ export default async function StaffHomePage({
   const params = await searchParams;
   const savedKey = params.saved;
   const flash = savedKey ? savedMessages[savedKey] : undefined;
-  const user = await getCurrentUser();
+  const [user, shopState] = await Promise.all([
+    getCurrentUser(),
+    serverFetch<ShopState>("/api/shop"),
+  ]);
+  const shop = shopState?.shop ?? "main";
   return (
     <main className="mx-auto max-w-2xl p-4 sm:p-8">
       <div className="mb-6 flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">{labels.staff.home}</h1>
         <div className="flex items-center gap-2">
           {user && <AppSwitchButton roles={user.roles} />}
-          {user && <UserMenu user={user} />}
+          {user && <UserMenu user={user} shop={shop} shopHome="/staff" />}
         </div>
       </div>
       {flash && (

@@ -18,7 +18,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="min-h-screen bg-background">
-      <ShopBanner shop={shop} isAdmin />
+      <ShopBanner shop={shop} home="/admin" />
       <AdminShell user={user} currentShop={shop}>
         {children}
       </AdminShell>

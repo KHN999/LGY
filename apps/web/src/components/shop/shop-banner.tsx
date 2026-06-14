@@ -5,9 +5,10 @@ import { ShopSwitchButton } from "./shop-switch-button";
 /**
  * Loud, always-visible banner shown to EVERY user whenever the browser is in
  * the test/playground shop — so staff can never mistake practice for real work.
- * Admins also get a one-tap way back to the real shop. Renders nothing in main.
+ * Everyone gets a one-tap way back to the real shop; `home` is where to land
+ * after switching (/admin or /staff). Renders nothing in main.
  */
-export function ShopBanner({ shop, isAdmin }: { shop: ShopId; isAdmin: boolean }) {
+export function ShopBanner({ shop, home }: { shop: ShopId; home: string }) {
   if (shop !== "playground") return null;
 
   return (
@@ -16,14 +17,13 @@ export function ShopBanner({ shop, isAdmin }: { shop: ShopId; isAdmin: boolean }
         🧪 {labels.shop.bannerTitle}
         <span className="ml-2 hidden font-normal sm:inline">{labels.shop.bannerNote}</span>
       </span>
-      {isAdmin && (
-        <ShopSwitchButton
-          to="main"
-          className="shrink-0 rounded-lg bg-amber-950 px-3 py-1 text-xs font-semibold text-amber-50 hover:bg-amber-900"
-        >
-          {labels.shop.backToMain}
-        </ShopSwitchButton>
-      )}
+      <ShopSwitchButton
+        to="main"
+        home={home}
+        className="shrink-0 rounded-lg bg-amber-950 px-3 py-1 text-xs font-semibold text-amber-50 hover:bg-amber-900"
+      >
+        {labels.shop.backToMain}
+      </ShopSwitchButton>
     </div>
   );
 }

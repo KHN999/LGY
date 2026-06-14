@@ -20,7 +20,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
   // pages need the full height. The account/logout menu lives on the staff home.
   return (
     <div className="min-h-screen bg-background">
-      <ShopBanner shop={shopState?.shop ?? "main"} isAdmin={hasRole(user, "admin")} />
+      <ShopBanner shop={shopState?.shop ?? "main"} home="/staff" />
       <OfflineBanner />
       <StaffDateProvider>{children}</StaffDateProvider>
     </div>

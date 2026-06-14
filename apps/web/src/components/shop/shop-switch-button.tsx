@@ -5,16 +5,18 @@ import type { ShopId } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 
 /**
- * Switches this browser's active shop (admin only — the API enforces the role)
- * then does a full navigation to a safe home so every server component
- * re-renders against the new shop's data.
+ * Switches this browser's active shop, then does a full navigation to a safe
+ * home (`home`) so every server component re-renders against the new shop's
+ * data. `home` defaults to /admin; the staff app passes /staff.
  */
 export function ShopSwitchButton({
   to,
+  home = "/admin",
   className,
   children,
 }: {
   to: ShopId;
+  home?: string;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -33,7 +35,7 @@ export function ShopSwitchButton({
         setLoading(false);
         return;
       }
-      window.location.assign("/admin");
+      window.location.assign(home);
     } catch {
       setLoading(false);
     }

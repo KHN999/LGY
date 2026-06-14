@@ -1,8 +1,6 @@
 import { Body, Controller, Get, HttpCode, Post, Res, UseGuards } from "@nestjs/common";
 import type { Response } from "express";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
-import { RolesGuard } from "../auth/guards/roles.guard";
-import { Roles } from "../auth/decorators/roles.decorator";
 import { getActiveShop, SHOP_COOKIE, SHOP_IDS } from "../prisma/shop-context";
 import { SwitchShopDto } from "./dto/switch-shop.dto";
 
@@ -28,11 +26,11 @@ export class ShopController {
     return { shop: getActiveShop(), shops: SHOP_IDS };
   }
 
-  /** Switch this browser between the real shop and the playground (admin only). */
+  /** Switch this browser between the real shop and the playground. Available to
+   *  any signed-in user (staff included) — the playground is a safe sandbox, and
+   *  staff need it for practice; the loud banner keeps it unmistakable. */
   @Post()
   @HttpCode(200)
-  @UseGuards(RolesGuard)
-  @Roles("admin")
   switch(@Body() dto: SwitchShopDto, @Res({ passthrough: true }) res: Response) {
     res.cookie(SHOP_COOKIE, dto.shop, shopCookieOptions());
     return { shop: dto.shop };
