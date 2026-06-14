@@ -89,29 +89,50 @@ export default async function CustomerLedgerPage({
         <ul className="flex flex-col divide-y rounded-2xl border bg-card">
           {rows.map((r, i) => {
             const isPay = r.kind === "payment";
-            return (
-              <li key={i} className="flex items-center justify-between gap-3 p-3">
+            // Every row links to a receipt: a sale opens its own receipt; a
+            // payment opens the receipt of the sale it settled (when linked).
+            const receiptId = r.ref;
+            const inner = (
+              <>
                 <div className="min-w-0">
                   <p className="font-medium">
                     {isPay ? "💵 " : "🧾 "}
                     {isPay ? labels.debts.paid : labels.debts.bought}
-                    {r.kind === "sale" && r.ref ? ` #${r.ref}` : ""}
+                    {receiptId ? ` #${receiptId}` : ""}
                   </p>
                   <p className="text-xs text-muted-foreground">{formatDate(r.date)}</p>
                 </div>
-                <div className="shrink-0 text-right">
-                  <p
-                    className={
-                      "font-semibold tabular-nums " + (isPay ? "text-emerald-600" : "text-rose-600")
-                    }
-                  >
-                    {isPay ? "−" : "+"}
-                    {formatKyat(r.amount)}
-                  </p>
-                  <p className="text-xs tabular-nums text-muted-foreground">
-                    {labels.debts.rowBalance}: {formatKyat(r.balanceAfter)}
-                  </p>
+                <div className="flex shrink-0 items-center gap-2">
+                  <div className="text-right">
+                    <p
+                      className={
+                        "font-semibold tabular-nums " +
+                        (isPay ? "text-emerald-600" : "text-rose-600")
+                      }
+                    >
+                      {isPay ? "−" : "+"}
+                      {formatKyat(r.amount)}
+                    </p>
+                    <p className="text-xs tabular-nums text-muted-foreground">
+                      {labels.debts.rowBalance}: {formatKyat(r.balanceAfter)}
+                    </p>
+                  </div>
+                  {receiptId && <span className="text-lg text-muted-foreground">›</span>}
                 </div>
+              </>
+            );
+            return (
+              <li key={i}>
+                {receiptId ? (
+                  <Link
+                    href={`/staff/sales/${receiptId}`}
+                    className="flex items-center justify-between gap-3 p-3 hover:bg-accent active:scale-[0.99]"
+                  >
+                    {inner}
+                  </Link>
+                ) : (
+                  <div className="flex items-center justify-between gap-3 p-3">{inner}</div>
+                )}
               </li>
             );
           })}

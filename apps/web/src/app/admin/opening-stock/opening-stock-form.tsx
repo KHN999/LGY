@@ -14,7 +14,9 @@ interface Props {
 interface DraftLine {
   itemTypeId: number;
   location: "WAREHOUSE" | "SHOP";
-  qty: number;
+  // Kept as a string (like unitCost) so the field can be cleared to empty
+  // instead of being pinned to "0"; parsed to a number on submit.
+  qty: string;
   unitCost: string;
 }
 
@@ -22,7 +24,7 @@ export function OpeningStockForm({ itemTypes }: Props) {
   const router = useRouter();
   const [lines, setLines] = useState<DraftLine[]>(
     itemTypes.length > 0
-      ? [{ itemTypeId: itemTypes[0]!.id, location: "WAREHOUSE", qty: 0, unitCost: "" }]
+      ? [{ itemTypeId: itemTypes[0]!.id, location: "WAREHOUSE", qty: "", unitCost: "" }]
       : [],
   );
   const [notes, setNotes] = useState("");
@@ -39,14 +41,14 @@ export function OpeningStockForm({ itemTypes }: Props) {
     if (itemTypes.length === 0) return;
     setLines((prev) => [
       ...prev,
-      { itemTypeId: itemTypes[0]!.id, location: "WAREHOUSE", qty: 0, unitCost: "" },
+      { itemTypeId: itemTypes[0]!.id, location: "WAREHOUSE", qty: "", unitCost: "" },
     ]);
   }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    const filled = lines.filter((l) => l.qty > 0);
+    const filled = lines.filter((l) => Number(l.qty) > 0);
     if (filled.length === 0) {
       setError(labels.admin.atLeastOneQty);
       return;
@@ -57,7 +59,7 @@ export function OpeningStockForm({ itemTypes }: Props) {
         items: filled.map((l) => ({
           itemTypeId: l.itemTypeId,
           location: l.location,
-          qty: l.qty,
+          qty: Number(l.qty),
           unitCost: l.unitCost.trim() ? Number(l.unitCost) : undefined,
         })),
         notes: notes.trim() || undefined,
@@ -112,8 +114,9 @@ export function OpeningStockForm({ itemTypes }: Props) {
                 type="number"
                 inputMode="numeric"
                 min={0}
+                placeholder="0"
                 value={l.qty}
-                onChange={(ev) => update(i, { qty: Math.max(0, Number(ev.target.value) || 0) })}
+                onChange={(ev) => update(i, { qty: ev.target.value })}
                 className={inputClass + " h-11"}
               />
             </Field>
