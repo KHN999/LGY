@@ -54,16 +54,19 @@ export class ExportService {
             select: { carryForward: true },
           })
         : Promise.resolve(null),
+      // CASH only — this is a cash-drawer ledger that must reconcile with the
+      // daily close (which counts cash). Bank transfers never hit the drawer, so
+      // they're excluded here (see the dashboard's Cash/Bank split for those).
       this.prisma.customerPayment.findMany({
-        where: { voidedAt: null, paymentDate: range },
+        where: { voidedAt: null, method: "CASH", paymentDate: range },
         select: { paymentDate: true, amount: true, saleId: true, customer: { select: { name: true } } },
       }),
       this.prisma.supplierPayment.findMany({
-        where: { voidedAt: null, paymentDate: range },
+        where: { voidedAt: null, method: "CASH", paymentDate: range },
         select: { paymentDate: true, amount: true, supplier: { select: { name: true } } },
       }),
       this.prisma.tailorPayment.findMany({
-        where: { voidedAt: null, paymentDate: range },
+        where: { voidedAt: null, method: "CASH", paymentDate: range },
         select: { paymentDate: true, amount: true, tailor: { select: { name: true } } },
       }),
       this.prisma.expense.findMany({
@@ -76,7 +79,7 @@ export class ExportService {
       }),
       this.prisma.sale.findMany({
         where: { voidedAt: null, saleDate: range },
-        select: { goodsTotal: true },
+        select: { grandTotal: true },
       }),
     ]);
 
@@ -110,7 +113,7 @@ export class ExportService {
       closingCash: openingCash + totalIn - totalOut,
       totalIn,
       totalOut,
-      salesTotal: sales.reduce((s, x) => s + x.goodsTotal, 0),
+      salesTotal: sales.reduce((s, x) => s + x.grandTotal, 0),
       salesCount: sales.length,
       transactions,
     };
