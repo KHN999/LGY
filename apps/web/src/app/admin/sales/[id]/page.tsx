@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
 import { formatKyat, formatDateTime } from "@/lib/utils";
-import type { SaleDetail } from "@/lib/api-client";
+import type { SaleDetail, ItemType } from "@/lib/api-client";
 import { SaleDetailActions } from "./sale-detail";
 import { EditSaleLines } from "./edit-sale-lines";
 import { PageHeader } from "@/components/ui";
@@ -15,7 +15,10 @@ export default async function SaleDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const sale = await serverFetch<SaleDetail>(`/api/sales/${id}`);
+  const [sale, itemTypes] = await Promise.all([
+    serverFetch<SaleDetail>(`/api/sales/${id}`),
+    serverFetch<ItemType[]>(`/api/item-types`),
+  ]);
   if (!sale) notFound();
 
   const remaining = sale.grandTotal - sale.paidAmount;
@@ -69,7 +72,7 @@ export default async function SaleDetailPage({
         )}
       </section>
 
-      <EditSaleLines sale={sale} />
+      <EditSaleLines sale={sale} itemTypes={itemTypes ?? []} />
 
       <SaleDetailActions sale={sale} />
     </div>

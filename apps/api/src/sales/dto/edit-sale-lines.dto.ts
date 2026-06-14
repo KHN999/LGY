@@ -1,30 +1,40 @@
 import { Type } from "class-transformer";
-import { ArrayNotEmpty, IsArray, IsInt, IsOptional, Min, ValidateNested } from "class-validator";
-
-/** One existing sale line getting a corrected unit price (admin price fix). */
-export class EditSaleLineDto {
-  @IsInt()
-  id!: number;
-
-  @IsInt()
-  @Min(0)
-  unitPrice!: number;
-}
+import {
+  ArrayMinSize,
+  IsArray,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  Min,
+  ValidateNested,
+} from "class-validator";
+import { CreatePaymentMethod, CreateSaleItemDto } from "./create-sale.dto";
 
 /**
- * Correct a sale's prices from admin: new unit prices for one or more existing
- * lines, and optionally a new discount. Quantities (and therefore stock) are
- * untouched — this only re-prices what was already sold.
+ * Full admin edit of a posted sale: `lines` is the COMPLETE new line set (edit
+ * qty/price/item, add or remove lines). Stock is rebuilt to match; `paidAmount`
+ * is the target total paid, reconciled against the payment rows.
  */
-export class EditSaleLinesDto {
+export class EditSaleDto {
   @IsArray()
-  @ArrayNotEmpty()
+  @ArrayMinSize(1)
   @ValidateNested({ each: true })
-  @Type(() => EditSaleLineDto)
-  lines!: EditSaleLineDto[];
+  @Type(() => CreateSaleItemDto)
+  lines!: CreateSaleItemDto[];
 
   @IsOptional()
   @IsInt()
   @Min(0)
   discount?: number;
+
+  /** Target total paid after the edit (reconciled against CustomerPayment rows). */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  paidAmount?: number;
+
+  /** Method for the reconciled payment when paid changes. */
+  @IsOptional()
+  @IsEnum(CreatePaymentMethod)
+  paymentMethod?: CreatePaymentMethod;
 }

@@ -12,7 +12,7 @@ import { StockExceptionsService } from "../stock-exceptions/stock-exceptions.ser
 import { CreateSaleDto } from "./dto/create-sale.dto";
 import { AddPaymentDto } from "./dto/add-payment.dto";
 import { AddItemsDto } from "./dto/add-items.dto";
-import { EditSaleLinesDto } from "./dto/edit-sale-lines.dto";
+import { EditSaleDto } from "./dto/edit-sale-lines.dto";
 import { ListSalesQueryDto } from "./dto/list-sales.query.dto";
 
 function statusFor(grandTotal: number, paidAmount: number): TxnStatus {
@@ -900,45 +900,166 @@ export class SalesService {
   }
 
   /**
-   * Correct a sale's prices (admin): set new unit prices on existing lines and
-   * optionally a new discount, then recompute goodsTotal/grandTotal/status.
-   * Quantities — and therefore stock — are NOT touched (this only re-prices what
-   * was already sold), so the inventory event is left alone. The customer balance
-   * recomputes automatically because it's derived from grandTotal. Reducing the
-   * total below what was already paid is allowed and simply leaves account credit.
+   * Full admin edit of a posted sale. `dto.lines` is the COMPLETE new line set —
+   * edit qty/price/item, add or remove lines. The SALE inventory event is rebuilt
+   * to match the new catalog quantities (same non-blocking oversell policy as a
+   * normal sale), totals/status recompute, and the customer balance follows from
+   * grandTotal. `paidAmount` (optional) is the target total paid: payment rows are
+   * reconciled to it (void existing + record one consolidated payment). Reducing
+   * the total below what's paid is allowed and simply leaves account credit.
    */
-  async editLines(saleId: number, dto: EditSaleLinesDto) {
+  async editSale(saleId: number, dto: EditSaleDto, editedById: number) {
+    for (const it of dto.lines) {
+      if (it.itemTypeId === undefined && !it.itemName?.trim()) {
+        throw new BadRequestException("Each item needs an itemTypeId or itemName");
+      }
+    }
+    const goodsTotal = dto.lines.reduce((s, i) => s + i.unitPrice * i.qty, 0);
+
     await this.prisma.$transaction(async (tx) => {
-      const sale = await tx.sale.findUnique({ where: { id: saleId }, include: { lines: true } });
+      const sale = await tx.sale.findUnique({
+        where: { id: saleId },
+        include: { inventoryEvent: true },
+      });
       if (!sale) throw new NotFoundException(`Sale ${saleId} not found`);
       if (sale.voidedAt) throw new ConflictException("Cannot edit a voided sale");
-
-      const byId = new Map(sale.lines.map((l) => [l.id, l]));
-      for (const e of dto.lines) {
-        if (!byId.has(e.id)) {
-          throw new BadRequestException(`Line ${e.id} is not part of sale ${saleId}`);
-        }
-      }
-      const newPrice = new Map(dto.lines.map((e) => [e.id, e.unitPrice]));
-
-      let goodsTotal = 0;
-      for (const l of sale.lines) {
-        const price = newPrice.get(l.id) ?? l.unitPrice;
-        const lineTotal = price * l.qty;
-        goodsTotal += lineTotal;
-        if (newPrice.has(l.id) && price !== l.unitPrice) {
-          await tx.saleLine.update({ where: { id: l.id }, data: { unitPrice: price, lineTotal } });
-        }
-      }
 
       const discount = dto.discount ?? sale.discount;
       if (discount < 0) throw new BadRequestException("Discount cannot be negative");
       if (discount > goodsTotal) throw new BadRequestException("Discount cannot exceed goods total");
       const grandTotal = goodsTotal - discount;
 
+      // ── Replace all sale lines ──
+      await tx.saleLine.deleteMany({ where: { saleId } });
+      await tx.saleLine.createMany({
+        data: dto.lines.map((i) => ({
+          saleId,
+          itemTypeId: i.itemTypeId ?? null,
+          itemName: i.itemTypeId !== undefined ? null : i.itemName?.trim() || null,
+          qty: i.qty,
+          unitPrice: i.unitPrice,
+          lineTotal: i.unitPrice * i.qty,
+          note: i.note?.trim() || null,
+        })),
+      });
+
+      // ── Rebuild the SALE inventory event (OUT lines) + oversell ──
+      const desired = new Map<number, number>();
+      for (const i of dto.lines) {
+        if (i.itemTypeId !== undefined) {
+          desired.set(i.itemTypeId, (desired.get(i.itemTypeId) ?? 0) + i.qty);
+        }
+      }
+      // Clear this sale's prior oversell rows + OUT lines first, so the stock check
+      // below reflects availability WITHOUT this sale's own deductions.
+      await tx.stockExceptionSale.deleteMany({ where: { saleId } });
+      let eventId = sale.inventoryEvent?.id ?? null;
+      if (eventId) await tx.inventoryLine.deleteMany({ where: { eventId } });
+
+      if (desired.size > 0) {
+        const catalogIds = [...desired.keys()];
+        const types = await tx.itemType.findMany({
+          where: { id: { in: catalogIds } },
+          select: { id: true, key: true, isActive: true },
+        });
+        const byId = new Map(types.map((t) => [t.id, t]));
+        for (const id of catalogIds) {
+          const type = byId.get(id);
+          if (!type) throw new BadRequestException(`ItemType ${id} not found`);
+          if (!type.isActive) throw new BadRequestException(`ItemType ${type.key} is inactive`);
+        }
+
+        const stockRows = await tx.inventoryLine.groupBy({
+          by: ["direction", "itemTypeId"],
+          where: {
+            location: "SHOP",
+            tailorId: null,
+            itemTypeId: { in: catalogIds },
+            event: { voidedAt: null },
+          },
+          _sum: { qty: true },
+        });
+        const stock = new Map<number, number>();
+        for (const row of stockRows) {
+          const qty = row._sum.qty ?? 0;
+          stock.set(
+            row.itemTypeId,
+            (stock.get(row.itemTypeId) ?? 0) + (row.direction === "IN" ? qty : -qty),
+          );
+        }
+
+        const enforceStock = process.env.SHOP_OVERSELL === "block";
+        const shortfalls: { itemTypeId: number; qtyBeyond: number }[] = [];
+        for (const [id, qty] of desired) {
+          const have = stock.get(id) ?? 0;
+          if (have < qty) {
+            if (enforceStock) {
+              throw new ConflictException(
+                `Not enough stock for ${byId.get(id)?.key ?? `#${id}`} at SHOP: have ${have}, need ${qty}`,
+              );
+            }
+            shortfalls.push({ itemTypeId: id, qtyBeyond: qty - Math.max(have, 0) });
+          }
+        }
+
+        if (!eventId) {
+          eventId = (
+            await tx.inventoryEvent.create({
+              data: { kind: "SALE", occurredAt: sale.saleDate, saleId, createdById: editedById },
+              select: { id: true },
+            })
+          ).id;
+        }
+        await tx.inventoryLine.createMany({
+          data: [...desired].map(([itemTypeId, qty]) => ({
+            eventId: eventId!,
+            direction: "OUT" as const,
+            location: "SHOP" as const,
+            itemTypeId,
+            qty,
+          })),
+        });
+        const now = new Date();
+        for (const sf of shortfalls) {
+          await this.stockExceptions.recordOversell(tx, {
+            itemTypeId: sf.itemTypeId,
+            location: "SHOP",
+            saleId,
+            qtyBeyond: sf.qtyBeyond,
+            when: now,
+          });
+        }
+      } else if (eventId) {
+        // No catalog items left — drop the now-empty stock event.
+        await tx.inventoryEvent.delete({ where: { id: eventId } });
+      }
+
+      // ── Reconcile recorded payments to the target paid amount ──
+      let paidAmount = sale.paidAmount;
+      if (dto.paidAmount !== undefined && dto.paidAmount !== sale.paidAmount) {
+        await tx.customerPayment.updateMany({
+          where: { saleId, voidedAt: null },
+          data: { voidedAt: new Date(), voidedById: editedById, voidReason: "Sale edited" },
+        });
+        if (dto.paidAmount > 0) {
+          await tx.customerPayment.create({
+            data: {
+              customerId: sale.customerId,
+              saleId,
+              amount: dto.paidAmount,
+              method: dto.paymentMethod ?? "CASH",
+              paymentDate: sale.saleDate,
+              createdById: editedById,
+            },
+          });
+        }
+        paidAmount = dto.paidAmount;
+      }
+
+      // ── Update sale totals + status ──
       await tx.sale.update({
         where: { id: saleId },
-        data: { goodsTotal, discount, grandTotal, status: statusFor(grandTotal, sale.paidAmount) },
+        data: { goodsTotal, discount, grandTotal, paidAmount, status: statusFor(grandTotal, paidAmount) },
       });
     });
 

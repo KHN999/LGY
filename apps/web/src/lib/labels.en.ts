@@ -548,10 +548,13 @@ export const en = {
     reason: "Reason",
     confirm: "Cancel",
     walkIn: "Walk-in",
-    editPrices: "Edit prices",
+    editPrices: "Edit sale",
     editPricesHelp:
-      "Correct a mistyped price. Quantities and stock stay the same; the total and the customer's balance update automatically.",
+      "Fix items, quantities, prices, discount or how much was paid. Stock and the customer's balance update automatically.",
     credit: "Credit",
+    customItem: "Custom item",
+    fullyPaid: "Fully paid",
+    addItem: "Add item",
   },
 
   domain: {

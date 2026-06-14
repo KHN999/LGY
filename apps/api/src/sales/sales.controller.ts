@@ -18,7 +18,7 @@ import { SalesService } from "./sales.service";
 import { CreateSaleDto } from "./dto/create-sale.dto";
 import { AddPaymentDto } from "./dto/add-payment.dto";
 import { AddItemsDto } from "./dto/add-items.dto";
-import { EditSaleLinesDto } from "./dto/edit-sale-lines.dto";
+import { EditSaleDto } from "./dto/edit-sale-lines.dto";
 import { VoidSaleDto } from "./dto/void-sale.dto";
 import { ListSalesQueryDto } from "./dto/list-sales.query.dto";
 
@@ -60,12 +60,16 @@ export class SalesController {
     return this.sales.addItems(id, dto, user.sub);
   }
 
-  /** Correct a sale's prices (admin only) — re-price existing lines + discount. */
+  /** Full edit of a posted sale (admin only) — items/qty/price/discount + paid. */
   @Patch(":id/lines")
   @UseGuards(RolesGuard)
   @Roles("admin")
-  editLines(@Param("id", ParseIntPipe) id: number, @Body() dto: EditSaleLinesDto) {
-    return this.sales.editLines(id, dto);
+  editSale(
+    @Param("id", ParseIntPipe) id: number,
+    @Body() dto: EditSaleDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.sales.editSale(id, dto, user.sub);
   }
 
   @Post(":id/void")
