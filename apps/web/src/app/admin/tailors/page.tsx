@@ -4,19 +4,22 @@ import { labels } from "@/lib/labels";
 import { formatKyat } from "@/lib/utils";
 import type { Page, Tailor } from "@/lib/api-client";
 import { PageHeader, EmptyState, buttonClass } from "@/components/ui";
+import { SearchInput } from "@/components/search-input";
 
 export const dynamic = "force-dynamic";
 
 export default async function TailorsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ saved?: string; activeOnly?: string }>;
+  searchParams: Promise<{ saved?: string; activeOnly?: string; search?: string }>;
 }) {
   const params = await searchParams;
   const showInactive = params.activeOnly === "false";
-  const data = await serverFetch<Page<Tailor>>(
-    `/api/tailors?limit=200${showInactive ? "&activeOnly=false" : ""}`,
-  );
+  const search = params.search?.trim() ?? "";
+  const apiParams = new URLSearchParams({ limit: "200" });
+  if (showInactive) apiParams.set("activeOnly", "false");
+  if (search) apiParams.set("search", search);
+  const data = await serverFetch<Page<Tailor>>(`/api/tailors?${apiParams.toString()}`);
   const rows = data?.data ?? [];
   return (
     <div className="flex flex-col gap-4">
@@ -29,6 +32,7 @@ export default async function TailorsPage({
         }
       />
       {params.saved && <p className="rounded-lg bg-emerald-100 px-3 py-2 text-emerald-900">{labels.admin.saved}</p>}
+      <SearchInput />
       {rows.length === 0 ? (
         <EmptyState>{labels.admin.empty.tailors}</EmptyState>
       ) : (

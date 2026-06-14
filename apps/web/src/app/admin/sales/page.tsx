@@ -5,6 +5,7 @@ import { formatKyat, formatDate } from "@/lib/utils";
 import type { Page, Sale } from "@/lib/api-client";
 import { PageHeader, EmptyState } from "@/components/ui";
 import { DateFilter } from "@/components/admin/date-filter";
+import { SearchInput } from "@/components/search-input";
 
 export const dynamic = "force-dynamic";
 
@@ -29,23 +30,31 @@ const FILTERS: Array<{ key?: Sale["status"]; label: string }> = [
 export default async function SalesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; from?: string; to?: string; range?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    from?: string;
+    to?: string;
+    range?: string;
+    search?: string;
+  }>;
 }) {
-  const { status, from, to, range } = await searchParams;
+  const { status, from, to, range, search } = await searchParams;
 
   const apiParams = new URLSearchParams({ limit: "50" });
   if (status) apiParams.set("status", status);
   if (from) apiParams.set("fromDate", from);
   if (to) apiParams.set("toDate", to);
+  if (search) apiParams.set("search", search);
   const page = await serverFetch<Page<Sale>>(`/api/sales?${apiParams.toString()}`);
   const rows = page?.data ?? [];
 
-  // Status tabs keep the active date range.
+  // Status tabs keep the active date range + search.
   const statusHref = (key?: Sale["status"]) => {
     const p = new URLSearchParams();
     if (from) p.set("from", from);
     if (to) p.set("to", to);
     if (range) p.set("range", range);
+    if (search) p.set("search", search);
     if (key) p.set("status", key);
     const qs = p.toString();
     return qs ? `/admin/sales?${qs}` : "/admin/sales";
@@ -56,6 +65,7 @@ export default async function SalesPage({
       <PageHeader title={labels.salesAdmin.title} />
 
       <DateFilter />
+      <SearchInput />
 
       <nav className="flex flex-wrap gap-2">
         {FILTERS.map((f) => {

@@ -4,16 +4,20 @@ import { labels } from "@/lib/labels";
 import { formatKyat } from "@/lib/utils";
 import type { Page, Driver } from "@/lib/api-client";
 import { PageHeader, EmptyState, buttonClass } from "@/components/ui";
+import { SearchInput } from "@/components/search-input";
 
 export const dynamic = "force-dynamic";
 
 export default async function DriversPage({
   searchParams,
 }: {
-  searchParams: Promise<{ saved?: string }>;
+  searchParams: Promise<{ saved?: string; search?: string }>;
 }) {
   const params = await searchParams;
-  const data = await serverFetch<Page<Driver>>("/api/drivers?limit=200");
+  const search = params.search?.trim() ?? "";
+  const apiParams = new URLSearchParams({ limit: "200" });
+  if (search) apiParams.set("search", search);
+  const data = await serverFetch<Page<Driver>>(`/api/drivers?${apiParams.toString()}`);
   const rows = data?.data ?? [];
   return (
     <div className="flex flex-col gap-4">
@@ -26,6 +30,7 @@ export default async function DriversPage({
         }
       />
       {params.saved && <p className="rounded-lg bg-emerald-100 px-3 py-2 text-emerald-900">{labels.admin.saved}</p>}
+      <SearchInput />
       {rows.length === 0 ? (
         <EmptyState>{labels.admin.empty.drivers}</EmptyState>
       ) : (

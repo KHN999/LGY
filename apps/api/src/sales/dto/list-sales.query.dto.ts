@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsDateString, IsEnum, IsInt, IsOptional, Min } from "class-validator";
+import { IsDateString, IsEnum, IsInt, IsOptional, IsString, MaxLength, Min } from "class-validator";
 import { PaginationQueryDto } from "../../common/pagination.dto";
 import { CreateSaleKind } from "./create-sale.dto";
 
@@ -34,4 +34,10 @@ export class ListSalesQueryDto extends PaginationQueryDto {
 
   @IsOptional()
   includeVoided?: string;
+
+  /** Free text — matches customer name, walk-in name, or sale #. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  search?: string;
 }

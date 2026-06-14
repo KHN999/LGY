@@ -6,6 +6,7 @@ import type { DashboardSummary, StockRow } from "@/lib/api-client";
 import { PageHeader, Card } from "@/components/ui";
 import { DateFilter } from "@/components/admin/date-filter";
 import { SalesExpenseBars, ExpenseBreakdownPie } from "@/components/admin/dashboard-charts";
+import { effectiveDateRange } from "@/lib/date-range";
 
 export const dynamic = "force-dynamic";
 
@@ -30,9 +31,11 @@ const EMPTY: DashboardSummary = {
 export default async function AdminHomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; range?: string }>;
 }) {
-  const { from, to } = await searchParams;
+  // Default to today server-side so the first paint is already today (no
+  // all-time → today flash from the DateFilter's client default).
+  const { from, to } = effectiveDateRange(await searchParams);
   const params = new URLSearchParams();
   if (from) params.set("from", from);
   if (to) params.set("to", to);

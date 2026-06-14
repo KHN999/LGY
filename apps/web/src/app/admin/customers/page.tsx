@@ -6,19 +6,22 @@ import type { Page, Customer } from "@/lib/api-client";
 import { PageHeader, EmptyState, Card, buttonClass } from "@/components/ui";
 import { DebtComparisonChart } from "@/components/admin/customer-charts";
 import { ImportContacts } from "./import-contacts";
+import { SearchInput } from "@/components/search-input";
 
 export const dynamic = "force-dynamic";
 
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ saved?: string; activeOnly?: string }>;
+  searchParams: Promise<{ saved?: string; activeOnly?: string; search?: string }>;
 }) {
   const params = await searchParams;
   const showInactive = params.activeOnly === "false";
-  const data = await serverFetch<Page<Customer>>(
-    `/api/customers?limit=200${showInactive ? "&activeOnly=false" : ""}`,
-  );
+  const search = params.search?.trim() ?? "";
+  const apiParams = new URLSearchParams({ limit: "200" });
+  if (showInactive) apiParams.set("activeOnly", "false");
+  if (search) apiParams.set("search", search);
+  const data = await serverFetch<Page<Customer>>(`/api/customers?${apiParams.toString()}`);
   const rows = data?.data ?? [];
 
   const topDebtors = rows
@@ -48,7 +51,7 @@ export default async function CustomersPage({
 
       <div className="flex gap-3 text-sm">
         <Link
-          href="/admin/customers"
+          href={search ? `/admin/customers?search=${encodeURIComponent(search)}` : "/admin/customers"}
           className={
             "rounded-md px-2 py-1 " +
             (!showInactive ? "bg-accent" : "text-muted-foreground hover:bg-accent")
@@ -57,7 +60,7 @@ export default async function CustomersPage({
           {labels.admin.activeOnly}
         </Link>
         <Link
-          href="/admin/customers?activeOnly=false"
+          href={`/admin/customers?activeOnly=false${search ? `&search=${encodeURIComponent(search)}` : ""}`}
           className={
             "rounded-md px-2 py-1 " +
             (showInactive ? "bg-accent" : "text-muted-foreground hover:bg-accent")
@@ -66,6 +69,8 @@ export default async function CustomersPage({
           {labels.admin.showInactive}
         </Link>
       </div>
+
+      <SearchInput />
 
       {topDebtors.length > 0 && (
         <Card className="p-4">

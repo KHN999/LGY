@@ -161,22 +161,32 @@ export class DashboardService {
     };
     let rangeSalesTotal = 0;
     let rangeExpenseTotal = 0;
-    // Total pieces sold per item type over the range. Keyed by item-type id, or by
-    // the free-text name for ad-hoc (non-catalog) lines.
+    // Total pieces sold per item over the range. Keyed by display NAME (not item
+    // id) so a catalog item and a free-text line typed with the same name count
+    // as ONE row — e.g. selling "ဘောင်းဘီရှည်" from the catalog vs typing it
+    // free-text no longer splits into two rows. (No two catalog items share a
+    // name, so distinct products like ဘောင်းဘီရှည် vs ဘောင်းဘီတို stay separate.)
     type SoldItem = { itemTypeId: number | null; label: string; emoji: string | null; qty: number };
     const itemsMap = new Map<string, SoldItem>();
     for (const s of salesRows) {
       bucket(toYangonYmd(s.saleDate)).sales += s.grandTotal;
       rangeSalesTotal += s.grandTotal;
       for (const l of s.lines) {
-        const key = l.itemTypeId != null ? `t${l.itemTypeId}` : `n:${l.itemName ?? "—"}`;
+        const display = (l.itemType?.labelMy ?? l.itemName ?? "—").trim();
+        const key = display.toLowerCase();
         const existing = itemsMap.get(key);
         if (existing) {
           existing.qty += l.qty;
+          // A catalog line is canonical — adopt its id/label/emoji over free-text.
+          if (l.itemType) {
+            existing.itemTypeId = l.itemTypeId;
+            existing.label = l.itemType.labelMy;
+            existing.emoji = l.itemType.emoji;
+          }
         } else {
           itemsMap.set(key, {
             itemTypeId: l.itemTypeId,
-            label: l.itemType?.labelMy ?? l.itemName ?? "—",
+            label: l.itemType?.labelMy ?? display,
             emoji: l.itemType?.emoji ?? null,
             qty: l.qty,
           });

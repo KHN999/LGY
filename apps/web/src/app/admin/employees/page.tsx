@@ -5,17 +5,21 @@ import { formatKyat } from "@/lib/utils";
 import type { Page, Employee, ExpenseCategory } from "@/lib/api-client";
 import { PageHeader, EmptyState, buttonClass } from "@/components/ui";
 import { PaySalaryButton } from "@/components/admin/pay-salary-button";
+import { SearchInput } from "@/components/search-input";
 
 export const dynamic = "force-dynamic";
 
 export default async function EmployeesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ saved?: string }>;
+  searchParams: Promise<{ saved?: string; search?: string }>;
 }) {
   const params = await searchParams;
+  const search = params.search?.trim() ?? "";
+  const empParams = new URLSearchParams({ limit: "200" });
+  if (search) empParams.set("search", search);
   const [data, categories] = await Promise.all([
-    serverFetch<Page<Employee>>("/api/employees?limit=200"),
+    serverFetch<Page<Employee>>(`/api/employees?${empParams.toString()}`),
     serverFetch<ExpenseCategory[]>("/api/expenses/categories"),
   ]);
   const rows = data?.data ?? [];
@@ -31,6 +35,7 @@ export default async function EmployeesPage({
         }
       />
       {params.saved && <p className="rounded-lg bg-emerald-100 px-3 py-2 text-emerald-900">{labels.admin.saved}</p>}
+      <SearchInput />
       {rows.length === 0 ? (
         <EmptyState>{labels.admin.empty.employees}</EmptyState>
       ) : (

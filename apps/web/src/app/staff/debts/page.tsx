@@ -3,11 +3,19 @@ import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
 import { formatKyat } from "@/lib/utils";
 import type { Page, Customer } from "@/lib/api-client";
+import { SearchInput } from "@/components/search-input";
 
 export const dynamic = "force-dynamic";
 
-export default async function DebtsPage() {
-  const data = await serverFetch<Page<Customer>>("/api/customers?limit=200");
+export default async function DebtsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ search?: string }>;
+}) {
+  const { search } = await searchParams;
+  const params = new URLSearchParams({ limit: "200" });
+  if (search) params.set("search", search);
+  const data = await serverFetch<Page<Customer>>(`/api/customers?${params.toString()}`);
   const debtors = (data?.data ?? [])
     .filter((c) => c.balance > 0)
     .sort((a, b) => b.balance - a.balance);
@@ -17,6 +25,9 @@ export default async function DebtsPage() {
         ← {labels.common.back}
       </Link>
       <h1 className="mb-4 text-center text-2xl font-bold">{labels.debts.title}</h1>
+      <div className="mb-4">
+        <SearchInput />
+      </div>
       {debtors.length === 0 ? (
         <p className="rounded-2xl border bg-card p-8 text-center text-muted-foreground">
           {labels.debts.none}

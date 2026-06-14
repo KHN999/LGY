@@ -503,6 +503,13 @@ export class SalesService {
     if (q.kind) filters.push(Prisma.sql`s.kind = ${q.kind}::"SaleKind"`);
     if (q.fromDate) filters.push(Prisma.sql`s."saleDate" >= ${new Date(q.fromDate)}`);
     if (q.toDate) filters.push(Prisma.sql`s."saleDate" <= ${new Date(q.toDate)}`);
+    if (q.search?.trim()) {
+      const term = `%${q.search.trim()}%`;
+      // Matches the registered customer, a walk-in's free-text name, or the sale #.
+      filters.push(
+        Prisma.sql`(c.name ILIKE ${term} OR s."customerName" ILIKE ${term} OR CAST(s.id AS TEXT) ILIKE ${term})`,
+      );
+    }
     const where = filters.length
       ? Prisma.sql`WHERE ${Prisma.join(filters, " AND ")}`
       : Prisma.empty;
