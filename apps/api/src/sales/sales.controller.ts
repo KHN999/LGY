@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -17,6 +18,7 @@ import { SalesService } from "./sales.service";
 import { CreateSaleDto } from "./dto/create-sale.dto";
 import { AddPaymentDto } from "./dto/add-payment.dto";
 import { AddItemsDto } from "./dto/add-items.dto";
+import { EditSaleLinesDto } from "./dto/edit-sale-lines.dto";
 import { VoidSaleDto } from "./dto/void-sale.dto";
 import { ListSalesQueryDto } from "./dto/list-sales.query.dto";
 
@@ -56,6 +58,14 @@ export class SalesController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.sales.addItems(id, dto, user.sub);
+  }
+
+  /** Correct a sale's prices (admin only) — re-price existing lines + discount. */
+  @Patch(":id/lines")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  editLines(@Param("id", ParseIntPipe) id: number, @Body() dto: EditSaleLinesDto) {
+    return this.sales.editLines(id, dto);
   }
 
   @Post(":id/void")

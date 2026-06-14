@@ -105,6 +105,9 @@ function summarize(method: string, path: string, params: Record<string, string>,
     return `Switched to ${b.shop === "playground" ? "Test" : "Main"} shop`;
   }
   if (sub === "void" || sub === "cancel") return `Deleted ${noun.toLowerCase()} #${id}`;
+  if (entity === "sales" && sub === "lines") {
+    return `Edited prices on sale #${id}${hasNum(b.discount) ? ` · discount ${ks(b.discount)}` : ""}`;
+  }
   if (entity === "sales" && sub === "payments") return `Payment ${ks(b.amount)} on sale #${id}`;
   if (entity === "sales" && method === "POST" && !sub) {
     const total = items.reduce((s, i) => s + num(i.qty) * num(i.unitPrice), 0) - num(b.discount);

@@ -12,6 +12,7 @@ import { StockExceptionsService } from "../stock-exceptions/stock-exceptions.ser
 import { CreateSaleDto } from "./dto/create-sale.dto";
 import { AddPaymentDto } from "./dto/add-payment.dto";
 import { AddItemsDto } from "./dto/add-items.dto";
+import { EditSaleLinesDto } from "./dto/edit-sale-lines.dto";
 import { ListSalesQueryDto } from "./dto/list-sales.query.dto";
 
 function statusFor(grandTotal: number, paidAmount: number): TxnStatus {
@@ -893,6 +894,52 @@ export class SalesService {
           data: { customerId: sale.customerId, saleId, amount: paidNow, method: "CASH", createdById },
         });
       }
+    });
+
+    return this.getOne(saleId);
+  }
+
+  /**
+   * Correct a sale's prices (admin): set new unit prices on existing lines and
+   * optionally a new discount, then recompute goodsTotal/grandTotal/status.
+   * Quantities — and therefore stock — are NOT touched (this only re-prices what
+   * was already sold), so the inventory event is left alone. The customer balance
+   * recomputes automatically because it's derived from grandTotal. Reducing the
+   * total below what was already paid is allowed and simply leaves account credit.
+   */
+  async editLines(saleId: number, dto: EditSaleLinesDto) {
+    await this.prisma.$transaction(async (tx) => {
+      const sale = await tx.sale.findUnique({ where: { id: saleId }, include: { lines: true } });
+      if (!sale) throw new NotFoundException(`Sale ${saleId} not found`);
+      if (sale.voidedAt) throw new ConflictException("Cannot edit a voided sale");
+
+      const byId = new Map(sale.lines.map((l) => [l.id, l]));
+      for (const e of dto.lines) {
+        if (!byId.has(e.id)) {
+          throw new BadRequestException(`Line ${e.id} is not part of sale ${saleId}`);
+        }
+      }
+      const newPrice = new Map(dto.lines.map((e) => [e.id, e.unitPrice]));
+
+      let goodsTotal = 0;
+      for (const l of sale.lines) {
+        const price = newPrice.get(l.id) ?? l.unitPrice;
+        const lineTotal = price * l.qty;
+        goodsTotal += lineTotal;
+        if (newPrice.has(l.id) && price !== l.unitPrice) {
+          await tx.saleLine.update({ where: { id: l.id }, data: { unitPrice: price, lineTotal } });
+        }
+      }
+
+      const discount = dto.discount ?? sale.discount;
+      if (discount < 0) throw new BadRequestException("Discount cannot be negative");
+      if (discount > goodsTotal) throw new BadRequestException("Discount cannot exceed goods total");
+      const grandTotal = goodsTotal - discount;
+
+      await tx.sale.update({
+        where: { id: saleId },
+        data: { goodsTotal, discount, grandTotal, status: statusFor(grandTotal, sale.paidAmount) },
+      });
     });
 
     return this.getOne(saleId);

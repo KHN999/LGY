@@ -4,6 +4,7 @@ import { labels } from "@/lib/labels";
 import { formatKyat, formatDateTime } from "@/lib/utils";
 import type { SaleDetail } from "@/lib/api-client";
 import { SaleDetailActions } from "./sale-detail";
+import { EditSaleLines } from "./edit-sale-lines";
 import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -67,6 +68,8 @@ export default async function SaleDetailPage({
           </div>
         )}
       </section>
+
+      <EditSaleLines sale={sale} />
 
       <SaleDetailActions sale={sale} />
     </div>
