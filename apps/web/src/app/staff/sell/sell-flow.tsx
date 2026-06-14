@@ -54,6 +54,7 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
     note: string;
   } | null>(null);
   const [paid, setPaid] = useState(0);
+  const [payMethod, setPayMethod] = useState<"CASH" | "BANK_TRANSFER">("CASH");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -244,7 +245,8 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
           ...(l.note ? { note: l.note } : {}),
         })),
         paidAmount: paidAmount > 0 ? paidAmount : undefined,
-        paymentMethod: paidAmount > 0 ? "CASH" : undefined,
+        // Walk-in stays cash (one-time cash sale); credit customers pick cash/bank.
+        paymentMethod: paidAmount > 0 ? (walkIn ? "CASH" : payMethod) : undefined,
         saleDate: backdateIso(),
       });
       resetToToday(); // a backdate never carries into the next sale
@@ -571,12 +573,7 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
           <button
             type="button"
             disabled={cart.length === 0}
-            onClick={() => {
-              // Default paid to the full amount (most sales settle in full); the
-              // staffer taps "as credit" or edits it down for a credit sale.
-              if (!walkIn) setPaid(goodsTotal);
-              setStep("review");
-            }}
+            onClick={() => setStep("review")}
             className="rounded-xl bg-emerald-600 px-5 py-2.5 text-base font-bold text-white shadow disabled:opacity-40 active:scale-[0.97]"
           >
             {labels.sell.review}{cart.length > 0 ? ` (${cart.length})` : ""} →
@@ -676,6 +673,7 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
     })),
     grandTotal: goodsTotal,
     paid: walkIn ? goodsTotal : paid,
+    method: walkIn ? "CASH" : payMethod,
   };
 
   return (
@@ -710,18 +708,22 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
             <span className="text-lg text-muted-foreground">{labels.units.kyat}</span>
           </div>
           <div className="mt-3 flex flex-wrap justify-center gap-2">
-            {[goodsTotal, Math.round(goodsTotal / 2), 50000, 100000, 500000].map((v) =>
-              v > 0 && v <= goodsTotal ? (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => setPaid(v)}
-                  className="rounded-lg border bg-card px-3 py-1 text-sm"
-                >
-                  {formatKyat(v)}
-                </button>
-              ) : null,
-            )}
+            {/* Dedupe: goodsTotal (or its half) can coincide with a fixed amount,
+                which would otherwise yield duplicate React keys. */}
+            {[...new Set(
+              [goodsTotal, Math.round(goodsTotal / 2), 50000, 100000, 500000].filter(
+                (v) => v > 0 && v <= goodsTotal,
+              ),
+            )].map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setPaid(v)}
+                className="rounded-lg border bg-card px-3 py-1 text-sm"
+              >
+                {formatKyat(v)}
+              </button>
+            ))}
             <button
               type="button"
               onClick={() => setPaid(0)}
@@ -730,6 +732,27 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
               {labels.sell.asCredit}
             </button>
           </div>
+          {paid > 0 && (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {(["CASH", "BANK_TRANSFER"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setPayMethod(m)}
+                  className={
+                    "rounded-xl border py-2.5 text-base font-semibold transition " +
+                    (payMethod === m
+                      ? "border-2 border-emerald-500 bg-emerald-50 text-emerald-700"
+                      : "border-border bg-card text-muted-foreground")
+                  }
+                >
+                  {m === "CASH"
+                    ? `💵 ${labels.paymentReceipt.methodCash}`
+                    : `🏦 ${labels.paymentReceipt.methodBank}`}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="mt-3 flex items-center justify-between text-base">
             <span className="text-muted-foreground">{labels.sell.remaining}</span>
             <span className={remaining > 0 ? "font-semibold text-rose-600" : ""}>

@@ -42,6 +42,7 @@ export function ReceiveMoneyFlow({ shop }: { shop?: ShopSettings }) {
   );
   const [pickerOpen, setPickerOpen] = useState(false);
   const [amount, setAmount] = useState(0);
+  const [method, setMethod] = useState<"CASH" | "BANK_TRANSFER">("CASH");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<PaymentReceiptData | null>(null);
@@ -63,6 +64,7 @@ export function ReceiveMoneyFlow({ shop }: { shop?: ShopSettings }) {
       const res = await api.post<PaymentResult>("/customer-payments", {
         customerId: customer.id,
         amount,
+        method,
         paymentDate: backdateIso(),
       });
       resetToToday();
@@ -196,6 +198,25 @@ export function ReceiveMoneyFlow({ shop }: { shop?: ShopSettings }) {
             ))}
           </div>
         )}
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {(["CASH", "BANK_TRANSFER"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMethod(m)}
+              className={
+                "rounded-xl border py-3 text-base font-semibold transition " +
+                (method === m
+                  ? "border-2 border-emerald-500 bg-emerald-50 text-emerald-700"
+                  : "border-border bg-card text-muted-foreground")
+              }
+            >
+              {m === "CASH"
+                ? `💵 ${labels.paymentReceipt.methodCash}`
+                : `🏦 ${labels.paymentReceipt.methodBank}`}
+            </button>
+          ))}
+        </div>
       </div>
 
       {error && (

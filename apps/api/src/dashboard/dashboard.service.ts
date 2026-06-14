@@ -34,6 +34,10 @@ export interface DashboardSummary {
   netSales: number;
   /** All money received in range (customer payments, every method). */
   moneyIn: number;
+  /** Money received in range that was tendered as physical cash. */
+  moneyInCash: number;
+  /** Money received in range that came via bank transfer. */
+  moneyInBank: number;
   /** All money paid out in range: supplier + tailor payments + expenses + refunds. */
   moneyOut: number;
   /** Total pieces sold per item type over the selected period (ranked, biggest first). */
@@ -127,7 +131,8 @@ export class DashboardService {
         _sum: { returnTotal: true, refundAmount: true },
         where: { voidedAt: null, ...dateFilter("returnDate") },
       }),
-      this.prisma.customerPayment.aggregate({
+      this.prisma.customerPayment.groupBy({
+        by: ["method"],
         _sum: { amount: true },
         where: { voidedAt: null, ...dateFilter("paymentDate") },
       }),
@@ -221,7 +226,13 @@ export class DashboardService {
 
     const returnsTotal = returnsAgg._sum.returnTotal ?? 0;
     const refundsTotal = returnsAgg._sum.refundAmount ?? 0;
-    const moneyIn = moneyInAgg._sum.amount ?? 0;
+    const moneyInCash =
+      moneyInAgg.find((g) => g.method === "CASH")?._sum.amount ?? 0;
+    const moneyInBank =
+      moneyInAgg.find((g) => g.method === "BANK_TRANSFER")?._sum.amount ?? 0;
+    // Sum every method (not just cash+bank) so the total stays correct if more
+    // payment methods are ever added to the enum.
+    const moneyIn = moneyInAgg.reduce((s, g) => s + (g._sum.amount ?? 0), 0);
     const moneyOut =
       (supplierPaidAgg._sum.amount ?? 0) +
       (tailorPaidAgg._sum.amount ?? 0) +
@@ -253,6 +264,8 @@ export class DashboardService {
       returnsTotal,
       netSales: rangeSalesTotal - returnsTotal,
       moneyIn,
+      moneyInCash,
+      moneyInBank,
       moneyOut,
       itemsSold,
       warehouseStock: rows(whMap),

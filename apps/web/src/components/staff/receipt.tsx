@@ -20,6 +20,7 @@ export interface ReceiptData {
   lines: ReceiptLine[];
   grandTotal: number;
   paid: number;
+  method?: "CASH" | "BANK_TRANSFER"; // how the paid portion was tendered
 }
 
 /** Hide the element if its image source 404s (e.g. no logo.png uploaded yet). */
@@ -166,7 +167,14 @@ export function Receipt({ data, shop }: { data: ReceiptData; shop?: ShopSettings
             <span>{formatKyat(data.grandTotal)}</span>
           </div>
           <div className="flex justify-between">
-            <span>{labels.receipt.paid}</span>
+            <span>
+              {labels.receipt.paid}
+              {data.paid > 0 && data.method === "BANK_TRANSFER"
+                ? ` (${labels.paymentReceipt.methodBank})`
+                : data.paid > 0
+                  ? ` (${labels.paymentReceipt.methodCash})`
+                  : ""}
+            </span>
             <span>{formatKyat(data.paid)}</span>
           </div>
           {remaining > 0 && (

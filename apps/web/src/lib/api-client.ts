@@ -257,6 +257,10 @@ export interface DashboardSummary {
   netSales: number;
   /** All money received in the period (every method). */
   moneyIn: number;
+  /** Of moneyIn, the portion tendered as physical cash. */
+  moneyInCash: number;
+  /** Of moneyIn, the portion received via bank transfer. */
+  moneyInBank: number;
   /** All money paid out in the period (supplier + tailor + expenses + refunds). */
   moneyOut: number;
   /** Total pieces sold per item type over the selected period (ranked, biggest first). */

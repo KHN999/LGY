@@ -21,6 +21,8 @@ const EMPTY: DashboardSummary = {
   returnsTotal: 0,
   netSales: 0,
   moneyIn: 0,
+  moneyInCash: 0,
+  moneyInBank: 0,
   moneyOut: 0,
   itemsSold: [],
   warehouseStock: [],
@@ -83,7 +85,11 @@ export default async function AdminHomePage({
             tone={summary.returnsTotal > 0 ? "warn" : "default"}
           />
           <KpiCard label={labels.dash.operatingExpenses} value={formatKyat(summary.rangeExpenseTotal)} />
-          <KpiCard label={labels.dash.moneyIn} value={formatKyat(summary.moneyIn)} />
+          <KpiCard
+            label={labels.dash.moneyIn}
+            value={formatKyat(summary.moneyIn)}
+            sub={`${labels.paymentReceipt.methodCash} ${formatKyat(summary.moneyInCash)} · ${labels.paymentReceipt.methodBank} ${formatKyat(summary.moneyInBank)}`}
+          />
           <KpiCard
             label={labels.dash.moneyOut}
             value={formatKyat(summary.moneyOut)}
@@ -243,10 +249,12 @@ function KpiCard({
   label,
   value,
   tone = "default",
+  sub,
 }: {
   label: string;
   value: string;
   tone?: "default" | "warn";
+  sub?: string;
 }) {
   return (
     <div className="rounded-2xl border bg-card p-4">
@@ -254,6 +262,7 @@ function KpiCard({
       <p className={"mt-1 text-2xl font-bold " + (tone === "warn" ? "text-rose-600" : "")}>
         {value}
       </p>
+      {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
     </div>
   );
 }
