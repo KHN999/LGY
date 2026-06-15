@@ -135,23 +135,30 @@ export default async function AdminHomePage({
               <ul className="flex flex-col gap-1.5">
                 {summary.itemsSold.map((it) => {
                   const pct = maxSold > 0 ? Math.max(2, Math.round((it.qty / maxSold) * 100)) : 0;
+                  // Tap an item → every receipt that includes it, in the same period.
+                  const p = new URLSearchParams({ name: it.label });
+                  if (from) p.set("from", from);
+                  if (to) p.set("to", to);
                   return (
-                    <li
-                      key={it.itemTypeId ?? `n:${it.label}`}
-                      className="relative flex items-center justify-between gap-3 overflow-hidden rounded-md px-2 py-1.5"
-                    >
-                      <div
-                        className="absolute inset-y-0 left-0 rounded-md bg-emerald-500/15"
-                        style={{ width: `${pct}%` }}
-                        aria-hidden
-                      />
-                      <span className="relative flex min-w-0 items-center gap-2 text-sm">
-                        {it.emoji ? <span>{it.emoji}</span> : null}
-                        <span className="truncate">{it.label}</span>
-                      </span>
-                      <span className="relative shrink-0 text-sm font-bold tabular-nums">
-                        {it.qty.toLocaleString("en-US")}
-                      </span>
+                    <li key={it.itemTypeId ?? `n:${it.label}`}>
+                      <Link
+                        href={`/admin/item-sales?${p.toString()}`}
+                        className="relative flex items-center justify-between gap-3 overflow-hidden rounded-md px-2 py-1.5 hover:bg-accent"
+                      >
+                        <div
+                          className="absolute inset-y-0 left-0 rounded-md bg-emerald-500/15"
+                          style={{ width: `${pct}%` }}
+                          aria-hidden
+                        />
+                        <span className="relative flex min-w-0 items-center gap-2 text-sm">
+                          {it.emoji ? <span>{it.emoji}</span> : null}
+                          <span className="truncate">{it.label}</span>
+                          <span className="text-muted-foreground">›</span>
+                        </span>
+                        <span className="relative shrink-0 text-sm font-bold tabular-nums">
+                          {it.qty.toLocaleString("en-US")}
+                        </span>
+                      </Link>
                     </li>
                   );
                 })}

@@ -311,6 +311,18 @@ export interface SaleDetail extends Sale {
   payments: SalePaymentRow[];
 }
 
+/** A sale that includes a given item (dashboard items-sold drill-down). */
+export interface ItemSaleRow {
+  id: number;
+  saleDate: string;
+  status: "UNPAID" | "PARTIAL" | "PAID";
+  grandTotal: number;
+  paidAmount: number;
+  customerName: string | null;
+  itemQty: number;
+  itemTotal: number;
+}
+
 export interface SaleReturnLineRow {
   id: number;
   itemTypeId: number | null;

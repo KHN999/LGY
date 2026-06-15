@@ -709,6 +709,58 @@ export class SalesService {
     };
   }
 
+  /**
+   * Every non-voided sale that includes a given item, for the dashboard's
+   * "items sold" drill-down. Matches the dashboard's merge key: a catalog item's
+   * label OR a free-text line's name (case/space-insensitive), so a product and
+   * an identically-named ad-hoc line are tracked together. Optional date range.
+   */
+  async salesByItem(opts: { name: string; from?: string; to?: string }) {
+    const term = opts.name.trim().toLowerCase();
+    if (!term) return [];
+    const conds: Prisma.Sql[] = [
+      Prisma.sql`s."voidedAt" IS NULL`,
+      Prisma.sql`BTRIM(LOWER(COALESCE(t."labelMy", l."itemName"))) = ${term}`,
+    ];
+    if (opts.from) conds.push(Prisma.sql`s."saleDate" >= ${new Date(opts.from)}`);
+    if (opts.to) conds.push(Prisma.sql`s."saleDate" <= ${new Date(opts.to)}`);
+    const rows = await this.prisma.$queryRaw<
+      {
+        id: number;
+        saleDate: Date;
+        status: string;
+        grandTotal: number;
+        paidAmount: number;
+        customerName: string | null;
+        itemQty: number;
+        itemTotal: number;
+      }[]
+    >(Prisma.sql`
+      SELECT s.id, s."saleDate", s.status, s."grandTotal", s."paidAmount",
+             COALESCE(c.name, s."customerName") AS "customerName",
+             SUM(l.qty)::int AS "itemQty",
+             SUM(l."lineTotal")::int AS "itemTotal"
+      FROM "SaleLine" l
+      JOIN "Sale" s ON s.id = l."saleId"
+      LEFT JOIN "ItemType" t ON t.id = l."itemTypeId"
+      LEFT JOIN "Customer" c ON c.id = s."customerId"
+      WHERE ${Prisma.join(conds, " AND ")}
+      GROUP BY s.id, c.name
+      ORDER BY s."saleDate" DESC
+      LIMIT 500
+    `);
+    return rows.map((r) => ({
+      id: Number(r.id),
+      saleDate: r.saleDate,
+      status: r.status,
+      grandTotal: Number(r.grandTotal),
+      paidAmount: Number(r.paidAmount),
+      customerName: r.customerName,
+      itemQty: Number(r.itemQty),
+      itemTotal: Number(r.itemTotal),
+    }));
+  }
+
   async addPayment(saleId: number, dto: AddPaymentDto, createdById: number) {
     await assertDateNotClosed(this.prisma, dto.paymentDate ? new Date(dto.paymentDate) : null);
     return this.prisma.$transaction(async (tx) => {

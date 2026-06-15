@@ -37,6 +37,17 @@ export class SalesController {
     return this.sales.list(q);
   }
 
+  /** Sales that include a given item (dashboard items-sold drill-down). Declared
+   *  before :id so "by-item" isn't parsed as a numeric id. */
+  @Get("by-item")
+  salesByItem(
+    @Query("name") name?: string,
+    @Query("fromDate") fromDate?: string,
+    @Query("toDate") toDate?: string,
+  ) {
+    return this.sales.salesByItem({ name: name ?? "", from: fromDate, to: toDate });
+  }
+
   @Get(":id")
   getOne(@Param("id", ParseIntPipe) id: number) {
     return this.sales.getOne(id);

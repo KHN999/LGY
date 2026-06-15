@@ -80,6 +80,7 @@ export const en = {
     cashReceivedToday: "Cash received (today)",
     expectedCashToday: "Expected cash (today)",
     itemsSold: "Items sold",
+    itemReceipts: "Receipts with this item",
     customerDebt: "Customer debt",
     supplierDebt: "Supplier debt",
   },
