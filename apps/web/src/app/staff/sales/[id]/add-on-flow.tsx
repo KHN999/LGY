@@ -9,7 +9,8 @@ import { ItemTypeGrid } from "@/components/staff/item-type-grid";
 import { NumberPad } from "@/components/staff/number-pad";
 
 interface AddLine {
-  itemType: ItemType;
+  itemType: ItemType | null; // null = ad-hoc free-text line
+  itemName: string; // set for ad-hoc lines
   qty: number;
   unitPrice: number;
 }
@@ -30,7 +31,12 @@ export function AddOnFlow({ sale, onClose }: { sale: SaleDetail; onClose: () => 
   const originalFullyPaid = sale.status === "PAID";
 
   const [cart, setCart] = useState<AddLine[]>([]);
-  const [draft, setDraft] = useState<{ type: ItemType; qty: number; price: number } | null>(null);
+  const [draft, setDraft] = useState<{
+    type: ItemType | null; // null = ad-hoc (use `name`)
+    name: string;
+    qty: number;
+    price: number;
+  } | null>(null);
   const [activeField, setActiveField] = useState<"qty" | "price">("qty");
   const [paid, setPaid] = useState(0);
   const [paidTouched, setPaidTouched] = useState(false);
@@ -64,7 +70,16 @@ export function AddOnFlow({ sale, onClose }: { sale: SaleDetail; onClose: () => 
   }
   function addDraft() {
     if (!draft || draft.qty <= 0) return;
-    setCart((c) => [...c, { itemType: draft.type, qty: draft.qty, unitPrice: draft.price }]);
+    if (!draft.type && !draft.name.trim()) return; // ad-hoc line needs a name
+    setCart((c) => [
+      ...c,
+      {
+        itemType: draft.type,
+        itemName: draft.type ? "" : draft.name.trim(),
+        qty: draft.qty,
+        unitPrice: draft.price,
+      },
+    ]);
     setDraft(null);
   }
 
@@ -81,7 +96,11 @@ export function AddOnFlow({ sale, onClose }: { sale: SaleDetail; onClose: () => 
     setSubmitting(true);
     try {
       await api.post(`/sales/${sale.id}/add-items`, {
-        items: cart.map((l) => ({ itemTypeId: l.itemType.id, qty: l.qty, unitPrice: l.unitPrice })),
+        items: cart.map((l) => ({
+          ...(l.itemType ? { itemTypeId: l.itemType.id } : { itemName: l.itemName }),
+          qty: l.qty,
+          unitPrice: l.unitPrice,
+        })),
         paidAmount: paidNow,
       });
       onClose();
@@ -97,9 +116,24 @@ export function AddOnFlow({ sale, onClose }: { sale: SaleDetail; onClose: () => 
   if (draft) {
     return (
       <div className="flex flex-col gap-3 rounded-2xl border-2 border-emerald-300 bg-card p-4">
-        <p className="text-center text-lg font-bold">
-          {draft.type.emoji ?? "🧾"} {draft.type.labelMy}
-        </p>
+        {draft.type ? (
+          <p className="text-center text-lg font-bold">
+            {draft.type.emoji ?? "🧾"} {draft.type.labelMy}
+          </p>
+        ) : (
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">{labels.sell.itemName}</span>
+            <input
+              type="text"
+              autoFocus
+              value={draft.name}
+              maxLength={100}
+              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+              placeholder={labels.sell.itemNamePlaceholder}
+              className="w-full rounded-xl border bg-background px-4 py-3 text-lg outline-none focus:ring-2 focus:ring-ring"
+            />
+          </label>
+        )}
         <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={() => setActiveField("qty")} className={fieldCx(activeField === "qty")}>
             <span className="text-xs text-muted-foreground">{labels.receipt.qty}</span>
@@ -123,7 +157,7 @@ export function AddOnFlow({ sale, onClose }: { sale: SaleDetail; onClose: () => 
               if (draft.qty > 0 && activeField === "price") addDraft();
               else setActiveField(draft.qty === 0 ? "qty" : "price");
             }}
-            disabled={draft.qty <= 0}
+            disabled={draft.qty <= 0 || (!draft.type && !draft.name.trim())}
             className="flex-1 rounded-lg bg-emerald-600 py-3 font-bold text-white disabled:opacity-50"
           >
             {draft.qty > 0 && activeField === "price"
@@ -150,7 +184,8 @@ export function AddOnFlow({ sale, onClose }: { sale: SaleDetail; onClose: () => 
           {cart.map((l, i) => (
             <li key={i} className="flex items-center justify-between gap-2 py-2 text-sm">
               <span className="min-w-0 truncate">
-                {l.itemType.emoji ?? "🧾"} {l.itemType.labelMy} · {l.qty}×{formatKyat(l.unitPrice)}
+                {l.itemType ? `${l.itemType.emoji ?? "🧾"} ${l.itemType.labelMy}` : `🧾 ${l.itemName}`} ·{" "}
+                {l.qty}×{formatKyat(l.unitPrice)}
               </span>
               <div className="flex shrink-0 items-center gap-3">
                 <span className="font-semibold tabular-nums">{formatKyat(l.qty * l.unitPrice)}</span>
@@ -174,10 +209,20 @@ export function AddOnFlow({ sale, onClose }: { sale: SaleDetail; onClose: () => 
         allowOversell
         sellableOnly
         onPick={(t) => {
-          setDraft({ type: t, qty: 0, price: 0 });
+          setDraft({ type: t, name: t.labelMy, qty: 0, price: 0 });
           setActiveField("qty");
         }}
       />
+      <button
+        type="button"
+        onClick={() => {
+          setDraft({ type: null, name: "", qty: 0, price: 0 });
+          setActiveField("qty");
+        }}
+        className="self-center rounded-xl border-2 border-dashed border-primary/40 px-5 py-2 text-sm font-semibold text-primary active:scale-[0.98]"
+      >
+        ✏️ {labels.sell.manualItem}
+      </button>
 
       {cart.length > 0 && (
         <>
