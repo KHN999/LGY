@@ -561,3 +561,35 @@ export interface Statement {
   salesCount: number;
   transactions: StatementTxn[];
 }
+
+export interface SalesReportRow {
+  id: number;
+  date: string;
+  customer: string;
+  kind: string;
+  grandTotal: number;
+  paid: number;
+  remaining: number;
+  status: string;
+}
+export interface SalesReport {
+  from: string;
+  to: string;
+  rows: SalesReportRow[];
+  count: number;
+  totalGrand: number;
+  totalPaid: number;
+  totalRemaining: number;
+}
+
+export interface DebtorRow {
+  id: number;
+  name: string;
+  contact: string | null;
+  balance: number;
+}
+export interface DebtorsReport {
+  rows: DebtorRow[];
+  total: number;
+  count: number;
+}

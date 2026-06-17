@@ -22,6 +22,38 @@ export interface Statement {
   transactions: StatementTxn[];
 }
 
+export interface SalesReportRow {
+  id: number;
+  date: string;
+  customer: string;
+  kind: string;
+  grandTotal: number;
+  paid: number;
+  remaining: number;
+  status: string;
+}
+export interface SalesReport {
+  from: string;
+  to: string;
+  rows: SalesReportRow[];
+  count: number;
+  totalGrand: number;
+  totalPaid: number;
+  totalRemaining: number;
+}
+
+export interface DebtorRow {
+  id: number;
+  name: string;
+  contact: string | null;
+  balance: number;
+}
+export interface DebtorsReport {
+  rows: DebtorRow[];
+  total: number;
+  count: number;
+}
+
 function csvCell(v: string | number): string {
   const s = String(v ?? "");
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -126,6 +158,101 @@ export class ExportService {
       ...s.transactions.map((t) => [t.date.slice(0, 10), t.type, t.description, t.in || "", t.out || "", t.balance]),
       ["", "Totals", "", s.totalIn, s.totalOut, ""],
       ["", "Closing balance", "", "", "", s.closingCash],
+    ];
+    return toCsv(headers, rows);
+  }
+
+  /** Every non-voided sale in a period (gross, paid, remaining, status). */
+  async salesReport(fromStr: string | undefined, toStr: string): Promise<SalesReport> {
+    const from = fromStr ? new Date(fromStr) : undefined;
+    const upper = toStr.includes("T") ? { lte: new Date(toStr) } : { lt: addDays(new Date(toStr), 1) };
+    const range = from ? { gte: from, ...upper } : upper;
+    const sales = await this.prisma.sale.findMany({
+      where: { voidedAt: null, saleDate: range },
+      select: {
+        id: true,
+        saleDate: true,
+        kind: true,
+        grandTotal: true,
+        paidAmount: true,
+        status: true,
+        customerName: true,
+        customer: { select: { name: true } },
+      },
+      orderBy: { saleDate: "asc" },
+    });
+    const rows: SalesReportRow[] = sales.map((s) => ({
+      id: s.id,
+      date: s.saleDate.toISOString(),
+      customer: s.customer?.name ?? s.customerName ?? "Walk-in",
+      kind: s.kind,
+      grandTotal: s.grandTotal,
+      paid: s.paidAmount,
+      remaining: s.grandTotal - s.paidAmount,
+      status: s.status,
+    }));
+    const totalGrand = rows.reduce((a, r) => a + r.grandTotal, 0);
+    const totalPaid = rows.reduce((a, r) => a + r.paid, 0);
+    return {
+      from: from
+        ? toYangonYmd(from)
+        : rows.length
+          ? toYangonYmd(new Date(rows[0].date))
+          : toYangonYmd(new Date(toStr)),
+      to: toYangonYmd(new Date(toStr)),
+      rows,
+      count: rows.length,
+      totalGrand,
+      totalPaid,
+      totalRemaining: totalGrand - totalPaid,
+    };
+  }
+
+  salesReportCsv(r: SalesReport): string {
+    const headers = ["Sale #", "Date", "Customer", "Kind", "Grand total", "Paid", "Remaining", "Status"];
+    const rows: (string | number)[][] = [
+      ...r.rows.map((s) => [
+        s.id,
+        s.date.slice(0, 10),
+        s.customer,
+        s.kind,
+        s.grandTotal,
+        s.paid,
+        s.remaining,
+        s.status,
+      ]),
+      ["", "", "", "Totals", r.totalGrand, r.totalPaid, r.totalRemaining, ""],
+    ];
+    return toCsv(headers, rows);
+  }
+
+  /** Who owes money right now — current balance per customer, positive only. */
+  async debtors(): Promise<DebtorsReport> {
+    const rows = await this.prisma.$queryRaw<DebtorRow[]>`
+      SELECT c.id, c.name, c.contact,
+        (COALESCE(s.total,0) - COALESCE(r.return_total,0) - COALESCE(p.total,0) + COALESCE(r.refund_total,0))::int AS balance
+      FROM "Customer" c
+      LEFT JOIN (SELECT "customerId", SUM("grandTotal")::int AS total FROM "Sale" WHERE "voidedAt" IS NULL GROUP BY "customerId") s ON s."customerId" = c.id
+      LEFT JOIN (SELECT "customerId", SUM(amount)::int AS total FROM "CustomerPayment" WHERE "voidedAt" IS NULL GROUP BY "customerId") p ON p."customerId" = c.id
+      LEFT JOIN (SELECT "customerId", SUM("returnTotal")::int AS return_total, SUM("refundAmount")::int AS refund_total FROM "SaleReturn" WHERE "voidedAt" IS NULL GROUP BY "customerId") r ON r."customerId" = c.id
+      WHERE c."deletedAt" IS NULL
+        AND (COALESCE(s.total,0) - COALESCE(r.return_total,0) - COALESCE(p.total,0) + COALESCE(r.refund_total,0)) > 0
+      ORDER BY balance DESC
+    `;
+    const norm = rows.map((d) => ({
+      id: Number(d.id),
+      name: d.name,
+      contact: d.contact,
+      balance: Number(d.balance),
+    }));
+    return { rows: norm, total: norm.reduce((a, d) => a + d.balance, 0), count: norm.length };
+  }
+
+  debtorsCsv(r: DebtorsReport): string {
+    const headers = ["Customer", "Contact", "Owes (Ks)"];
+    const rows: (string | number)[][] = [
+      ...r.rows.map((d) => [d.name, d.contact ?? "", d.balance]),
+      ["Total", "", r.total],
     ];
     return toCsv(headers, rows);
   }

@@ -1,5 +1,5 @@
 import { serverFetch } from "@/lib/auth-server";
-import type { Statement } from "@/lib/api-client";
+import type { Statement, SalesReport, DebtorsReport } from "@/lib/api-client";
 import { PageHeader, Card } from "@/components/ui";
 import { DateFilter } from "@/components/admin/date-filter";
 import { formatKyat } from "@/lib/utils";
@@ -24,7 +24,11 @@ export default async function ExportPage({
   const suffix = qs ? `?${qs}` : "";
 
   // Show real numbers for the chosen period right on the page.
-  const stmt = await serverFetch<Statement>(`/api/export/statement${suffix}`);
+  const [stmt, sales, debtors] = await Promise.all([
+    serverFetch<Statement>(`/api/export/statement${suffix}`),
+    serverFetch<SalesReport>(`/api/export/sales${suffix}`),
+    serverFetch<DebtorsReport>(`/api/export/debtors`),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -70,6 +74,64 @@ export default async function ExportPage({
             className={btnOutline}
           >
             📄 PDF statement
+          </a>
+        </div>
+      </Card>
+
+      {/* ---------- Sales statement ---------- */}
+      <Card className="p-5">
+        <h2 className="text-lg font-semibold">Sales statement</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Every sale in the period — grand total, paid and remaining — with totals. Uses the date
+          filter above.
+        </p>
+        {sales && (
+          <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
+            <Stat label="Period" value={`${sales.from} → ${sales.to}`} />
+            <Stat label="Sales" value={`${sales.count}`} />
+            <Stat label="Gross" value={formatKyat(sales.totalGrand)} />
+            <Stat label="Unpaid" value={formatKyat(sales.totalRemaining)} />
+          </dl>
+        )}
+        <div className="mt-5 flex flex-wrap gap-3">
+          <a href={`/api/export/sales.csv${suffix}`} className={btn}>
+            ⬇️ Download CSV
+          </a>
+          <a
+            href={`/admin/export/sales${suffix}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={btnOutline}
+          >
+            📄 PDF report
+          </a>
+        </div>
+      </Card>
+
+      {/* ---------- Debtors statement ---------- */}
+      <Card className="p-5">
+        <h2 className="text-lg font-semibold">Debtors statement</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Who owes money right now — current balance per customer. (A live snapshot, not affected by
+          the date filter.)
+        </p>
+        {debtors && (
+          <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
+            <Stat label="Debtors" value={`${debtors.count}`} />
+            <Stat label="Total owed" value={formatKyat(debtors.total)} />
+          </dl>
+        )}
+        <div className="mt-5 flex flex-wrap gap-3">
+          <a href="/api/export/debtors.csv" className={btn}>
+            ⬇️ Download CSV
+          </a>
+          <a
+            href="/admin/export/debtors"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={btnOutline}
+          >
+            📄 PDF report
           </a>
         </div>
       </Card>
