@@ -9,7 +9,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { Type } from "class-transformer";
-import { IsInt, IsOptional, IsString, Max, Min } from "class-validator";
+import { IsIn, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -36,6 +36,11 @@ class HistoryQueryDto {
   @IsOptional()
   @IsString()
   toDate?: string;
+
+  /** "account" = debt collected, not tied to a sale; "sale" = paid at a sale. */
+  @IsOptional()
+  @IsIn(["sale", "account"])
+  linked?: "sale" | "account";
 }
 
 @Controller("customer-payments")
@@ -54,7 +59,12 @@ export class CustomerPaymentsController {
   /** Recent received payments (all customers) — staff "money received" history. */
   @Get()
   recent(@Query() q: HistoryQueryDto) {
-    return this.service.recent({ limit: q.limit ?? 100, from: q.fromDate, to: q.toDate });
+    return this.service.recent({
+      limit: q.limit ?? 100,
+      from: q.fromDate,
+      to: q.toDate,
+      linked: q.linked,
+    });
   }
 
   @Get("by-customer/:customerId")

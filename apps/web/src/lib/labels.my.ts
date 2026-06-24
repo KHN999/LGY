@@ -163,6 +163,8 @@ export const my: DeepPartial<Labels> = {
     history: "မှတ်တမ်း",
     historyTitle: "ရရှိငွေ မှတ်တမ်း",
     historyEmpty: "လက်ခံငွေ မရှိသေးပါ",
+    filterDebt: "ကြွေးဆပ်ငွေ",
+    filterOnSale: "အရောင်းမှ",
   },
 
   debts: {

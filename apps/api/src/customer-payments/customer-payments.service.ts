@@ -59,14 +59,17 @@ export class CustomerPaymentsService {
     };
   }
 
-  /** Recent received payments (all customers) for the staff "money received"
-   *  history. Optional Yangon-day range. Excludes voided. */
-  async recent(opts: { limit?: number; from?: string; to?: string }) {
-    const { limit = 50, from, to } = opts;
+  /** Recent received payments (all customers) for the "money received" history.
+   *  Optional Yangon-day range. `linked`: "account" = debt collection not tied to
+   *  a sale (paying off previous sales), "sale" = paid at a sale. Excludes voided. */
+  async recent(opts: { limit?: number; from?: string; to?: string; linked?: "sale" | "account" }) {
+    const { limit = 50, from, to, linked } = opts;
     const rows = await this.prisma.customerPayment.findMany({
       where: {
         voidedAt: null,
         ...(from && to ? { paymentDate: { gte: new Date(from), lte: new Date(to) } } : {}),
+        ...(linked === "account" ? { saleId: null } : {}),
+        ...(linked === "sale" ? { saleId: { not: null } } : {}),
       },
       orderBy: { paymentDate: "desc" },
       take: limit,

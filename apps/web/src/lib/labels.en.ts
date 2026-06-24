@@ -161,6 +161,8 @@ export const en = {
     history: "History",
     historyTitle: "Money received",
     historyEmpty: "No payments received",
+    filterDebt: "Debt payments",
+    filterOnSale: "On a sale",
   },
 
   debts: {
