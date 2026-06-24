@@ -243,7 +243,7 @@ export interface RollOrdersSummary {
 /** One server-aggregated payload for the admin dashboard (replaces ~9 calls). */
 export interface DashboardSummary {
   counts: { itemTypes: number; customers: number; suppliers: number; tailors: number };
-  today: { receivedTotal: number; expectedCash: number };
+  today: { receivedTotal: number; expectedCash: number; receivedTotalAll: number };
   debts: { customer: number; supplier: number };
   trend: { date: string; sales: number; expenses: number }[];
   expenseBreakdown: { name: string; value: number }[];

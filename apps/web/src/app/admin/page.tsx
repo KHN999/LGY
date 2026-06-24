@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 const EMPTY: DashboardSummary = {
   counts: { itemTypes: 0, customers: 0, suppliers: 0, tailors: 0 },
-  today: { receivedTotal: 0, expectedCash: 0 },
+  today: { receivedTotal: 0, expectedCash: 0, receivedTotalAll: 0 },
   debts: { customer: 0, supplier: 0 },
   trend: [],
   expenseBreakdown: [],
@@ -180,7 +180,11 @@ export default async function AdminHomePage({
             {labels.admin.closes} →
           </Link>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <KpiCard
+            label={labels.dash.moneyReceivedToday}
+            value={formatKyat(summary.today.receivedTotalAll)}
+          />
           <KpiCard label={labels.dash.cashReceivedToday} value={formatKyat(summary.today.receivedTotal)} />
           <KpiCard label={labels.dash.expectedCashToday} value={formatKyat(summary.today.expectedCash)} />
         </div>

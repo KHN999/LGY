@@ -5,7 +5,7 @@ import { InventoryService } from "../inventory/inventory.service";
 import { CustomersService } from "../customers/customers.service";
 import { SuppliersService } from "../suppliers/suppliers.service";
 import { SupplierOrdersService, type RollOrdersSummary } from "../supplier-orders/supplier-orders.service";
-import { addDays, toYangonYmd, ymdToYangonStart } from "../common/yangon-time";
+import { addDays, startOfTodayYangon, toYangonYmd, ymdToYangonStart } from "../common/yangon-time";
 
 export interface DashboardStockRow {
   itemTypeId: number;
@@ -17,8 +17,9 @@ export interface DashboardStockRow {
 
 export interface DashboardSummary {
   counts: { itemTypes: number; customers: number; suppliers: number; tailors: number };
-  /** "Today" physical cash drawer (CASH method only — see DailyCloseService). */
-  today: { receivedTotal: number; expectedCash: number };
+  /** "Today" figures. receivedTotal/expectedCash are CASH only (the drawer);
+   *  receivedTotalAll is all money received today (cash + bank). */
+  today: { receivedTotal: number; expectedCash: number; receivedTotalAll: number };
   /** "Right now" — current balances, not affected by the date filter. */
   debts: { customer: number; supplier: number };
   trend: { date: string; sales: number; expenses: number }[];
@@ -97,6 +98,7 @@ export class DashboardService {
       moneyInAgg,
       supplierPaidAgg,
       tailorPaidAgg,
+      todayReceivedAllAgg,
     ] = await Promise.all([
       this.prisma.itemType.count({ where: { isActive: true } }),
       this.prisma.customer.count({ where: { status: "ACTIVE", deletedAt: null } }),
@@ -143,6 +145,14 @@ export class DashboardService {
       this.prisma.tailorPayment.aggregate({
         _sum: { amount: true },
         where: { voidedAt: null, ...dateFilter("paymentDate") },
+      }),
+      // All money received TODAY (cash + bank) — always today, ignores the filter.
+      this.prisma.customerPayment.aggregate({
+        _sum: { amount: true },
+        where: {
+          voidedAt: null,
+          paymentDate: { gte: startOfTodayYangon(), lt: addDays(startOfTodayYangon(), 1) },
+        },
       }),
     ]);
 
@@ -255,7 +265,11 @@ export class DashboardService {
         suppliers: supplierCount,
         tailors: tailorCount,
       },
-      today: { receivedTotal: today.receivedTotal, expectedCash: today.expectedCash },
+      today: {
+        receivedTotal: today.receivedTotal,
+        expectedCash: today.expectedCash,
+        receivedTotalAll: todayReceivedAllAgg._sum.amount ?? 0,
+      },
       debts: { customer: customerDebt, supplier: supplierDebt },
       trend,
       expenseBreakdown,
