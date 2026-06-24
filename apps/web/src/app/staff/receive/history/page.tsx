@@ -10,16 +10,30 @@ export const dynamic = "force-dynamic";
 export default async function ReceivedHistoryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string }>;
+  searchParams: Promise<{ date?: string; linked?: string }>;
 }) {
-  const { date } = await searchParams;
+  const { date, linked } = await searchParams;
   const params = new URLSearchParams({ limit: "200" });
   if (date) {
     params.set("fromDate", new Date(`${date}T00:00:00.000+06:30`).toISOString());
     params.set("toDate", new Date(`${date}T23:59:59.999+06:30`).toISOString());
   }
+  if (linked === "account" || linked === "sale") params.set("linked", linked);
   const rows = (await serverFetch<ReceivedPaymentRow[]>(`/api/customer-payments?${params.toString()}`)) ?? [];
   const total = rows.reduce((s, r) => s + r.amount, 0);
+
+  const FILTERS: Array<{ key?: "account" | "sale"; label: string }> = [
+    { label: labels.salesAdmin.filterAll },
+    { key: "account", label: labels.receive.filterDebt },
+    { key: "sale", label: labels.receive.filterOnSale },
+  ];
+  const filterHref = (key?: "account" | "sale") => {
+    const p = new URLSearchParams();
+    if (date) p.set("date", date);
+    if (key) p.set("linked", key);
+    const qs = p.toString();
+    return qs ? `/staff/receive/history?${qs}` : "/staff/receive/history";
+  };
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-2xl flex-col gap-4 p-3 sm:p-6">
@@ -28,6 +42,24 @@ export default async function ReceivedHistoryPage({
       </Link>
       <h1 className="text-xl font-bold">{labels.receive.historyTitle}</h1>
       <SalesDateFilter />
+
+      <nav className="flex flex-wrap gap-2">
+        {FILTERS.map((f) => {
+          const active = (f.key ?? undefined) === (linked ?? undefined);
+          return (
+            <Link
+              key={f.label}
+              href={filterHref(f.key)}
+              className={
+                "rounded-lg px-3 py-1.5 text-sm " +
+                (active ? "bg-primary text-primary-foreground" : "border bg-card hover:bg-accent")
+              }
+            >
+              {f.label}
+            </Link>
+          );
+        })}
+      </nav>
 
       {rows.length > 0 && (
         <p className="text-sm text-muted-foreground">
