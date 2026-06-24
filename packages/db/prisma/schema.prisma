@@ -337,6 +337,8 @@ model SaleLine {
   // Optional per-line note — e.g. why a line is free (price 0) or a replacement.
   note       String?
 
+  returnLines SaleReturnLine[]
+
   @@index([saleId])
   @@index([itemTypeId])
 }
@@ -702,6 +704,10 @@ model SaleReturnLine {
   id         Int        @id @default(autoincrement())
   returnId   Int
   return     SaleReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  // The exact original sale line this came back from (null for older returns).
+  // Pins the return to one line so the refund uses that line's recorded price.
+  saleLineId Int?
+  saleLine   SaleLine?  @relation(fields: [saleLineId], references: [id])
   itemTypeId Int?
   itemType   ItemType?  @relation(fields: [itemTypeId], references: [id])
   itemName   String?
@@ -710,6 +716,7 @@ model SaleReturnLine {
   lineTotal  Int
 
   @@index([returnId])
+  @@index([saleLineId])
 }
 
 // ─── Shop settings (singleton, id = 1) ───────────────────────────

@@ -182,6 +182,7 @@ function ReturnForm({ sale, onClose }: { sale: SaleDetail; onClose: () => void }
     const items = sale.lines
       .filter((l) => (qtys[l.id] ?? 0) > 0)
       .map((l) => ({
+        saleLineId: l.id,
         ...(l.itemType ? { itemTypeId: l.itemType.id } : { itemName: l.itemName ?? undefined }),
         qty: qtys[l.id]!,
         unitPrice: l.unitPrice,

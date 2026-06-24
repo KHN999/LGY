@@ -104,6 +104,7 @@ export class ReturnsService {
         requested.set(key, (requested.get(key) ?? 0) + it.qty);
         return {
           key,
+          saleLineId: source.id,
           itemTypeId: source.itemTypeId,
           itemName: source.itemTypeId == null ? cleanText(source.itemName) : null,
           qty: it.qty,
@@ -165,6 +166,7 @@ export class ReturnsService {
           createdById,
           lines: {
             create: resolvedItems.map((i) => ({
+              saleLineId: i.saleLineId,
               itemTypeId: i.itemTypeId,
               itemName: i.itemName,
               qty: i.qty,
