@@ -26,17 +26,29 @@ export function OrderDetail({ order }: Props) {
 
   // Edit form state
   const [expectedQty, setExpectedQty] = useState(String(order.expectedQty));
+  const [expectedYards, setExpectedYards] = useState(
+    order.expectedYards != null ? String(order.expectedYards) : "",
+  );
+  const [pricePerYard, setPricePerYard] = useState(
+    order.pricePerYard != null ? String(order.pricePerYard) : "",
+  );
   const [expectedTotal, setExpectedTotal] = useState(String(order.expectedTotal));
   const [notes, setNotes] = useState(order.notes ?? "");
+  function recalcTotal(y: string, p: string) {
+    const t = (Number(y) || 0) * (Number(p) || 0);
+    if (t > 0) setExpectedTotal(String(t));
+  }
 
   // Payment form state
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState<"CASH" | "BANK_TRANSFER" | "MOBILE_MONEY" | "OTHER">("CASH");
+  const [payDate, setPayDate] = useState("");
 
   // Receipt form state
   const [recvQty, setRecvQty] = useState(String(remainingQty));
   const [recvGoodsCost, setRecvGoodsCost] = useState("");
   const [recvTransport, setRecvTransport] = useState("0");
+  const [recvDate, setRecvDate] = useState("");
 
   function reset() {
     setError(null);
@@ -49,6 +61,8 @@ export function OrderDetail({ order }: Props) {
     try {
       await api.patch(`/supplier-orders/${order.id}`, {
         expectedQty: Number(expectedQty),
+        expectedYards: expectedYards ? Number(expectedYards) : undefined,
+        pricePerYard: pricePerYard ? Number(pricePerYard) : undefined,
         expectedTotal: Number(expectedTotal),
         notes: notes.trim() || undefined,
       });
@@ -70,6 +84,7 @@ export function OrderDetail({ order }: Props) {
         orderId: order.id,
         amount: Number(payAmount),
         method: payMethod,
+        paymentDate: ymdToIso(payDate),
       });
       reset();
       setPayAmount("");
@@ -89,6 +104,7 @@ export function OrderDetail({ order }: Props) {
         receivedQty: Number(recvQty),
         goodsCost: Number(recvGoodsCost),
         transportCost: Number(recvTransport) || 0,
+        receivedAt: ymdToIso(recvDate),
       });
       reset();
       router.refresh();
@@ -203,6 +219,32 @@ export function OrderDetail({ order }: Props) {
                 className={inp}
               />
             </Field>
+            <Field label={labels.admin.order.yards}>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={expectedYards}
+                onChange={(e) => {
+                  setExpectedYards(e.target.value);
+                  recalcTotal(e.target.value, pricePerYard);
+                }}
+                className={inp}
+              />
+            </Field>
+            <Field label={labels.admin.order.pricePerYard}>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={pricePerYard}
+                onChange={(e) => {
+                  setPricePerYard(e.target.value);
+                  recalcTotal(expectedYards, e.target.value);
+                }}
+                className={inp}
+              />
+            </Field>
             <Field label={labels.admin.order.totalExpected}>
               <input
                 type="number"
@@ -248,6 +290,14 @@ export function OrderDetail({ order }: Props) {
               <option value="OTHER">OTHER</option>
             </select>
           </Field>
+          <Field label={labels.admin.order.paymentDate}>
+            <input
+              type="date"
+              value={payDate}
+              onChange={(e) => setPayDate(e.target.value)}
+              className={inp}
+            />
+          </Field>
           <Actions
             onCancel={reset}
             onSave={recordPayment}
@@ -288,6 +338,14 @@ export function OrderDetail({ order }: Props) {
                 min={0}
                 value={recvTransport}
                 onChange={(e) => setRecvTransport(e.target.value)}
+                className={inp}
+              />
+            </Field>
+            <Field label={labels.admin.order.receiptDate}>
+              <input
+                type="date"
+                value={recvDate}
+                onChange={(e) => setRecvDate(e.target.value)}
                 className={inp}
               />
             </Field>
@@ -394,6 +452,10 @@ export function OrderDetail({ order }: Props) {
 
 const inp =
   "rounded-lg border bg-background px-3 py-2 text-base outline-none focus:ring-2 focus:ring-ring";
+
+// Date-only input → noon Yangon ISO (displays on the chosen day); blank = today.
+const ymdToIso = (d: string) =>
+  d ? new Date(`${d}T12:00:00+06:30`).toISOString() : undefined;
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

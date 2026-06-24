@@ -31,7 +31,19 @@ export class CreateSupplierOrderDto {
   @Min(1)
   expectedQty!: number;
 
-  /** Single agreed total cost in kyat (no per-unit pricing). */
+  /** Total yards expected (fabric is priced by the yard). */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  expectedYards?: number;
+
+  /** Agreed price per yard in kyat. */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  pricePerYard?: number;
+
+  /** Single agreed total cost in kyat. */
   @IsInt()
   @Min(0)
   expectedTotal!: number;

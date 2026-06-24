@@ -25,10 +25,25 @@ export function OrderForm({ suppliers, itemTypes, initial }: Props) {
   const [expectedQty, setExpectedQty] = useState<string>(
     String(initial?.expectedQty ?? ""),
   );
+  const [expectedYards, setExpectedYards] = useState<string>(
+    initial?.expectedYards != null ? String(initial.expectedYards) : "",
+  );
+  const [pricePerYard, setPricePerYard] = useState<string>(
+    initial?.pricePerYard != null ? String(initial.pricePerYard) : "",
+  );
   const [expectedTotal, setExpectedTotal] = useState<string>(
     String(initial?.expectedTotal ?? ""),
   );
+  const [orderDate, setOrderDate] = useState<string>(
+    initial?.orderDate ? initial.orderDate.slice(0, 10) : "",
+  );
   const [notes, setNotes] = useState(initial?.notes ?? "");
+
+  // Total auto-fills from yards × price/yard (still editable to override).
+  function recalcTotal(y: string, p: string) {
+    const t = (Number(y) || 0) * (Number(p) || 0);
+    if (t > 0) setExpectedTotal(String(t));
+  }
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,7 +55,11 @@ export function OrderForm({ suppliers, itemTypes, initial }: Props) {
       supplierId: Number(supplierId),
       itemTypeId: Number(itemTypeId),
       expectedQty: Number(expectedQty),
+      expectedYards: expectedYards ? Number(expectedYards) : undefined,
+      pricePerYard: pricePerYard ? Number(pricePerYard) : undefined,
       expectedTotal: Number(expectedTotal),
+      // Date-only → noon Yangon so it displays on the chosen day; blank = today.
+      orderDate: orderDate ? new Date(`${orderDate}T12:00:00+06:30`).toISOString() : undefined,
       notes: notes.trim() || undefined,
     };
     try {
@@ -109,6 +128,40 @@ export function OrderForm({ suppliers, itemTypes, initial }: Props) {
             min={1}
             value={expectedQty}
             onChange={(e) => setExpectedQty(e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+        <Field label={labels.admin.order.orderDate}>
+          <input
+            type="date"
+            value={orderDate}
+            onChange={(e) => setOrderDate(e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+        <Field label={labels.admin.order.yards}>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={expectedYards}
+            onChange={(e) => {
+              setExpectedYards(e.target.value);
+              recalcTotal(e.target.value, pricePerYard);
+            }}
+            className={inputClass}
+          />
+        </Field>
+        <Field label={labels.admin.order.pricePerYard + " (" + labels.units.kyat + ")"}>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={pricePerYard}
+            onChange={(e) => {
+              setPricePerYard(e.target.value);
+              recalcTotal(expectedYards, e.target.value);
+            }}
             className={inputClass}
           />
         </Field>

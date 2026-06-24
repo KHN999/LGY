@@ -421,8 +421,12 @@ model SupplierOrder {
   /// Editable while status != RECEIVED && != CANCELLED.
   /// Number of rolls/units expected.
   expectedQty   Int
-  /// Single agreed total cost in kyat. Per-roll pricing has no business meaning
-  /// (rolls vary in size, and each yields hundreds of pieces post-cut).
+  /// Total yards expected and the agreed price per yard (fabric is priced by the
+  /// yard). Optional — older orders predate yard tracking. expectedTotal stays the
+  /// authoritative agreed total (≈ expectedYards × pricePerYard, but editable).
+  expectedYards Int?
+  pricePerYard  Int?
+  /// Single agreed total cost in kyat.
   expectedTotal Int
 
   notes       String?

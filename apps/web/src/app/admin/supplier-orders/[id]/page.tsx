@@ -69,6 +69,14 @@ export default async function OrderDetailPage({
         {formatDate(order.orderDate)}
       </p>
 
+      {order.expectedYards != null && (
+        <p className="-mt-2 text-sm text-muted-foreground">
+          {labels.admin.order.yards}: {order.expectedYards.toLocaleString("en-US")}
+          {order.pricePerYard != null &&
+            ` · ${labels.admin.order.pricePerYard}: ${formatKyat(order.pricePerYard)}`}
+        </p>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label={labels.admin.order.expectedQty} value={String(order.expectedQty)} />
         <Stat label={labels.admin.order.receivedQty} value={String(received)} tone="emerald" />
