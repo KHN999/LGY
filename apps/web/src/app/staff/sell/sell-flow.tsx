@@ -55,11 +55,12 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
   } | null>(null);
   const [paid, setPaid] = useState(0);
   const [payMethod, setPayMethod] = useState<"CASH" | "BANK_TRANSFER">("CASH");
+  const [note, setNote] = useState(""); // optional per-sale note (e.g. "collect tomorrow")
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [walkIn, setWalkIn] = useState(false); // one-time buyer (no account, cash only)
+  const [walkIn, setWalkIn] = useState(false); // one-time buyer (no account; pays in full, cash or bank)
   const [saveAsNew, setSaveAsNew] = useState(false); // create a new customer on submit
   const [newName, setNewName] = useState("");
   const [custMode, setCustMode] = useState<"choose" | "new">("choose");
@@ -245,8 +246,9 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
           ...(l.note ? { note: l.note } : {}),
         })),
         paidAmount: paidAmount > 0 ? paidAmount : undefined,
-        // Walk-in stays cash (one-time cash sale); credit customers pick cash/bank.
-        paymentMethod: paidAmount > 0 ? (walkIn ? "CASH" : payMethod) : undefined,
+        // Cash/bank applies to any paid amount — walk-in included.
+        paymentMethod: paidAmount > 0 ? payMethod : undefined,
+        notes: note.trim() || undefined,
         saleDate: backdateIso(),
       });
       resetToToday(); // a backdate never carries into the next sale
@@ -673,7 +675,8 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
     })),
     grandTotal: goodsTotal,
     paid: walkIn ? goodsTotal : paid,
-    method: walkIn ? "CASH" : payMethod,
+    method: payMethod,
+    notes: note.trim() || null,
   };
 
   return (
@@ -733,24 +736,8 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
             </button>
           </div>
           {paid > 0 && (
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {(["CASH", "BANK_TRANSFER"] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setPayMethod(m)}
-                  className={
-                    "rounded-xl border py-2.5 text-base font-semibold transition " +
-                    (payMethod === m
-                      ? "border-2 border-emerald-500 bg-emerald-50 text-emerald-700"
-                      : "border-border bg-card text-muted-foreground")
-                  }
-                >
-                  {m === "CASH"
-                    ? `💵 ${labels.paymentReceipt.methodCash}`
-                    : `🏦 ${labels.paymentReceipt.methodBank}`}
-                </button>
-              ))}
+            <div className="mt-3">
+              <MethodToggle value={payMethod} onChange={setPayMethod} />
             </div>
           )}
           <div className="mt-3 flex items-center justify-between text-base">
@@ -762,11 +749,37 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
         </section>
       )}
 
+      {/* Walk-in pays in full — no paid input needed, but they can still pay by
+          cash or bank, so offer the method choice here too. */}
+      {walkIn && (
+        <section className="rounded-2xl border bg-card p-4">
+          <p className="mb-2 text-sm text-muted-foreground">{labels.sell.paymentMethod}</p>
+          <MethodToggle value={payMethod} onChange={setPayMethod} />
+        </section>
+      )}
+
       {error && (
         <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-center text-destructive">
           {error}
         </p>
       )}
+
+      <section className="rounded-2xl border bg-card p-4">
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm text-muted-foreground">
+            {labels.sell.note}{" "}
+            <span className="text-xs">({labels.common.optional})</span>
+          </span>
+          <textarea
+            rows={2}
+            maxLength={500}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={labels.sell.notePlaceholder}
+            className="w-full rounded-xl border bg-background px-4 py-2.5 text-base outline-none focus:ring-2 focus:ring-ring"
+          />
+        </label>
+      </section>
 
       <div className="fixed inset-x-0 bottom-0 border-t bg-background p-3 sm:p-4">
         <div className="mx-auto flex max-w-2xl gap-3">
@@ -805,5 +818,36 @@ function BackLink({ href }: { href: string }) {
     <Link href={href} className="self-start rounded-lg border px-4 py-2">
       ← {labels.common.back}
     </Link>
+  );
+}
+
+/** Cash / Bank chooser for the paid amount (account customers and walk-ins). */
+function MethodToggle({
+  value,
+  onChange,
+}: {
+  value: "CASH" | "BANK_TRANSFER";
+  onChange: (m: "CASH" | "BANK_TRANSFER") => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {(["CASH", "BANK_TRANSFER"] as const).map((m) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => onChange(m)}
+          className={
+            "rounded-xl border py-2.5 text-base font-semibold transition " +
+            (value === m
+              ? "border-2 border-emerald-500 bg-emerald-50 text-emerald-700"
+              : "border-border bg-card text-muted-foreground")
+          }
+        >
+          {m === "CASH"
+            ? `💵 ${labels.paymentReceipt.methodCash}`
+            : `🏦 ${labels.paymentReceipt.methodBank}`}
+        </button>
+      ))}
+    </div>
   );
 }

@@ -72,6 +72,13 @@ export default async function SaleDetailPage({
         )}
       </section>
 
+      {sale.notes && (
+        <section className="rounded-2xl border bg-card p-4">
+          <p className="text-xs text-muted-foreground">{labels.admin.fields.notes}</p>
+          <p className="mt-1 whitespace-pre-line text-sm">📝 {sale.notes}</p>
+        </section>
+      )}
+
       <EditSaleLines sale={sale} itemTypes={itemTypes ?? []} />
 
       <SaleDetailActions sale={sale} />

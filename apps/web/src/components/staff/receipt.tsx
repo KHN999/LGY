@@ -21,6 +21,7 @@ export interface ReceiptData {
   grandTotal: number;
   paid: number;
   method?: "CASH" | "BANK_TRANSFER"; // how the paid portion was tendered
+  notes?: string | null; // optional per-sale note (e.g. "collect tomorrow")
 }
 
 /** Hide the element if its image source 404s (e.g. no logo.png uploaded yet). */
@@ -184,6 +185,10 @@ export function Receipt({ data, shop }: { data: ReceiptData; shop?: ShopSettings
             </div>
           )}
         </div>
+
+        {data.notes && (
+          <p className="mt-4 whitespace-pre-line text-sm">📝 {data.notes}</p>
+        )}
 
         <p className="mt-8 whitespace-pre-line text-center text-sm">{footer}</p>
       </div>
