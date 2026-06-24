@@ -127,6 +127,8 @@ export default async function SupplierOrdersPage({
                     <p className="mt-1 text-sm text-muted-foreground">
                       {o.itemType?.emoji} {o.itemType?.labelMy} ×{" "}
                       <span className="font-medium">{received}</span> / {o.expectedQty}
+                      {o.expectedYards != null &&
+                        ` · ${o.expectedYards.toLocaleString("en-US")} ${labels.admin.order.yards}`}
                       {" · "}
                       {formatDate(o.orderDate)}
                     </p>
