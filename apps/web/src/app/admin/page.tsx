@@ -23,6 +23,8 @@ const EMPTY: DashboardSummary = {
   moneyIn: 0,
   moneyInCash: 0,
   moneyInBank: 0,
+  moneyInDebt: 0,
+  moneyInOnSale: 0,
   moneyOut: 0,
   itemsSold: [],
   warehouseStock: [],
@@ -88,7 +90,15 @@ export default async function AdminHomePage({
           <KpiCard
             label={labels.dash.moneyIn}
             value={formatKyat(summary.moneyIn)}
-            sub={`${labels.paymentReceipt.methodCash} ${formatKyat(summary.moneyInCash)} · ${labels.paymentReceipt.methodBank} ${formatKyat(summary.moneyInBank)}`}
+            sub={
+              <>
+                {labels.paymentReceipt.methodCash} {formatKyat(summary.moneyInCash)} ·{" "}
+                {labels.paymentReceipt.methodBank} {formatKyat(summary.moneyInBank)}
+                <br />
+                {labels.receive.filterDebt} {formatKyat(summary.moneyInDebt)} ·{" "}
+                {labels.receive.filterOnSale} {formatKyat(summary.moneyInOnSale)}
+              </>
+            }
             href={`/admin/payments${qs ? `?${qs}` : ""}`}
           />
           <KpiCard
@@ -267,7 +277,7 @@ function KpiCard({
   label: string;
   value: string;
   tone?: "default" | "warn";
-  sub?: string;
+  sub?: React.ReactNode;
   href?: string;
 }) {
   const body = (

@@ -261,6 +261,10 @@ export interface DashboardSummary {
   moneyInCash: number;
   /** Of moneyIn, the portion received via bank transfer. */
   moneyInBank: number;
+  /** Of moneyIn, debt collected (not tied to a sale). */
+  moneyInDebt: number;
+  /** Of moneyIn, paid at the time of a sale. */
+  moneyInOnSale: number;
   /** All money paid out in the period (supplier + tailor + expenses + refunds). */
   moneyOut: number;
   /** Total pieces sold per item type over the selected period (ranked, biggest first). */

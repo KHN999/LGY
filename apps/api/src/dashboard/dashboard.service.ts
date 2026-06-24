@@ -39,6 +39,10 @@ export interface DashboardSummary {
   moneyInCash: number;
   /** Money received in range that came via bank transfer. */
   moneyInBank: number;
+  /** Money received in range NOT tied to a sale (debt collected on prior sales). */
+  moneyInDebt: number;
+  /** Money received in range paid at the time of a sale. */
+  moneyInOnSale: number;
   /** All money paid out in range: supplier + tailor payments + expenses + refunds. */
   moneyOut: number;
   /** Total pieces sold per item type over the selected period (ranked, biggest first). */
@@ -99,6 +103,7 @@ export class DashboardService {
       supplierPaidAgg,
       tailorPaidAgg,
       todayReceivedAllAgg,
+      moneyInDebtAgg,
     ] = await Promise.all([
       this.prisma.itemType.count({ where: { isActive: true } }),
       this.prisma.customer.count({ where: { status: "ACTIVE", deletedAt: null } }),
@@ -153,6 +158,11 @@ export class DashboardService {
           voidedAt: null,
           paymentDate: { gte: startOfTodayYangon(), lt: addDays(startOfTodayYangon(), 1) },
         },
+      }),
+      // Of money received in range, the part NOT tied to a sale (debt collection).
+      this.prisma.customerPayment.aggregate({
+        _sum: { amount: true },
+        where: { voidedAt: null, saleId: null, ...dateFilter("paymentDate") },
       }),
     ]);
 
@@ -243,6 +253,8 @@ export class DashboardService {
     // Sum every method (not just cash+bank) so the total stays correct if more
     // payment methods are ever added to the enum.
     const moneyIn = moneyInAgg.reduce((s, g) => s + (g._sum.amount ?? 0), 0);
+    const moneyInDebt = moneyInDebtAgg._sum.amount ?? 0;
+    const moneyInOnSale = moneyIn - moneyInDebt;
     const moneyOut =
       (supplierPaidAgg._sum.amount ?? 0) +
       (tailorPaidAgg._sum.amount ?? 0) +
@@ -280,6 +292,8 @@ export class DashboardService {
       moneyIn,
       moneyInCash,
       moneyInBank,
+      moneyInDebt,
+      moneyInOnSale,
       moneyOut,
       itemsSold,
       warehouseStock: rows(whMap),
