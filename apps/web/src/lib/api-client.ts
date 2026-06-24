@@ -406,6 +406,17 @@ export interface PaymentResult {
   balanceAfter: number;
 }
 
+/** A received payment row for the staff "money received" history list. */
+export interface ReceivedPaymentRow {
+  id: number;
+  amount: number;
+  method: "CASH" | "BANK_TRANSFER";
+  paymentDate: string;
+  saleId: number | null;
+  customerId: number | null;
+  customerName: string | null;
+}
+
 export interface DailyClosePreview {
   date: string;
   openingCash: number;
@@ -474,6 +485,8 @@ export interface SupplierOrder {
   orderDate: string;
   status: SupplierOrderStatus;
   expectedQty: number;
+  expectedYards: number | null;
+  pricePerYard: number | null;
   expectedTotal: number;
   notes: string | null;
   receipts: SupplierOrderReceipt[];

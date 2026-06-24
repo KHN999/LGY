@@ -89,6 +89,7 @@ export default async function AdminHomePage({
             label={labels.dash.moneyIn}
             value={formatKyat(summary.moneyIn)}
             sub={`${labels.paymentReceipt.methodCash} ${formatKyat(summary.moneyInCash)} · ${labels.paymentReceipt.methodBank} ${formatKyat(summary.moneyInBank)}`}
+            href={`/admin/payments${qs ? `?${qs}` : ""}`}
           />
           <KpiCard
             label={labels.dash.moneyOut}
@@ -257,21 +258,31 @@ function KpiCard({
   value,
   tone = "default",
   sub,
+  href,
 }: {
   label: string;
   value: string;
   tone?: "default" | "warn";
   sub?: string;
+  href?: string;
 }) {
-  return (
-    <div className="rounded-2xl border bg-card p-4">
+  const body = (
+    <>
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className={"mt-1 text-2xl font-bold " + (tone === "warn" ? "text-rose-600" : "")}>
         {value}
       </p>
       {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
-    </div>
+    </>
   );
+  if (href) {
+    return (
+      <Link href={href} className="rounded-2xl border bg-card p-4 hover:bg-accent">
+        {body}
+      </Link>
+    );
+  }
+  return <div className="rounded-2xl border bg-card p-4">{body}</div>;
 }
 
 function CountCard({

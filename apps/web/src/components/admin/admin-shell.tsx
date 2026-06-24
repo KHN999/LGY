@@ -42,6 +42,7 @@ const GROUPS: { title: string; items: NavItem[] }[] = [
     title: labels.admin.navGroups.money,
     items: [
       { href: "/admin/sales", label: labels.admin.sales, icon: "🧾" },
+      { href: "/admin/payments", label: labels.admin.payments, icon: "💵" },
       { href: "/admin/returns", label: labels.admin.returns, icon: "↩️" },
       { href: "/admin/supplier-orders", label: labels.admin.supplierOrders, icon: "📥" },
       { href: "/admin/expenses", label: labels.admin.expenses, icon: "💸" },

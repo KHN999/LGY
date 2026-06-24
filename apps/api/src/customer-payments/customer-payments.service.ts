@@ -59,6 +59,38 @@ export class CustomerPaymentsService {
     };
   }
 
+  /** Recent received payments (all customers) for the staff "money received"
+   *  history. Optional Yangon-day range. Excludes voided. */
+  async recent(opts: { limit?: number; from?: string; to?: string }) {
+    const { limit = 50, from, to } = opts;
+    const rows = await this.prisma.customerPayment.findMany({
+      where: {
+        voidedAt: null,
+        ...(from && to ? { paymentDate: { gte: new Date(from), lte: new Date(to) } } : {}),
+      },
+      orderBy: { paymentDate: "desc" },
+      take: limit,
+      select: {
+        id: true,
+        amount: true,
+        method: true,
+        paymentDate: true,
+        saleId: true,
+        customerId: true,
+        customer: { select: { name: true } },
+      },
+    });
+    return rows.map((p) => ({
+      id: p.id,
+      amount: p.amount,
+      method: p.method,
+      paymentDate: p.paymentDate,
+      saleId: p.saleId,
+      customerId: p.customerId,
+      customerName: p.customer?.name ?? null,
+    }));
+  }
+
   async listForCustomer(customerId: number, limit = 50) {
     return this.prisma.customerPayment.findMany({
       where: { customerId, voidedAt: null },

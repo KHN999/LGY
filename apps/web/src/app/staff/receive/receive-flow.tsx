@@ -125,9 +125,14 @@ export function ReceiveMoneyFlow({ shop }: { shop?: ShopSettings }) {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 p-4 sm:p-6">
-      <Link href="/staff" className="self-start rounded-lg border px-4 py-2">
-        ← {labels.common.back}
-      </Link>
+      <div className="flex items-center justify-between gap-2">
+        <Link href="/staff" className="rounded-lg border px-4 py-2">
+          ← {labels.common.back}
+        </Link>
+        <Link href="/staff/receive/history" className="rounded-lg border px-4 py-2 text-sm">
+          📋 {labels.receive.history}
+        </Link>
+      </div>
       <h1 className="text-center text-2xl font-bold">{labels.receive.title}</h1>
 
       <div className="rounded-2xl border bg-card p-4">
