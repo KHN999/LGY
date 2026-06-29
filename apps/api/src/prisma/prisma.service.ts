@@ -13,7 +13,13 @@ function urlForShop(shop: ShopId): string {
 // Members that belong to PrismaService itself and must NOT be forwarded to a
 // Prisma client. Everything else (model delegates, $transaction, $queryRaw, …)
 // is routed to the active shop's client.
-const OWN_KEYS = new Set(["main", "playground", "onModuleInit", "onModuleDestroy"]);
+const OWN_KEYS = new Set([
+  "main",
+  "playground",
+  "otherShopClients",
+  "onModuleInit",
+  "onModuleDestroy",
+]);
 
 // Interactive-transaction defaults. Prisma's stock 5s timeout is too tight for
 // multi-step writes (a sale touches ~12-15 rows) once any per-query latency is
@@ -56,6 +62,13 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         return typeof value === "function" ? value.bind(active) : value;
       },
     });
+  }
+
+  /** Every shop client EXCEPT main. Used to mirror canonical (main-schema)
+   *  records — e.g. user accounts — into each shop schema so cross-schema FKs
+   *  (Sale.createdById, …) hold when operating in that shop. */
+  otherShopClients(): PrismaClient[] {
+    return [this.playground];
   }
 
   async onModuleInit() {

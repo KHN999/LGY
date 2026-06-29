@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import bcrypt from "bcryptjs";
@@ -35,11 +36,42 @@ function rolesFor(role: UserRoleInput): string[] {
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
   constructor(private readonly prisma: PrismaService) {}
 
   // Accounts are canonical in the main schema — never shop-scoped.
   private get db() {
     return this.prisma.main;
+  }
+
+  /**
+   * Mirror a (canonical, main-schema) user into every other shop schema with the
+   * SAME id, so Sale.createdById and other per-shop FKs resolve when that user
+   * works in a shop (e.g. the test shop). Best-effort — a mirror failure never
+   * blocks main-schema user management.
+   */
+  private async mirror(id: number): Promise<void> {
+    const u = await this.db.user.findUnique({ where: { id } });
+    if (!u) return;
+    const data = {
+      username: u.username,
+      displayName: u.displayName,
+      passwordHash: u.passwordHash,
+      photoUrl: u.photoUrl,
+      roles: u.roles,
+      status: u.status,
+    };
+    for (const client of this.prisma.otherShopClients()) {
+      try {
+        await client.user.upsert({
+          where: { id: u.id },
+          create: { id: u.id, ...data },
+          update: data,
+        });
+      } catch (e) {
+        this.logger.error(`Failed to mirror user ${u.id} into a shop schema: ${String(e)}`);
+      }
+    }
   }
 
   async list(): Promise<UserRow[]> {
@@ -54,7 +86,7 @@ export class UsersService {
     const existing = await this.db.user.findUnique({ where: { username } });
     if (existing) throw new ConflictException(`Username "${username}" is already taken`);
     const passwordHash = await bcrypt.hash(dto.password, 12);
-    return this.db.user.create({
+    const created = await this.db.user.create({
       data: {
         username,
         displayName: dto.displayName.trim(),
@@ -64,6 +96,8 @@ export class UsersService {
       },
       select: SELECT,
     });
+    await this.mirror(created.id);
+    return created;
   }
 
   async update(id: number, dto: UpdateUserDto, actingUserId: number): Promise<UserRow> {
@@ -92,7 +126,7 @@ export class UsersService {
       }
     }
 
-    return this.db.user.update({
+    const updated = await this.db.user.update({
       where: { id },
       data: {
         ...(dto.displayName !== undefined ? { displayName: dto.displayName.trim() } : {}),
@@ -101,6 +135,8 @@ export class UsersService {
       },
       select: SELECT,
     });
+    await this.mirror(id);
+    return updated;
   }
 
   async resetPassword(id: number, password: string): Promise<{ ok: true }> {
@@ -108,6 +144,7 @@ export class UsersService {
     if (!user) throw new NotFoundException(`User ${id} not found`);
     const passwordHash = await bcrypt.hash(password, 12);
     await this.db.user.update({ where: { id }, data: { passwordHash } });
+    await this.mirror(id);
     return { ok: true };
   }
 }
