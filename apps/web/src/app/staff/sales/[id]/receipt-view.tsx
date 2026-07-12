@@ -49,6 +49,7 @@ export function ReceiptView({
     saleId: sale.id,
     date: sale.saleDate,
     customerName: sale.customer?.name ?? sale.customerName ?? null,
+    customerContact: sale.customer?.contact ?? null,
     lines: sale.lines.map((l) => ({
       label: l.itemType?.labelMy ?? l.itemName ?? "",
       qty: l.qty,
@@ -61,6 +62,7 @@ export function ReceiptView({
   };
 
   const voided = sale.voidedAt != null;
+  const remaining = sale.grandTotal - sale.paidAmount;
 
   return (
     <>
@@ -73,6 +75,8 @@ export function ReceiptView({
           {labels.salesAdmin.voided}
         </p>
       )}
+
+      {!voided && remaining > 0 && <PaymentPanel saleId={sale.id} remaining={remaining} />}
 
       {returns.length > 0 && (
         <section className="rounded-2xl border bg-card p-4">
@@ -164,6 +168,103 @@ export function ReceiptView({
           document.body,
         )}
     </>
+  );
+}
+
+/** Settle a credit sale — record a payment against it (flips it to PARTIAL/PAID
+ *  via POST /sales/:id/payments, which links the payment to this sale). */
+function PaymentPanel({ saleId, remaining }: { saleId: number; remaining: number }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState(String(remaining));
+  const [method, setMethod] = useState<"CASH" | "BANK_TRANSFER">("CASH");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const toNum = (s: string) => Math.max(0, Math.min(remaining, Math.round(Number(s) || 0)));
+
+  async function submit() {
+    const amt = toNum(amount);
+    if (amt <= 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/sales/${saleId}/payments`, { amount: amt, method });
+      setOpen(false);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : labels.errors.unknown);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="rounded-2xl bg-amber-600 py-4 text-lg font-bold text-white shadow active:scale-[0.98]"
+      >
+        💵 {labels.salesAdmin.recordPayment} ({formatKyat(remaining)})
+      </button>
+    );
+  }
+
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl border-2 border-amber-300 bg-card p-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-bold">{labels.salesAdmin.recordPayment}</h2>
+        <span className="text-sm text-muted-foreground">
+          {labels.domain.remaining}: {formatKyat(remaining)}
+        </span>
+      </div>
+      <div className="flex items-center justify-center gap-3">
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={remaining}
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          className="w-48 rounded-xl border bg-background px-4 py-3 text-center text-2xl font-bold tabular-nums outline-none focus:ring-2 focus:ring-ring"
+        />
+        <span className="text-muted-foreground">{labels.units.kyat}</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {(["CASH", "BANK_TRANSFER"] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setMethod(m)}
+            className={
+              "rounded-xl border py-2.5 text-base font-semibold transition " +
+              (method === m
+                ? "border-2 border-emerald-500 bg-emerald-50 text-emerald-700"
+                : "border-border bg-card text-muted-foreground")
+            }
+          >
+            {m === "CASH"
+              ? `💵 ${labels.paymentReceipt.methodCash}`
+              : `🏦 ${labels.paymentReceipt.methodBank}`}
+          </button>
+        ))}
+      </div>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <div className="flex gap-2">
+        <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-xl border py-3">
+          {labels.common.cancel}
+        </button>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={busy || toNum(amount) <= 0}
+          className="flex-1 rounded-xl bg-emerald-600 py-3 font-bold text-white disabled:opacity-50"
+        >
+          {busy ? labels.common.saving : labels.common.save}
+        </button>
+      </div>
+    </section>
   );
 }
 

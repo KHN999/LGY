@@ -442,6 +442,7 @@ export const my: DeepPartial<Labels> = {
     feePerPiece: "တစ်ထည်ခ",
     toPay: "ပေးရန်",
     openingStockHistory: "အစတော့ မှတ်တမ်း",
+    openingStockDeleteConfirm: "ဤစာရင်းကို ဖျက်မလား? ၎င်း၏ လက်ကျန်ကို ပြန်ဖြုတ်ပါမည်။",
     atLeastOneQty: "အရေအတွက်အနည်းဆုံး တစ်ခု ဖြည့်ပါ",
     fields: {
       name: "အမည်",
@@ -570,6 +571,7 @@ export const my: DeepPartial<Labels> = {
     customItem: "အမည်ရိုက်ထည့်",
     fullyPaid: "အပြည့်ပေးပြီး",
     addItem: "ပစ္စည်း ထည့်မယ်",
+    recordPayment: "ငွေပေးသွင်း",
   },
 
   domain: {

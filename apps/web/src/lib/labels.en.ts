@@ -443,6 +443,7 @@ export const en = {
     feePerPiece: "Per piece",
     toPay: "To pay",
     openingStockHistory: "Opening stock history",
+    openingStockDeleteConfirm: "Delete this entry? Its stock will be reversed.",
     atLeastOneQty: "Enter at least one quantity",
     fields: {
       name: "Name",
@@ -571,6 +572,7 @@ export const en = {
     customItem: "Custom item",
     fullyPaid: "Fully paid",
     addItem: "Add item",
+    recordPayment: "Record payment",
   },
 
   domain: {
