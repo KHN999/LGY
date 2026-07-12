@@ -2,6 +2,7 @@ import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
 import type { ItemType, InventoryEvent } from "@/lib/api-client";
 import { OpeningStockForm } from "./opening-stock-form";
+import { DeleteOpeningStockButton } from "./delete-opening-stock-button";
 import { formatKyat, formatDateTime } from "@/lib/utils";
 import { PageHeader } from "@/components/ui";
 
@@ -36,10 +37,13 @@ export default async function OpeningStockPage({
           <ul className="flex flex-col divide-y">
             {history.slice(0, 10).map((e) => (
               <li key={e.id} className="py-3">
-                <p className="text-xs text-muted-foreground">
-                  {formatDateTime(e.occurredAt)}
-                  {e.notes && ` · ${e.notes}`}
-                </p>
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    {formatDateTime(e.occurredAt)}
+                    {e.notes && ` · ${e.notes}`}
+                  </p>
+                  <DeleteOpeningStockButton id={e.id} />
+                </div>
                 <ul className="mt-1 flex flex-wrap gap-2 text-sm">
                   {e.lines.map((l) => (
                     <li key={l.id} className="rounded-full bg-muted px-3 py-1">

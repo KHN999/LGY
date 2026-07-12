@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateOpeningStockDto } from "./dto/opening-stock.dto";
 
@@ -43,12 +43,30 @@ export class OpeningStockService {
     });
   }
 
-  /** Recent OPENING_STOCK events for review. */
+  /** Recent OPENING_STOCK events for review (voided/corrected ones hidden). */
   async list() {
     return this.prisma.inventoryEvent.findMany({
-      where: { kind: "OPENING_STOCK" },
+      where: { kind: "OPENING_STOCK", voidedAt: null },
       orderBy: { occurredAt: "desc" },
       take: 50,
+      include: { lines: { include: { itemType: true } } },
+    });
+  }
+
+  /**
+   * Void an opening-stock entry (to correct a mistake). Soft-delete — the entry
+   * drops out of the list and its stock is reversed (aggregations exclude voided
+   * events). Re-enter the corrected numbers with a new opening-stock post.
+   */
+  async void(id: number, userId: number) {
+    const ev = await this.prisma.inventoryEvent.findUnique({ where: { id } });
+    if (!ev || ev.kind !== "OPENING_STOCK") {
+      throw new NotFoundException(`Opening stock ${id} not found`);
+    }
+    if (ev.voidedAt) return ev;
+    return this.prisma.inventoryEvent.update({
+      where: { id },
+      data: { voidedAt: new Date(), voidedById: userId, voidReason: "Opening stock corrected" },
       include: { lines: { include: { itemType: true } } },
     });
   }

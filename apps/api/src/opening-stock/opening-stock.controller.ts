@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -21,5 +21,11 @@ export class OpeningStockController {
   @Get()
   list() {
     return this.service.list();
+  }
+
+  /** Void an opening-stock entry (correct a mistake) — reverses its stock. */
+  @Delete(":id")
+  remove(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.void(id, user.sub);
   }
 }
