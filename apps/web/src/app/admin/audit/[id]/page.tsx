@@ -55,8 +55,11 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
   }
 
   const names = new Map((itemTypes ?? []).map((t) => [t.id, t.labelMy]));
+  // Prefer names resolved from the row's own shop (context); fall back to the
+  // viewer-shop catalog, then any inline manual-item name.
   const itemName = (i: Record<string, unknown>): string =>
-    (i.itemTypeId != null && names.get(Number(i.itemTypeId))) ||
+    (i.itemTypeId != null &&
+      (context?.itemNames?.[String(i.itemTypeId)] || names.get(Number(i.itemTypeId)))) ||
     (typeof i.itemName === "string" && i.itemName) ||
     `#${String(i.itemTypeId ?? "?")}`;
 
@@ -92,20 +95,22 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
         </div>
       )}
 
-      {context && context.kind === "stock-exception" && (
+      {context?.stockChange && (
         <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4">
           <h2 className="mb-2 text-sm font-semibold text-amber-900">Stock change</h2>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="font-medium">
-              {context.item.emoji ? `${context.item.emoji} ` : ""}
-              {context.item.name}
-              <span className="text-muted-foreground"> · {friendly(context.location)}</span>
+              {context.stockChange.item.emoji ? `${context.stockChange.item.emoji} ` : ""}
+              {context.stockChange.item.name}
+              <span className="text-muted-foreground"> · {friendly(context.stockChange.location)}</span>
             </span>
             <span className="shrink-0 text-lg font-semibold tabular-nums">
-              {context.recounted && context.before != null && context.after != null
-                ? context.before === context.after
-                  ? `confirmed at ${context.after.toLocaleString("en-US")} (no change)`
-                  : `${context.before.toLocaleString("en-US")} → ${context.after.toLocaleString("en-US")}`
+              {context.stockChange.recounted &&
+              context.stockChange.before != null &&
+              context.stockChange.after != null
+                ? context.stockChange.before === context.stockChange.after
+                  ? `confirmed at ${context.stockChange.after.toLocaleString("en-US")} (no change)`
+                  : `${context.stockChange.before.toLocaleString("en-US")} → ${context.stockChange.after.toLocaleString("en-US")}`
                 : "Closed — no stock change"}
             </span>
           </div>
@@ -140,7 +145,15 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
                 <div key={k} className="flex flex-col gap-0.5">
                   <dt className="text-xs text-muted-foreground">{humanize(k)}</dt>
                   <dd className="break-words font-medium">
-                    {MONEY.has(k) ? formatKyat(Number(v)) : /Id$/.test(k) ? `#${String(v)}` : friendly(v)}
+                    {k === "customerId" && context?.customerName
+                      ? context.customerName
+                      : k === "supplierId" && context?.supplierName
+                        ? context.supplierName
+                        : MONEY.has(k)
+                          ? formatKyat(Number(v))
+                          : /Id$/.test(k)
+                            ? `#${String(v)}`
+                            : friendly(v)}
                   </dd>
                 </div>
               ))}

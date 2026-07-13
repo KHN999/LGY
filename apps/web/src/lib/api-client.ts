@@ -126,14 +126,18 @@ export interface AuditLogRow {
 }
 
 /** Live detail resolved from the entity an audit row points at (that row's shop),
- *  where the stored request body can't explain the change on its own. */
+ *  where the stored request body only has ids or can't explain the change alone. */
 export interface AuditEntityContext {
-  kind: "stock-exception";
-  item: { name: string; emoji: string | null };
-  location: string;
-  recounted: boolean;
-  before: number | null;
-  after: number | null;
+  customerName?: string | null;
+  supplierName?: string | null;
+  itemNames?: Record<string, string>;
+  stockChange?: {
+    item: { name: string; emoji: string | null };
+    location: string;
+    recounted: boolean;
+    before: number | null;
+    after: number | null;
+  };
 }
 
 export interface Supplier {

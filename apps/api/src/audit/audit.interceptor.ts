@@ -7,10 +7,10 @@ import {
 } from "@nestjs/common";
 import { Observable, throwError } from "rxjs";
 import { catchError, tap } from "rxjs/operators";
-import { Prisma } from "@lgy/db";
+import { Prisma, type PrismaClient } from "@lgy/db";
 import type { Request, Response } from "express";
 import { PrismaService } from "../prisma/prisma.service";
-import { SHOP_COOKIE } from "../prisma/shop-context";
+import { SHOP_COOKIE, type ShopId } from "../prisma/shop-context";
 import type { AuthenticatedUser } from "../auth/jwt-payload";
 
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -315,10 +315,10 @@ export class AuditInterceptor implements NestInterceptor {
 
   /**
    * Resolve item/party names so the summary reads "Sale · 25 × ဝမ်းဆက် … · Daw Mya"
-   * instead of ids. Runs in the non-blocking write path. Item names are resolved
-   * for both shops (the catalog is identical); party names only for the real shop
-   * (playground ids would resolve to different demo records). Returns null to fall
-   * back to the plain body summary.
+   * instead of ids. Runs in the non-blocking write path. Names are resolved in the
+   * ROW'S OWN SHOP — each shop has its own catalog + customer/supplier records, so
+   * resolving against `main` would mis-name (or fail to name) test-shop rows.
+   * Returns null to fall back to the plain body summary.
    */
   private async enrich(
     entity: string,
@@ -331,18 +331,20 @@ export class AuditInterceptor implements NestInterceptor {
     // Void/cancel actions carry no useful body — let the plain summary ("Deleted
     // <noun> #id") stand instead of mis-reading the empty body as a create.
     if (sub === "void" || sub === "cancel") return null;
+    const shopId: ShopId = shop === "playground" ? "playground" : "main";
+    const db = this.prisma.clientForShop(shopId);
     const items = Array.isArray(body.items) ? (body.items as Array<Record<string, unknown>>) : [];
     const itemNames = async (): Promise<Map<number, string>> => {
       const ids = [...new Set(items.map((i) => Number(i.itemTypeId)).filter((n) => Number.isInteger(n)))];
       if (!ids.length) return new Map();
-      const types = await this.prisma.main.itemType.findMany({
+      const types = await db.itemType.findMany({
         where: { id: { in: ids } },
         select: { id: true, labelMy: true },
       });
       return new Map(types.map((t) => [t.id, t.labelMy]));
     };
     const party = async (kind: "customers" | "suppliers", idVal: unknown): Promise<string | null> =>
-      shop === "main" && Number.isInteger(Number(idVal)) ? this.lookupName(kind, Number(idVal)) : null;
+      Number.isInteger(Number(idVal)) ? this.lookupName(db, kind, Number(idVal)) : null;
 
     if (entity === "sales" && method === "POST" && !sub) {
       const names = await itemNames();
@@ -379,20 +381,19 @@ export class AuditInterceptor implements NestInterceptor {
     }
     if (entity === "supplier-orders" && method === "POST") {
       const item =
-        (Number.isInteger(Number(body.itemTypeId)) ? await this.lookupName("item-types", Number(body.itemTypeId)) : null) ??
+        (Number.isInteger(Number(body.itemTypeId)) ? await this.lookupName(db, "item-types", Number(body.itemTypeId)) : null) ??
         `item#${String(body.itemTypeId ?? "?")}`;
       const sup = (await party("suppliers", body.supplierId)) ?? `supplier #${String(body.supplierId ?? "?")}`;
       return `Roll order: ${num(body.expectedQty)} × ${item} from ${sup} · ${ks(body.expectedTotal)}`;
     }
     if (entity === "expenses" && method === "POST") {
-      const cat =
-        shop === "main" && Number.isInteger(Number(body.categoryId))
-          ? (await this.prisma.main.expenseCategory.findUnique({ where: { id: Number(body.categoryId) }, select: { labelMy: true } }))?.labelMy ?? null
-          : null;
+      const cat = Number.isInteger(Number(body.categoryId))
+        ? (await db.expenseCategory.findUnique({ where: { id: Number(body.categoryId) }, select: { labelMy: true } }))?.labelMy ?? null
+        : null;
       return cat ? `Expense: ${cat} · ${ks(body.amount)}` : `Expense ${ks(body.amount)}`;
     }
-    if (id && (method === "PATCH" || method === "DELETE") && shop === "main") {
-      const name = await this.lookupName(entity, Number(id));
+    if (id && (method === "PATCH" || method === "DELETE")) {
+      const name = await this.lookupName(db, entity, Number(id));
       if (name) {
         const noun = (ENTITY_NOUN[entity] ?? entity).toLowerCase();
         return `${method === "DELETE" ? "Deleted" : "Updated"} ${noun}: ${name}`;
@@ -401,19 +402,18 @@ export class AuditInterceptor implements NestInterceptor {
     return null;
   }
 
-  private async lookupName(entity: string, id: number): Promise<string | null> {
+  private async lookupName(db: PrismaClient, entity: string, id: number): Promise<string | null> {
     if (!Number.isInteger(id)) return null;
-    const main = this.prisma.main;
     const sel = { where: { id }, select: { name: true } };
     try {
       switch (entity) {
-        case "customers": return (await main.customer.findUnique(sel))?.name ?? null;
-        case "suppliers": return (await main.supplier.findUnique(sel))?.name ?? null;
-        case "tailors": return (await main.tailor.findUnique(sel))?.name ?? null;
-        case "drivers": return (await main.driver.findUnique(sel))?.name ?? null;
-        case "employees": return (await main.employee.findUnique(sel))?.name ?? null;
+        case "customers": return (await db.customer.findUnique(sel))?.name ?? null;
+        case "suppliers": return (await db.supplier.findUnique(sel))?.name ?? null;
+        case "tailors": return (await db.tailor.findUnique(sel))?.name ?? null;
+        case "drivers": return (await db.driver.findUnique(sel))?.name ?? null;
+        case "employees": return (await db.employee.findUnique(sel))?.name ?? null;
         case "item-types":
-          return (await main.itemType.findUnique({ where: { id }, select: { labelMy: true } }))?.labelMy ?? null;
+          return (await db.itemType.findUnique({ where: { id }, select: { labelMy: true } }))?.labelMy ?? null;
         default:
           return null;
       }

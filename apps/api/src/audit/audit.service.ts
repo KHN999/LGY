@@ -4,16 +4,23 @@ import { PrismaService } from "../prisma/prisma.service";
 import type { ShopId } from "../prisma/shop-context";
 import type { PageResult } from "../common/pagination.dto";
 
-/** Human-facing detail resolved live from the entity an audit row refers to —
- *  used where the request body alone can't explain what happened (e.g. a
- *  stock-exception resolve stores no item and no before/after). */
+/** Human-facing detail resolved live from the entity an audit row refers to, in
+ *  that row's OWN shop — used where the stored request body only has ids (a sale
+ *  logs "customer #17"; the item catalog + parties differ per shop) or can't
+ *  explain what happened at all (a stock-exception resolve stores no item and no
+ *  before/after). All fields optional; null when nothing extra could be resolved. */
 export interface AuditEntityContext {
-  kind: "stock-exception";
-  item: { name: string; emoji: string | null };
-  location: string;
-  recounted: boolean;
-  before: number | null;
-  after: number | null;
+  customerName?: string | null;
+  supplierName?: string | null;
+  /** itemTypeId → labelMy, for every item referenced in the payload. */
+  itemNames?: Record<string, string>;
+  stockChange?: {
+    item: { name: string; emoji: string | null };
+    location: string;
+    recounted: boolean;
+    before: number | null;
+    after: number | null;
+  };
 }
 
 export interface AuditListQuery {
@@ -79,52 +86,87 @@ export class AuditService {
 
   /**
    * Resolve display context for an audit row from the ENTITY it points at, in
-   * that row's own shop schema. Currently covers stock-exception resolves: the
-   * request body records neither the item nor a before/after, so we read the
-   * exception + its resolution ADJUSTMENT event and reconstruct both. `after`
-   * comes from the recorded countedQty; `before = after − delta` where delta is
-   * the signed quantity the resolution event posted. Returns null when there's
-   * nothing extra to show.
+   * that row's own shop schema. Fills in the names the stored request body only
+   * has as ids (customer/supplier/items), and for a stock-exception resolve
+   * reconstructs the item + before/after: `after` is the recorded countedQty,
+   * `before = after − delta` where delta is what the resolution event posted.
+   * Returns null when nothing extra could be resolved.
    */
   async entityContext(id: number): Promise<AuditEntityContext | null> {
     const row = await this.prisma.main.auditLog.findUnique({ where: { id } });
-    if (!row || row.entity !== "stock-exceptions" || !row.entityId) return null;
+    if (!row) return null;
 
     const shop: ShopId = row.shop === "playground" ? "playground" : "main";
     const db = this.prisma.clientForShop(shop);
-    const ex = await db.stockException.findUnique({
-      where: { id: Number(row.entityId) },
-      include: {
-        itemType: { select: { labelMy: true, emoji: true } },
-        resolutionEvent: { include: { lines: true } },
-      },
-    });
-    if (!ex) return null;
-
-    const item = {
-      name: ex.itemType?.labelMy ?? `#${ex.itemTypeId}`,
-      emoji: ex.itemType?.emoji ?? null,
-    };
     const payload = (row.payload && typeof row.payload === "object" ? row.payload : {}) as Record<
       string,
       unknown
     >;
-    const after = payload.countedQty != null ? Number(payload.countedQty) : null;
-    const recounted = after != null;
+    const ctx: AuditEntityContext = {};
 
-    if (!ex.resolutionEvent) {
-      // Closed without a recount, or recounted but already matched (no delta) —
-      // either way the ledger didn't move.
-      return { kind: "stock-exception", item, location: ex.location, recounted, before: after, after };
+    // Party names — resolved in the row's own shop (ids mean different records per shop).
+    const custId = Number(payload.customerId);
+    if (Number.isInteger(custId)) {
+      ctx.customerName =
+        (await db.customer.findUnique({ where: { id: custId }, select: { name: true } }))?.name ?? null;
+    }
+    const supId = Number(payload.supplierId);
+    if (Number.isInteger(supId)) {
+      ctx.supplierName =
+        (await db.supplier.findUnique({ where: { id: supId }, select: { name: true } }))?.name ?? null;
     }
 
-    let delta = 0;
-    for (const l of ex.resolutionEvent.lines) {
-      if (l.itemTypeId === ex.itemTypeId && l.location === ex.location) {
-        delta += l.direction === "IN" ? l.qty : -l.qty;
+    // Item names referenced anywhere in the payload (sale/transfer lines, counts, …).
+    const itemIds = new Set<number>();
+    for (const arr of [payload.items, payload.counts, payload.lines]) {
+      if (Array.isArray(arr)) {
+        for (const i of arr) {
+          const n = Number((i as Record<string, unknown>)?.itemTypeId);
+          if (Number.isInteger(n)) itemIds.add(n);
+        }
       }
     }
-    const before = after != null ? after - delta : null;
-    return { kind: "stock-exception", item, location: ex.location, recounted: true, before, after };
+    if (Number.isInteger(Number(payload.itemTypeId))) itemIds.add(Number(payload.itemTypeId));
+    if (itemIds.size) {
+      const types = await db.itemType.findMany({
+        where: { id: { in: [...itemIds] } },
+        select: { id: true, labelMy: true },
+      });
+      if (types.length) ctx.itemNames = Object.fromEntries(types.map((t) => [String(t.id), t.labelMy]));
+    }
+
+    // Stock-exception resolve → item + before/after from the resolution event.
+    if (row.entity === "stock-exceptions" && row.entityId) {
+      const ex = await db.stockException.findUnique({
+        where: { id: Number(row.entityId) },
+        include: {
+          itemType: { select: { labelMy: true, emoji: true } },
+          resolutionEvent: { include: { lines: true } },
+        },
+      });
+      if (ex) {
+        const item = { name: ex.itemType?.labelMy ?? `#${ex.itemTypeId}`, emoji: ex.itemType?.emoji ?? null };
+        const after = payload.countedQty != null ? Number(payload.countedQty) : null;
+        if (!ex.resolutionEvent) {
+          ctx.stockChange = { item, location: ex.location, recounted: after != null, before: after, after };
+        } else {
+          let delta = 0;
+          for (const l of ex.resolutionEvent.lines) {
+            if (l.itemTypeId === ex.itemTypeId && l.location === ex.location) {
+              delta += l.direction === "IN" ? l.qty : -l.qty;
+            }
+          }
+          ctx.stockChange = {
+            item,
+            location: ex.location,
+            recounted: true,
+            before: after != null ? after - delta : null,
+            after,
+          };
+        }
+      }
+    }
+
+    return Object.keys(ctx).length ? ctx : null;
   }
 }
