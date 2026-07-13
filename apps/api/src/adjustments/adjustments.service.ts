@@ -43,11 +43,12 @@ export class AdjustmentsService {
     const ids = [...new Set(counts.map((c) => c.itemTypeId))];
     const types = await tx.itemType.findMany({
       where: { id: { in: ids } },
-      select: { id: true },
+      select: { id: true, labelMy: true },
     });
     if (types.length !== ids.length) {
       throw new BadRequestException("One or more itemTypeId not found");
     }
+    const nameById = new Map(types.map((t) => [t.id, t.labelMy]));
 
     const current = await this.inventory.stockMapAt(location, tx);
     const lines: {
@@ -56,6 +57,9 @@ export class AdjustmentsService {
       itemTypeId: number;
       qty: number;
     }[] = [];
+    // before→after per changed item, so the audit trail can show what it was
+    // changed FROM and TO (not just the delta).
+    const changes: { itemTypeId: number; name: string; before: number; after: number }[] = [];
     for (const c of counts) {
       const have = current.get(c.itemTypeId) ?? 0;
       const delta = c.countedQty - have;
@@ -66,10 +70,16 @@ export class AdjustmentsService {
         itemTypeId: c.itemTypeId,
         qty: Math.abs(delta),
       });
+      changes.push({
+        itemTypeId: c.itemTypeId,
+        name: nameById.get(c.itemTypeId) ?? `#${c.itemTypeId}`,
+        before: have,
+        after: c.countedQty,
+      });
     }
     if (lines.length === 0) return null; // counts already match — no-op
 
-    return tx.inventoryEvent.create({
+    const event = await tx.inventoryEvent.create({
       data: {
         kind: "ADJUSTMENT",
         notes: reason,
@@ -78,6 +88,9 @@ export class AdjustmentsService {
       },
       include: { lines: { include: { itemType: true } } },
     });
+    // `changes` is not persisted — it rides the response so the audit summary can
+    // render "item before→after".
+    return { ...event, changes };
   }
 
   /** Top-level entry for the admin stock-count screen. Owns its transaction. */

@@ -120,13 +120,17 @@ export class StockExceptionsService {
    */
   async resolve(id: number, dto: ResolveStockExceptionDto, userId: number) {
     return this.prisma.$transaction(async (tx) => {
-      const ex = await tx.stockException.findUnique({ where: { id } });
+      const ex = await tx.stockException.findUnique({
+        where: { id },
+        include: { itemType: { select: { labelMy: true } } },
+      });
       if (!ex) throw new NotFoundException(`StockException ${id} not found`);
       if (ex.status !== "OPEN") {
         throw new ConflictException("Exception is already resolved");
       }
 
       let resolutionEventId: number | null = null;
+      let change: { before: number; after: number } | null = null;
       if (dto.countedQty !== undefined) {
         const event = await this.adjustments.setStock(
           ex.location,
@@ -136,9 +140,11 @@ export class StockExceptionsService {
           tx,
         );
         resolutionEventId = event?.id ?? null;
+        const c = event?.changes?.[0];
+        if (c) change = { before: c.before, after: c.after };
       }
 
-      return tx.stockException.update({
+      const updated = await tx.stockException.update({
         where: { id: ex.id },
         data: {
           status: "RESOLVED",
@@ -148,6 +154,19 @@ export class StockExceptionsService {
           notes: dto.reason,
         },
       });
+
+      // Not persisted — rides the response so the audit summary can name the item
+      // and show what its stock was changed FROM and TO (the request body has neither).
+      return {
+        ...updated,
+        resolution: {
+          exceptionId: ex.id,
+          itemName: ex.itemType?.labelMy ?? `#${ex.itemTypeId}`,
+          recounted: dto.countedQty !== undefined,
+          countedQty: dto.countedQty ?? null,
+          change,
+        },
+      };
     });
   }
 }

@@ -176,6 +176,31 @@ function summarizeFromResponse(data: unknown): string | null {
       ? `Deleted customer ${d.name} — debt ${ks(d.clearedDebt)} cleared`
       : `Deleted customer ${d.name}`;
   }
+  // Stock-exception resolve (POST /stock-exceptions/:id/resolve) — the request body
+  // carries neither the item nor a before/after; surface both from the resolution.
+  if (d.resolution && typeof d.resolution === "object") {
+    const r = d.resolution as Record<string, unknown>;
+    const item = (typeof r.itemName === "string" && r.itemName) || `#${String(r.exceptionId)}`;
+    const ch = r.change as Record<string, unknown> | null;
+    if (ch && ch.before != null && ch.after != null) {
+      return `Stock exception #${String(r.exceptionId)} resolved: ${item} ${num(ch.before)}→${num(ch.after)}`;
+    }
+    if (r.recounted && r.countedQty != null) {
+      return `Stock exception #${String(r.exceptionId)} resolved: ${item} confirmed at ${num(r.countedQty)}`;
+    }
+    return `Stock exception #${String(r.exceptionId)} closed (no recount): ${item}`;
+  }
+  // Stock count with recorded before/after (POST /adjustments) → show what each
+  // item was changed FROM and TO, e.g. "Stock count: ချုပ်ကွင်း 2,252→0".
+  if (d.kind === "ADJUSTMENT" && Array.isArray(d.changes) && d.changes.length > 0) {
+    const changes = d.changes as Array<Record<string, unknown>>;
+    const parts = changes.slice(0, 8).map((c) => {
+      const name =
+        (typeof c.name === "string" && c.name) || `item#${String(c.itemTypeId)}`;
+      return `${name} ${num(c.before)}→${num(c.after)}`;
+    });
+    return `Stock count: ${parts.join(", ")}${changes.length > 8 ? ` +${changes.length - 8} more` : ""}`;
+  }
   if (d.kind !== "ADJUSTMENT" && d.kind !== "OPENING_STOCK") return null;
   const lines = Array.isArray(d.lines) ? (d.lines as Array<Record<string, unknown>>) : [];
   if (lines.length === 0) return null;
