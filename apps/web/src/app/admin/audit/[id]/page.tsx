@@ -3,6 +3,7 @@ import { serverFetch } from "@/lib/auth-server";
 import { formatKyat, formatDateTime } from "@/lib/utils";
 import type { AuditLogRow, AuditEntityContext, ItemType } from "@/lib/api-client";
 import { EmptyState } from "@/components/ui";
+import { Receipt as SaleReceipt } from "@/components/staff/receipt";
 
 export const dynamic = "force-dynamic";
 
@@ -123,14 +124,27 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
         </div>
       )}
 
-      {isSale && (
-        <Receipt
-          lines={saleLines}
-          p={p}
-          date={row.createdAt}
-          customerName={context?.customerName ?? null}
-          itemName={itemName}
-        />
+      {context?.receipt ? (
+        <div className="flex flex-col gap-2">
+          {context.receipt.voided && (
+            <p className="rounded-lg bg-muted p-3 text-center text-sm text-muted-foreground">
+              This sale was voided.
+            </p>
+          )}
+          <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+            <SaleReceipt data={context.receipt.data} shop={context.receipt.shop ?? undefined} />
+          </div>
+        </div>
+      ) : (
+        isSale && (
+          <PayloadReceipt
+            lines={saleLines}
+            p={p}
+            date={row.createdAt}
+            customerName={context?.customerName ?? null}
+            itemName={itemName}
+          />
+        )
       )}
 
       {!isSale && (lines.length > 0 || fields.length > 0) && (
@@ -181,9 +195,9 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
   );
 }
 
-/** Renders a sale audit payload as an actual receipt (items + totals + payment),
- *  from the recorded body alone — so it works on historical rows too. */
-function Receipt({
+/** Fallback receipt built from the recorded payload alone — used only when the
+ *  live sale can't be located (e.g. a very old row that can't be matched). */
+function PayloadReceipt({
   lines,
   p,
   date,

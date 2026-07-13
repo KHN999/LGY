@@ -9,6 +9,27 @@ import type { PageResult } from "../common/pagination.dto";
  *  logs "customer #17"; the item catalog + parties differ per shop) or can't
  *  explain what happened at all (a stock-exception resolve stores no item and no
  *  before/after). All fields optional; null when nothing extra could be resolved. */
+export interface AuditReceipt {
+  data: {
+    saleId: number | null;
+    date: string;
+    customerName: string | null;
+    customerContact: string | null;
+    lines: { label: string; qty: number; unitPrice: number; lineTotal: number; note: string | null }[];
+    grandTotal: number;
+    paid: number;
+  };
+  shop: {
+    shopName: string;
+    addressLine: string | null;
+    phone: string | null;
+    social: string | null;
+    receiptHeader: string | null;
+    receiptFooter: string | null;
+  } | null;
+  voided: boolean;
+}
+
 export interface AuditEntityContext {
   customerName?: string | null;
   supplierName?: string | null;
@@ -21,6 +42,8 @@ export interface AuditEntityContext {
     before: number | null;
     after: number | null;
   };
+  /** The live sale receipt (same as staff sale history), for sale rows. */
+  receipt?: AuditReceipt;
 }
 
 export interface AuditListQuery {
@@ -133,6 +156,77 @@ export class AuditService {
         select: { id: true, labelMy: true },
       });
       if (types.length) ctx.itemNames = Object.fromEntries(types.map((t) => [String(t.id), t.labelMy]));
+    }
+
+    // Sale → the live receipt (same as staff sale history). New rows carry the
+    // sale id in entityId; older rows (created before that was captured) are
+    // matched by customer + total within a short window of the audit time.
+    if (row.entity === "sales" && !row.path.endsWith("/void")) {
+      let saleId = row.entityId ? Number(row.entityId) : null;
+      if (!saleId) {
+        const items = Array.isArray(payload.items) ? (payload.items as Array<Record<string, unknown>>) : [];
+        if (items.length) {
+          const total =
+            items.reduce((s, i) => s + Number(i.qty ?? 0) * Number(i.unitPrice ?? 0), 0) -
+            Number(payload.discount ?? 0);
+          const when = row.createdAt;
+          const custName = typeof payload.customerName === "string" ? payload.customerName : null;
+          const match = await db.sale.findFirst({
+            where: {
+              grandTotal: total,
+              ...(Number.isInteger(custId)
+                ? { customerId: custId }
+                : custName
+                  ? { customerName: custName }
+                  : {}),
+              createdAt: { gte: new Date(when.getTime() - 120_000), lte: new Date(when.getTime() + 5_000) },
+            },
+            orderBy: { createdAt: "desc" },
+            select: { id: true },
+          });
+          saleId = match?.id ?? null;
+        }
+      }
+      if (saleId) {
+        const sale = await db.sale.findUnique({
+          where: { id: saleId },
+          include: {
+            lines: { include: { itemType: { select: { labelMy: true } } } },
+            customer: { select: { name: true, contact: true } },
+          },
+        });
+        if (sale) {
+          const s = await db.shopSetting.findUnique({ where: { id: 1 } });
+          ctx.receipt = {
+            data: {
+              saleId: sale.id,
+              date: sale.saleDate.toISOString(),
+              customerName: sale.customer?.name ?? sale.customerName ?? null,
+              customerContact: sale.customer?.contact ?? null,
+              lines: sale.lines.map((l) => ({
+                label: l.itemType?.labelMy ?? l.itemName ?? "",
+                qty: l.qty,
+                unitPrice: l.unitPrice,
+                lineTotal: l.lineTotal,
+                note: l.note,
+              })),
+              grandTotal: sale.grandTotal,
+              paid: sale.paidAmount,
+            },
+            shop: s
+              ? {
+                  shopName: s.shopName,
+                  addressLine: s.addressLine,
+                  phone: s.phone,
+                  social: s.social,
+                  receiptHeader: s.receiptHeader,
+                  receiptFooter: s.receiptFooter,
+                }
+              : null,
+            voided: sale.voidedAt != null,
+          };
+        }
+      }
     }
 
     // Stock-exception resolve → item + before/after from the resolution event.

@@ -138,6 +138,19 @@ export interface AuditEntityContext {
     before: number | null;
     after: number | null;
   };
+  receipt?: {
+    data: {
+      saleId: number | null;
+      date: string;
+      customerName: string | null;
+      customerContact: string | null;
+      lines: { label: string; qty: number; unitPrice: number; lineTotal: number; note: string | null }[];
+      grandTotal: number;
+      paid: number;
+    };
+    shop: ShopSettings | null;
+    voided: boolean;
+  };
 }
 
 export interface Supplier {

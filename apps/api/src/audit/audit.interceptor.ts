@@ -260,8 +260,15 @@ export class AuditInterceptor implements NestInterceptor {
     const sub = path.replace(/^\/api\//, "").split("/").filter(Boolean)[2];
     const bodyObj = req.body && typeof req.body === "object" ? (req.body as Record<string, unknown>) : {};
 
-    const write = (status: number, ok: boolean, error: string | null, summaryOverride?: string | null) => {
+    const write = (
+      status: number,
+      ok: boolean,
+      error: string | null,
+      summaryOverride?: string | null,
+      entityIdOverride?: string,
+    ) => {
       const user = req.user;
+      const rowEntityId = entityIdOverride ?? entityId;
       // Resolve a name-rich summary off the hot path. The inventory response
       // override already carries item names, so it wins; otherwise enrich the
       // body-derived line with item/party names (falling back to the plain one).
@@ -280,7 +287,7 @@ export class AuditInterceptor implements NestInterceptor {
               method: req.method,
               path,
               entity,
-              entityId,
+              entityId: rowEntityId,
               summary: finalSummary,
               status,
               ok,
@@ -297,7 +304,18 @@ export class AuditInterceptor implements NestInterceptor {
     };
 
     return next.handle().pipe(
-      tap((data) => write(res.statusCode ?? 200, true, null, summarizeFromResponse(data))),
+      tap((data) => {
+        // Creations (POST with no id in the path) carry the new record's id only in
+        // the response — capture it so the row is linkable (e.g. a sale → receipt).
+        const respId =
+          entityId == null &&
+          data &&
+          typeof data === "object" &&
+          Number.isInteger((data as { id?: unknown }).id)
+            ? String((data as { id: number }).id)
+            : undefined;
+        write(res.statusCode ?? 200, true, null, summarizeFromResponse(data), respId);
+      }),
       catchError((err: unknown) => {
         const status =
           typeof (err as { getStatus?: () => number })?.getStatus === "function"
