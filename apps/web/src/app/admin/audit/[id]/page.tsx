@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { serverFetch } from "@/lib/auth-server";
 import { formatKyat, formatDateTime } from "@/lib/utils";
-import type { AuditLogRow, ItemType } from "@/lib/api-client";
+import type { AuditLogRow, AuditEntityContext, ItemType } from "@/lib/api-client";
 import { EmptyState } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -37,9 +37,10 @@ const humanize = (k: string) =>
 
 export default async function AuditDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [row, itemTypes] = await Promise.all([
+  const [row, itemTypes, context] = await Promise.all([
     serverFetch<AuditLogRow>(`/api/audit/${id}`),
     serverFetch<ItemType[]>(`/api/item-types`),
+    serverFetch<AuditEntityContext | null>(`/api/audit/${id}/context`).catch(() => null),
   ]);
 
   if (!row) {
@@ -88,6 +89,26 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
       {!row.ok && row.error && (
         <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
           {row.error}
+        </div>
+      )}
+
+      {context && context.kind === "stock-exception" && (
+        <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4">
+          <h2 className="mb-2 text-sm font-semibold text-amber-900">Stock change</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="font-medium">
+              {context.item.emoji ? `${context.item.emoji} ` : ""}
+              {context.item.name}
+              <span className="text-muted-foreground"> · {friendly(context.location)}</span>
+            </span>
+            <span className="shrink-0 text-lg font-semibold tabular-nums">
+              {context.recounted && context.before != null && context.after != null
+                ? context.before === context.after
+                  ? `confirmed at ${context.after.toLocaleString("en-US")} (no change)`
+                  : `${context.before.toLocaleString("en-US")} → ${context.after.toLocaleString("en-US")}`
+                : "Closed — no stock change"}
+            </span>
+          </div>
         </div>
       )}
 

@@ -45,4 +45,11 @@ export class AuditController {
   getOne(@Param("id", ParseIntPipe) id: number): Promise<AuditLog> {
     return this.audit.getOne(id);
   }
+
+  /** Live detail resolved from the referenced entity (e.g. item + before→after
+   *  for a stock-exception resolve), in that row's own shop. */
+  @Get(":id/context")
+  context(@Param("id", ParseIntPipe) id: number) {
+    return this.audit.entityContext(id);
+  }
 }

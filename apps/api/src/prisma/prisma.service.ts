@@ -17,6 +17,7 @@ const OWN_KEYS = new Set([
   "main",
   "playground",
   "otherShopClients",
+  "clientForShop",
   "onModuleInit",
   "onModuleDestroy",
 ]);
@@ -69,6 +70,13 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
    *  (Sale.createdById, …) hold when operating in that shop. */
   otherShopClients(): PrismaClient[] {
     return [this.playground];
+  }
+
+  /** The client for a specific shop, regardless of the active (cookie) shop.
+   *  Used to read an entity from the shop an audit row belongs to. `this` is the
+   *  main-schema client (see the class doc). */
+  clientForShop(shop: ShopId): PrismaClient {
+    return shop === "playground" ? this.playground : (this as unknown as PrismaClient);
   }
 
   async onModuleInit() {
