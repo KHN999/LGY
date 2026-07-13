@@ -69,6 +69,12 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
   const fields = Object.entries(p).filter(
     ([k, v]) => !HIDE.has(k) && v !== null && v !== undefined && v !== "" && typeof v !== "object",
   );
+  // A sale (create or line-edit) — render its payload as an actual receipt rather
+  // than a raw field dump. Line-edits carry `lines`; creates carry `items`.
+  const saleLines = (
+    Array.isArray(p.items) ? p.items : Array.isArray(p.lines) ? p.lines : []
+  ) as Array<Record<string, unknown>>;
+  const isSale = row.entity === "sales" && saleLines.length > 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -117,7 +123,17 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
         </div>
       )}
 
-      {(lines.length > 0 || fields.length > 0) && (
+      {isSale && (
+        <Receipt
+          lines={saleLines}
+          p={p}
+          date={row.createdAt}
+          customerName={context?.customerName ?? null}
+          itemName={itemName}
+        />
+      )}
+
+      {!isSale && (lines.length > 0 || fields.length > 0) && (
         <div className="rounded-2xl border bg-card p-4">
           {lines.length > 0 && (
             <ul className="flex flex-col divide-y">
@@ -160,6 +176,94 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
             </dl>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+/** Renders a sale audit payload as an actual receipt (items + totals + payment),
+ *  from the recorded body alone — so it works on historical rows too. */
+function Receipt({
+  lines,
+  p,
+  date,
+  customerName,
+  itemName,
+}: {
+  lines: Array<Record<string, unknown>>;
+  p: Record<string, unknown>;
+  date: string;
+  customerName: string | null;
+  itemName: (i: Record<string, unknown>) => string;
+}) {
+  const subtotal = lines.reduce((s, i) => s + Number(i.qty ?? 0) * Number(i.unitPrice ?? 0), 0);
+  const discount = Number(p.discount ?? 0);
+  const grandTotal = subtotal - discount;
+  const paid = Number(p.paidAmount ?? 0);
+  const balance = grandTotal - paid;
+  const who =
+    customerName ?? (typeof p.customerName === "string" && p.customerName ? p.customerName : "Walk-in");
+  const kind = p.kind === "WHOLESALE" ? "Wholesale" : p.kind === "RETAIL" ? "Retail" : null;
+  const method =
+    p.paymentMethod === "BANK_TRANSFER" ? "Bank transfer" : p.paymentMethod === "CASH" ? "Cash" : null;
+
+  return (
+    <div className="rounded-2xl border bg-card p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold">Receipt</h2>
+        <span className="text-xs text-muted-foreground">{formatDateTime(date)}</span>
+      </div>
+      <div className="mb-3 flex items-center justify-between gap-3 text-sm">
+        <span className="text-muted-foreground">Customer</span>
+        <span className="font-medium">
+          {who}
+          {kind ? ` · ${kind}` : ""}
+        </span>
+      </div>
+      <ul className="flex flex-col divide-y border-y">
+        {lines.map((i, idx) => {
+          const qty = Number(i.qty ?? 0);
+          const price = Number(i.unitPrice ?? 0);
+          return (
+            <li key={idx} className="flex items-center justify-between gap-3 py-2 text-sm">
+              <span className="font-medium">{itemName(i)}</span>
+              <span className="shrink-0 tabular-nums text-muted-foreground">
+                {qty} × {price.toLocaleString("en-US")} = {formatKyat(qty * price)}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <dl className="mt-3 flex flex-col gap-1 text-sm">
+        {discount > 0 && (
+          <>
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">Subtotal</dt>
+              <dd className="tabular-nums">{formatKyat(subtotal)}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">Discount</dt>
+              <dd className="tabular-nums">− {formatKyat(discount)}</dd>
+            </div>
+          </>
+        )}
+        <div className="flex justify-between gap-3 font-semibold">
+          <dt>Total</dt>
+          <dd className="tabular-nums">{formatKyat(grandTotal)}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-muted-foreground">Paid{method ? ` (${method})` : ""}</dt>
+          <dd className="tabular-nums">{formatKyat(paid)}</dd>
+        </div>
+        {balance > 0 && (
+          <div className="flex justify-between gap-3 text-rose-600">
+            <dt>Balance</dt>
+            <dd className="tabular-nums">{formatKyat(balance)}</dd>
+          </div>
+        )}
+      </dl>
+      {typeof p.notes === "string" && p.notes && (
+        <p className="mt-3 rounded-lg bg-muted p-2 text-sm">📝 {p.notes}</p>
       )}
     </div>
   );
