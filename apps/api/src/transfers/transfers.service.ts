@@ -109,7 +109,8 @@ export class TransfersService {
     });
   }
 
-  async list(range: { from?: string; to?: string } = {}) {
+  async list(range: { from?: string; to?: string; search?: string } = {}) {
+    const search = range.search?.trim();
     return this.prisma.inventoryEvent.findMany({
       where: {
         kind: "TRANSFER",
@@ -119,6 +120,22 @@ export class TransfersService {
               occurredAt: {
                 ...(range.from ? { gte: new Date(range.from) } : {}),
                 ...(range.to ? { lte: new Date(range.to) } : {}),
+              },
+            }
+          : {}),
+        // Match by item/roll (အလိပ်) name — keep transfers that include a line
+        // whose item label or key contains the term.
+        ...(search
+          ? {
+              lines: {
+                some: {
+                  itemType: {
+                    OR: [
+                      { labelMy: { contains: search, mode: "insensitive" } },
+                      { key: { contains: search, mode: "insensitive" } },
+                    ],
+                  },
+                },
               },
             }
           : {}),

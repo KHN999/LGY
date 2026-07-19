@@ -193,6 +193,8 @@ export const en = {
     locInTransit: "In transit",
     notEnough: "Not enough stock at the source",
     history: "Transfer history",
+    searchItem: "Search roll / item",
+    notesPlaceholder: "Note (e.g. warehouse sale)",
     slipTitle: "Transfer note",
     totalPieces: "Total pieces",
     savePrint: "Save & Print",
@@ -295,6 +297,9 @@ export const en = {
     sendSlip: "Send to tailor",
     receiveSlip: "Receive from tailor",
     savePrint: "Save & Print",
+    date: "Date",
+    editDate: "Edit date",
+    undoJob: "Undo this record",
   },
 
   tailorLedger: {

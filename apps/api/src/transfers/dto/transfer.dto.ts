@@ -10,6 +10,15 @@ import {
   Min,
   ValidateNested,
 } from "class-validator";
+import { DateRangeQueryDto } from "../../common/date-range.query.dto";
+
+/** Transfer history filter: date range + free-text item/roll (အလိပ်) search. */
+export class ListTransfersQueryDto extends DateRangeQueryDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  search?: string;
+}
 
 export enum TransferLocationInput {
   WAREHOUSE = "WAREHOUSE",

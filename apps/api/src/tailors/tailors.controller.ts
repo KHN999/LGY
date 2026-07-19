@@ -25,6 +25,7 @@ import {
   VoidReasonDto,
   SendToTailorDto,
   ReceiveFromTailorDto,
+  UpdateTailorJobDto,
 } from "./dto/tailor.dto";
 import { PaginationQueryDto } from "../common/pagination.dto";
 
@@ -160,5 +161,24 @@ export class TailorsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.receiveFromTailor(id, dto, user.sub);
+  }
+
+  // ── Fix mistakes on a job (edit date/note, or undo) ──────────────
+  @Patch("jobs/:eventId")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  updateJob(@Param("eventId", ParseIntPipe) eventId: number, @Body() dto: UpdateTailorJobDto) {
+    return this.service.updateJob(eventId, dto);
+  }
+
+  @Post("jobs/:eventId/void")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  voidJob(
+    @Param("eventId", ParseIntPipe) eventId: number,
+    @Body() dto: VoidReasonDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.voidJob(eventId, dto.reason, user.sub);
   }
 }

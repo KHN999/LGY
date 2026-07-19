@@ -10,6 +10,7 @@ import {
   CreateTailorPaymentDto,
   SendToTailorDto,
   ReceiveFromTailorDto,
+  UpdateTailorJobDto,
 } from "./dto/tailor.dto";
 
 export interface TailorWithBalance {
@@ -289,7 +290,13 @@ export class TailorsService {
         { direction: "IN" as const, location: "TAILOR" as const, tailorId, itemTypeId: it.itemTypeId, qty: it.qty },
       ]);
       return tx.inventoryEvent.create({
-        data: { kind: "TAILOR_SEND", notes: dto.notes, createdById: userId, lines: { create: lines } },
+        data: {
+          kind: "TAILOR_SEND",
+          notes: dto.notes,
+          createdById: userId,
+          ...(dto.occurredAt ? { occurredAt: new Date(dto.occurredAt) } : {}),
+          lines: { create: lines },
+        },
         include: { lines: { include: { itemType: true } } },
       });
     });
@@ -332,8 +339,15 @@ export class TailorsService {
             ]
           : [],
       );
+      const occurredAt = dto.occurredAt ? new Date(dto.occurredAt) : undefined;
       const event = await tx.inventoryEvent.create({
-        data: { kind: "TAILOR_RETURN", notes: dto.notes, createdById: userId, lines: { create: returnLines } },
+        data: {
+          kind: "TAILOR_RETURN",
+          notes: dto.notes,
+          createdById: userId,
+          ...(occurredAt ? { occurredAt } : {}),
+          lines: { create: returnLines },
+        },
         include: { lines: { include: { itemType: true } } },
       });
 
@@ -353,6 +367,7 @@ export class TailorsService {
             relatedEventId: event.id,
             notes: `Sewing loss · tailor #${tailorId}`,
             createdById: userId,
+            ...(occurredAt ? { occurredAt } : {}),
             lines: { create: lossLines },
           },
         });
@@ -370,6 +385,7 @@ export class TailorsService {
             eventId: event.id,
             note: `Sewing return #${event.id}`,
             createdById: userId,
+            ...(occurredAt ? { chargeDate: occurredAt } : {}),
           },
         });
       }
@@ -406,5 +422,56 @@ export class TailorsService {
     });
     if (!event) throw new NotFoundException(`Tailor job ${eventId} not found`);
     return event;
+  }
+
+  /** Fix a mistake on a tailor job's date/note (no stock or fee change). */
+  async updateJob(eventId: number, dto: UpdateTailorJobDto) {
+    const event = await this.prisma.inventoryEvent.findFirst({
+      where: { id: eventId, kind: { in: ["TAILOR_SEND", "TAILOR_RETURN"] } },
+    });
+    if (!event) throw new NotFoundException(`Tailor job ${eventId} not found`);
+    if (event.voidedAt) throw new BadRequestException("Cannot edit a voided job");
+    const occurredAt = dto.occurredAt ? new Date(dto.occurredAt) : undefined;
+    await this.prisma.inventoryEvent.update({
+      where: { id: eventId },
+      data: {
+        ...(occurredAt ? { occurredAt } : {}),
+        ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+      },
+    });
+    // Keep the linked sewing-fee charge's date aligned with a re-dated return.
+    if (occurredAt && event.kind === "TAILOR_RETURN") {
+      await this.prisma.tailorCharge.updateMany({
+        where: { eventId, voidedAt: null },
+        data: { chargeDate: occurredAt },
+      });
+    }
+    return this.getJob(eventId);
+  }
+
+  /**
+   * Undo a tailor job. Soft-voids the InventoryEvent (its lines drop out of the
+   * ledger, reverting stock). For a RETURN, also voids the auto-charged sewing
+   * fee and any linked spoilage LOSS event so nothing is left dangling.
+   */
+  async voidJob(eventId: number, reason: string | undefined, userId: number) {
+    return this.prisma.$transaction(async (tx) => {
+      const event = await tx.inventoryEvent.findFirst({
+        where: { id: eventId, kind: { in: ["TAILOR_SEND", "TAILOR_RETURN"] } },
+      });
+      if (!event) throw new NotFoundException(`Tailor job ${eventId} not found`);
+      if (event.voidedAt) return event;
+      const stamp = { voidedAt: new Date(), voidedById: userId, voidReason: reason };
+      const voided = await tx.inventoryEvent.update({ where: { id: eventId }, data: stamp });
+      if (event.kind === "TAILOR_RETURN") {
+        // Reverse the sewing-fee charge(s) and the spoilage LOSS this return posted.
+        await tx.tailorCharge.updateMany({ where: { eventId, voidedAt: null }, data: stamp });
+        await tx.inventoryEvent.updateMany({
+          where: { relatedEventId: eventId, kind: "LOSS", voidedAt: null },
+          data: stamp,
+        });
+      }
+      return voided;
+    });
   }
 }

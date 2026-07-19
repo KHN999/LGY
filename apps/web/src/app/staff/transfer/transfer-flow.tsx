@@ -40,6 +40,7 @@ export function TransferFlow({ drivers, shopId }: { drivers: Driver[]; shopId: S
   const [driverChoice, setDriverChoice] = useState("none"); // "none" | "<id>" | "other"
   const [driverFee, setDriverFee] = useState("");
   const [otherName, setOtherName] = useState("");
+  const [notes, setNotes] = useState(""); // optional remark (e.g. "warehouse sale")
 
   function add(t: ItemType, stock: number) {
     setDraft({ itemType: t, qty: 0, stock });
@@ -72,6 +73,7 @@ export function TransferFlow({ drivers, shopId }: { drivers: Driver[]; shopId: S
         toLocation: to,
         items: lines.map((l) => ({ itemTypeId: l.itemType.id, qty: l.qty })),
         occurredAt: backdateIso(),
+        notes: notes.trim() || undefined,
         ...(fee > 0
           ? {
               driverFee: fee,
@@ -206,6 +208,19 @@ export function TransferFlow({ drivers, shopId }: { drivers: Driver[]; shopId: S
           </ul>
         </section>
       )}
+
+      {/* Optional remark on the transfer (e.g. "warehouse sale") */}
+      <section className="rounded-2xl border bg-card p-3">
+        <p className="mb-2 text-sm font-medium">{labels.transfer.notes}</p>
+        <textarea
+          rows={2}
+          maxLength={500}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder={labels.transfer.notesPlaceholder}
+          className="w-full rounded-lg border bg-background px-3 py-2 text-base"
+        />
+      </section>
 
       {/* Delivery / driver (optional) — records a transport expense */}
       <section className="rounded-2xl border bg-card p-3">

@@ -195,6 +195,8 @@ export const my: DeepPartial<Labels> = {
     locInTransit: "ကားပေါ်",
     notEnough: "ပို့မယ့်နေရာတွင် လက်ကျန် မလုံလောက်ပါ",
     history: "ဆိုင်ပို့ မှတ်တမ်း",
+    searchItem: "အလိပ် / ပစ္စည်း ရှာရန်",
+    notesPlaceholder: "မှတ်ချက် (ဥပမာ - ဂိုဒေါင်ရောင်း)",
     slipTitle: "ပစ္စည်းပို့ စလစ်",
     totalPieces: "စုစုပေါင်း",
     savePrint: "သိမ်း & ပုံနှိပ်",
@@ -296,6 +298,9 @@ export const my: DeepPartial<Labels> = {
     sendSlip: "ချုပ်ရန် ပို့",
     receiveSlip: "ပြန်လက်ခံ",
     savePrint: "သိမ်း & ပုံနှိပ်",
+    date: "ရက်စွဲ",
+    editDate: "ရက်စွဲ ပြင်",
+    undoJob: "ဤမှတ်တမ်း ပြန်ဖျက်",
   },
 
   tailorLedger: {

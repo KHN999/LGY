@@ -5,6 +5,7 @@ import { formatDateTime } from "@/lib/utils";
 import type { InventoryEvent } from "@/lib/api-client";
 import { PageHeader, EmptyState } from "@/components/ui";
 import { DateFilter } from "@/components/admin/date-filter";
+import { SearchInput } from "@/components/search-input";
 import { VoidTransferButton } from "./void-transfer-button";
 
 export const dynamic = "force-dynamic";
@@ -18,12 +19,13 @@ const LOC: Record<string, string> = {
 export default async function TransfersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; search?: string }>;
 }) {
-  const { from, to } = await searchParams;
+  const { from, to, search } = await searchParams;
   const p = new URLSearchParams();
   if (from) p.set("from", from);
   if (to) p.set("to", to);
+  if (search?.trim()) p.set("search", search.trim());
   const qs = p.toString();
   const transfers = await serverFetch<InventoryEvent[]>(`/api/transfers${qs ? `?${qs}` : ""}`);
   const rows = transfers ?? [];
@@ -31,6 +33,7 @@ export default async function TransfersPage({
     <div className="flex flex-col gap-4">
       <PageHeader title={labels.admin.transfers} />
       <DateFilter />
+      <SearchInput placeholder={labels.transfer.searchItem} />
       {rows.length === 0 ? (
         <EmptyState>{labels.admin.empty.transfers}</EmptyState>
       ) : (

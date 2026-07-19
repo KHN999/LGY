@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { InventoryEvent, ItemType, ShopSettings } from "@/lib/api-client";
+import { useRouter } from "next/navigation";
+import { api, ApiError, type InventoryEvent, type ItemType, type ShopSettings } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 import { Button } from "@/components/ui";
+import { inputClass } from "@/components/admin/form-field";
 import { TailorJobReceipt, type TailorJobSlip } from "@/components/admin/tailor-job-receipt";
 
 const lineLabel = (l: { itemType?: ItemType; itemTypeId: number }) =>
@@ -98,6 +100,8 @@ export function TailorJobView({
         🖨 {labels.history.reprint}
       </Button>
 
+      {!job.voidedAt && <JobEditVoid jobId={job.id} currentDate={job.occurredAt} />}
+
       {mounted &&
         createPortal(
           <div id="print-receipt" className="hidden print:block">
@@ -106,5 +110,110 @@ export function TailorJobView({
           document.body,
         )}
     </>
+  );
+}
+
+/** Fix mistakes on a tailor job: re-date it, or undo it entirely (reverts stock;
+ *  for a return also reverses the sewing fee + spoilage). */
+function JobEditVoid({ jobId, currentDate }: { jobId: number; currentDate: string }) {
+  const router = useRouter();
+  const [date, setDate] = useState(currentDate.slice(0, 10));
+  const [savingDate, setSavingDate] = useState(false);
+  const [confirmVoid, setConfirmVoid] = useState(false);
+  const [reason, setReason] = useState("");
+  const [voiding, setVoiding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function saveDate() {
+    setSavingDate(true);
+    setError(null);
+    try {
+      await api.patch(`/tailors/jobs/${jobId}`, { occurredAt: date });
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : labels.errors.unknown);
+    } finally {
+      setSavingDate(false);
+    }
+  }
+
+  async function doVoid() {
+    setVoiding(true);
+    setError(null);
+    try {
+      await api.post(`/tailors/jobs/${jobId}/void`, { reason: reason.trim() || undefined });
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : labels.errors.unknown);
+    } finally {
+      setVoiding(false);
+    }
+  }
+
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          {labels.tailorWork.editDate}
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className={inputClass + " w-44"}
+          />
+        </label>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={saveDate}
+          disabled={savingDate || date.slice(0, 10) === currentDate.slice(0, 10)}
+        >
+          {savingDate ? labels.common.saving : labels.common.save}
+        </Button>
+      </div>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      {!confirmVoid ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="destructive"
+          className="self-start"
+          onClick={() => setConfirmVoid(true)}
+        >
+          ↩ {labels.tailorWork.undoJob}
+        </Button>
+      ) : (
+        <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 p-3">
+          <input
+            type="text"
+            autoFocus
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder={labels.salesAdmin.reason}
+            maxLength={500}
+            className={inputClass}
+          />
+          <div className="flex gap-2">
+            <Button type="button" size="sm" variant="destructive" onClick={doVoid} disabled={voiding}>
+              {voiding ? labels.common.saving : labels.tailorWork.undoJob}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setConfirmVoid(false);
+                setReason("");
+              }}
+            >
+              {labels.common.cancel}
+            </Button>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }

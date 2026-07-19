@@ -5,9 +5,8 @@ import { Roles } from "../auth/decorators/roles.decorator";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import type { AuthenticatedUser } from "../auth/jwt-payload";
 import { TransfersService } from "./transfers.service";
-import { CreateTransferDto } from "./dto/transfer.dto";
+import { CreateTransferDto, ListTransfersQueryDto } from "./dto/transfer.dto";
 import { VoidTransferDto } from "./dto/void-transfer.dto";
-import { DateRangeQueryDto } from "../common/date-range.query.dto";
 
 @Controller("transfers")
 @UseGuards(JwtAuthGuard)
@@ -20,7 +19,7 @@ export class TransfersController {
   }
 
   @Get()
-  list(@Query() q: DateRangeQueryDto) {
+  list(@Query() q: ListTransfersQueryDto) {
     return this.service.list(q);
   }
 

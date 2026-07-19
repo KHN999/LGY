@@ -1,6 +1,7 @@
 import {
   ArrayMinSize,
   IsArray,
+  IsDateString,
   IsEnum,
   IsIn,
   IsInt,
@@ -119,6 +120,11 @@ export class SendToTailorDto {
   @IsString()
   @MaxLength(500)
   notes?: string;
+
+  /** Optional backdate (ISO). Omitted = now. */
+  @IsOptional()
+  @IsDateString()
+  occurredAt?: string;
 }
 
 // ── Receive from a tailor (tailor → warehouse, with transform/loss) ─
@@ -153,6 +159,23 @@ export class ReceiveFromTailorDto {
   @IsInt()
   @Min(0)
   fee?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
+
+  /** Optional backdate (ISO). Omitted = now. */
+  @IsOptional()
+  @IsDateString()
+  occurredAt?: string;
+}
+
+/** Edit an existing tailor job's date/note (no stock or fee changes). */
+export class UpdateTailorJobDto {
+  @IsOptional()
+  @IsDateString()
+  occurredAt?: string;
 
   @IsOptional()
   @IsString()

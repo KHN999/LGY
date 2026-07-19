@@ -109,6 +109,7 @@ function SendForm({
 }) {
   const first = available[0]?.itemTypeId ?? 0;
   const [rows, setRows] = useState([{ itemTypeId: first, qty: "" }]);
+  const [date, setDate] = useState(""); // optional backdate (YYYY-MM-DD); blank = now
   const [busy, setBusy] = useState(false);
 
   const setRow = (i: number, patch: Partial<(typeof rows)[number]>) =>
@@ -124,7 +125,10 @@ function SendForm({
     }
     setBusy(true);
     try {
-      const ev = await api.post<{ id: number }>(`/tailors/${tailorId}/send`, { items });
+      const ev = await api.post<{ id: number }>(`/tailors/${tailorId}/send`, {
+        items,
+        occurredAt: date || undefined,
+      });
       onSaved(ev.id, print);
     } catch (err) {
       onError(err instanceof ApiError ? err.message : labels.errors.unknown);
@@ -149,6 +153,15 @@ function SendForm({
       }}
       className="flex flex-col gap-2 rounded-xl border bg-background p-3"
     >
+      <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        {labels.tailorWork.date}
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className={inputClass + " w-44"}
+        />
+      </label>
       {rows.map((r, i) => (
         <div key={i} className="flex items-center gap-2">
           <select
@@ -227,6 +240,7 @@ function ReceiveForm({
   ]);
   const [fee, setFee] = useState("");
   const [feeDirty, setFeeDirty] = useState(false);
+  const [date, setDate] = useState(""); // optional backdate (YYYY-MM-DD); blank = now
   const [busy, setBusy] = useState(false);
 
   function setRow(i: number, patch: Partial<(typeof rows)[number]>) {
@@ -262,6 +276,7 @@ function ReceiveForm({
       const ev = await api.post<{ id: number }>(`/tailors/${tailor.id}/receive`, {
         lines,
         fee: Math.max(0, Number(fee) || 0),
+        occurredAt: date || undefined,
       });
       onSaved(ev.id, print);
     } catch (err) {
@@ -287,6 +302,15 @@ function ReceiveForm({
       }}
       className="flex flex-col gap-3 rounded-xl border bg-background p-3"
     >
+      <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        {labels.tailorWork.date}
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className={inputClass + " w-44"}
+        />
+      </label>
       {rows.map((r, i) => {
         const loss = Math.max(0, (Number(r.sentQty) || 0) - (Number(r.receivedQty) || 0));
         return (

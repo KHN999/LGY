@@ -4,6 +4,7 @@ import { labels } from "@/lib/labels";
 import { formatKyat, formatDateTime } from "@/lib/utils";
 import type { InventoryEvent } from "@/lib/api-client";
 import { EmptyState } from "@/components/ui";
+import { SearchInput } from "@/components/search-input";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +15,14 @@ const LOC: Record<string, string> = {
   TAILOR: "Tailor",
 };
 
-export default async function StaffTransfersPage() {
-  const transfers = await serverFetch<InventoryEvent[]>("/api/transfers");
+export default async function StaffTransfersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ search?: string }>;
+}) {
+  const { search } = await searchParams;
+  const qs = search?.trim() ? `?search=${encodeURIComponent(search.trim())}` : "";
+  const transfers = await serverFetch<InventoryEvent[]>(`/api/transfers${qs}`);
   const rows = transfers ?? [];
 
   return (
@@ -32,6 +39,8 @@ export default async function StaffTransfersPage() {
           + {labels.transfer.title}
         </Link>
       </div>
+
+      <SearchInput placeholder={labels.transfer.searchItem} />
 
       {rows.length === 0 ? (
         <EmptyState>{labels.transfer.empty}</EmptyState>
@@ -56,6 +65,12 @@ export default async function StaffTransfersPage() {
                       {formatDateTime(e.occurredAt)}
                       {e.voidedAt ? ` · ${labels.salesAdmin.voided}` : ""}
                     </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {out
+                        .map((l) => `${l.itemType?.labelMy ?? `#${l.itemTypeId}`} ×${l.qty}`)
+                        .join(" · ")}
+                    </p>
+                    {e.notes && <p className="truncate text-xs text-muted-foreground">📝 {e.notes}</p>}
                     {e.expenses?.[0] && (
                       <p className="text-xs text-muted-foreground">
                         🚚 {e.expenses[0].paidToDriver?.name ?? e.expenses[0].paidTo ?? labels.transfer.driver}{" "}
