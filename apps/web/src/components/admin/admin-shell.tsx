@@ -36,6 +36,7 @@ const GROUPS: { title: string; items: NavItem[] }[] = [
       { href: "/admin/opening-stock", label: labels.admin.openingStock, icon: "📦" },
       { href: "/admin/transfers", label: labels.admin.transfers, icon: "🔁" },
       { href: "/admin/stock-count", label: labels.admin.stockCount, icon: "🔢" },
+      { href: "/admin/inventory-value", label: labels.admin.inventoryValue, icon: "💎" },
     ],
   },
   {

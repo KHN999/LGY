@@ -50,6 +50,8 @@ export interface DashboardSummary {
   warehouseStock: DashboardStockRow[];
   shopStock: DashboardStockRow[];
   rollOrders: RollOrdersSummary;
+  /** Current on-hand stock value (warehouse + shop; qty × cost per item). */
+  stockValue: number;
 }
 
 /**
@@ -166,10 +168,11 @@ export class DashboardService {
       }),
     ]);
 
-    const [custBalances, suppBalances, rollOrders] = await Promise.all([
+    const [custBalances, suppBalances, rollOrders, stockValuation] = await Promise.all([
       this.customers.balancesFor(custIds.map((c) => c.id)),
       this.suppliers.balancesFor(suppIds.map((s) => s.id)),
       this.supplierOrders.summary(),
+      this.inventory.valuation(),
     ]);
     const customerDebt = [...custBalances.values()].reduce((s, b) => s + Math.max(0, b), 0);
     const supplierDebt = [...suppBalances.values()].reduce((s, b) => s + Math.max(0, b), 0);
@@ -299,6 +302,7 @@ export class DashboardService {
       warehouseStock: rows(whMap),
       shopStock: rows(shopMap),
       rollOrders,
+      stockValue: stockValuation.totals.totalValue,
     };
   }
 }

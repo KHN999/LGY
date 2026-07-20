@@ -30,6 +30,7 @@ const EMPTY: DashboardSummary = {
   warehouseStock: [],
   shopStock: [],
   rollOrders: { openOrders: 0, rollsOrdered: 0, rollsReceived: 0, committedToPay: 0, dueNow: 0 },
+  stockValue: 0,
 };
 
 export default async function AdminHomePage({
@@ -216,6 +217,11 @@ export default async function AdminHomePage({
             label={labels.dash.supplierDebt}
             value={formatKyat(summary.debts.supplier)}
             tone={summary.debts.supplier > 0 ? "warn" : "default"}
+          />
+          <KpiCard
+            label={labels.admin.inventoryValue}
+            value={formatKyat(summary.stockValue)}
+            href="/admin/inventory-value"
           />
         </div>
 

@@ -15,6 +15,16 @@ export interface StockRow {
   qty: number;
 }
 
+interface StockValueRaw {
+  itemTypeId: number;
+  key: string;
+  labelMy: string;
+  emoji: string | null;
+  costPrice: number | null;
+  warehouseQty: number;
+  shopQty: number;
+}
+
 /**
  * The inventory ledger lives in (InventoryEvent, InventoryLine).
  * Stock at any (location, itemType) = Σ IN.qty − Σ OUT.qty for non-voided events.
@@ -112,6 +122,57 @@ export class InventoryService {
       GROUP BY t.id
       ORDER BY t."sortOrder" ASC, t.id ASC
     `);
+  }
+
+  /**
+   * Stock valuation across warehouse + shop: each item's on-hand qty × its
+   * admin-set costPrice. Rolls are valued per yard, pieces per piece. Items with
+   * zero stock are dropped; items with stock but no cost set are surfaced so the
+   * admin knows the total is understated.
+   */
+  async valuation() {
+    const rows = await this.prisma.$queryRaw<StockValueRaw[]>(Prisma.sql`
+      SELECT
+        t.id AS "itemTypeId",
+        t.key,
+        t."labelMy",
+        t.emoji,
+        t."costPrice",
+        COALESCE(SUM(CASE
+          WHEN ev."voidedAt" IS NULL AND il.location = 'WAREHOUSE'::"Location" AND il.direction = 'IN'::"InventoryDirection" THEN il.qty
+          WHEN ev."voidedAt" IS NULL AND il.location = 'WAREHOUSE'::"Location" AND il.direction = 'OUT'::"InventoryDirection" THEN -il.qty
+          ELSE 0 END), 0)::int AS "warehouseQty",
+        COALESCE(SUM(CASE
+          WHEN ev."voidedAt" IS NULL AND il.location = 'SHOP'::"Location" AND il.direction = 'IN'::"InventoryDirection" THEN il.qty
+          WHEN ev."voidedAt" IS NULL AND il.location = 'SHOP'::"Location" AND il.direction = 'OUT'::"InventoryDirection" THEN -il.qty
+          ELSE 0 END), 0)::int AS "shopQty"
+      FROM "ItemType" t
+      LEFT JOIN "InventoryLine" il
+        ON il."itemTypeId" = t.id
+       AND il."tailorId" IS NULL
+       AND il.location IN ('WAREHOUSE'::"Location", 'SHOP'::"Location")
+      LEFT JOIN "InventoryEvent" ev ON ev.id = il."eventId"
+      GROUP BY t.id
+      ORDER BY t."sortOrder" ASC, t.id ASC
+    `);
+
+    const items = rows
+      .map((r) => {
+        const cost = r.costPrice ?? 0;
+        const warehouseValue = r.warehouseQty * cost;
+        const shopValue = r.shopQty * cost;
+        return { ...r, warehouseValue, shopValue, totalValue: warehouseValue + shopValue };
+      })
+      .filter((r) => r.warehouseQty !== 0 || r.shopQty !== 0)
+      .sort((a, b) => b.totalValue - a.totalValue);
+
+    const totals = {
+      warehouseValue: items.reduce((s, r) => s + r.warehouseValue, 0),
+      shopValue: items.reduce((s, r) => s + r.shopValue, 0),
+      totalValue: items.reduce((s, r) => s + r.totalValue, 0),
+      uncostedCount: items.filter((r) => r.costPrice == null).length,
+    };
+    return { items, totals };
   }
 
   /** Bulk: stock currently with a specific tailor. */

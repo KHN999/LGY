@@ -18,6 +18,9 @@ export function ItemTypeForm({ initial }: Props) {
   const [labelMy, setLabelMy] = useState(initial?.labelMy ?? "");
   const [emoji, setEmoji] = useState(initial?.emoji ?? "");
   const [sortOrder, setSortOrder] = useState<string>(String(initial?.sortOrder ?? 0));
+  const [costPrice, setCostPrice] = useState<string>(
+    initial?.costPrice != null ? String(initial.costPrice) : "",
+  );
   const [isActive, setIsActive] = useState(initial?.isActive ?? true);
   const [sellable, setSellable] = useState(initial?.sellable ?? true);
   const [submitting, setSubmitting] = useState(false);
@@ -54,6 +57,8 @@ export function ItemTypeForm({ initial }: Props) {
       sortOrder: Number(sortOrder) || 0,
       isActive,
       sellable,
+      // null (not 0) when blank so the item reads as "not costed" in valuation.
+      costPrice: costPrice.trim() ? Math.max(0, Math.round(Number(costPrice) || 0)) : null,
     };
     try {
       if (isEdit) {
@@ -110,6 +115,25 @@ export function ItemTypeForm({ initial }: Props) {
           onChange={(e) => setSortOrder(e.target.value)}
           className={inputClass}
         />
+      </Field>
+      <Field label={labels.admin.costPrice}>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          value={costPrice}
+          onChange={(e) => setCostPrice(e.target.value)}
+          className={inputClass + " tabular-nums"}
+        />
+        {initial?.suggestedCost != null && (
+          <button
+            type="button"
+            onClick={() => setCostPrice(String(initial.suggestedCost))}
+            className="mt-1 text-left text-xs text-primary underline"
+          >
+            {labels.admin.suggestedCost}: {initial.suggestedCost.toLocaleString("en-US")}
+          </button>
+        )}
       </Field>
       <label className="flex items-center gap-2">
         <input

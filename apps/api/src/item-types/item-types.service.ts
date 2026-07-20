@@ -10,16 +10,40 @@ export class ItemTypesService {
   // inactive, badging the inactive ones) — NOT "inactive only" like the party
   // lists, which have an explicit Active/Inactive tab.
   async list(opts: { activeOnly?: boolean }) {
-    return this.prisma.itemType.findMany({
+    const rows = await this.prisma.itemType.findMany({
       where: opts.activeOnly !== false ? { isActive: true } : {},
       orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
     });
+    // Only the admin management view (activeOnly=false) pays for the suggested
+    // cost — a roll's latest order price/yд, offered as a default when the admin
+    // sets its stock-valuation cost. Keeps the hot-path pickers cheap.
+    if (opts.activeOnly === false && rows.length > 0) {
+      const orders = await this.prisma.supplierOrder.findMany({
+        where: { pricePerYard: { not: null }, itemTypeId: { in: rows.map((r) => r.id) } },
+        orderBy: { orderDate: "desc" },
+        select: { itemTypeId: true, pricePerYard: true },
+      });
+      const suggested = new Map<number, number>();
+      for (const o of orders) {
+        if (o.itemTypeId != null && o.pricePerYard != null && !suggested.has(o.itemTypeId)) {
+          suggested.set(o.itemTypeId, o.pricePerYard);
+        }
+      }
+      return rows.map((r) => ({ ...r, suggestedCost: suggested.get(r.id) ?? null }));
+    }
+    return rows;
   }
 
   async getOne(id: number) {
     const row = await this.prisma.itemType.findUnique({ where: { id } });
     if (!row) throw new NotFoundException(`ItemType ${id} not found`);
-    return row;
+    // A roll's latest order price/yд, offered as a default valuation cost.
+    const order = await this.prisma.supplierOrder.findFirst({
+      where: { itemTypeId: id, pricePerYard: { not: null } },
+      orderBy: { orderDate: "desc" },
+      select: { pricePerYard: true },
+    });
+    return { ...row, suggestedCost: order?.pricePerYard ?? null };
   }
 
   async create(dto: CreateItemTypeDto) {
@@ -32,6 +56,7 @@ export class ItemTypesService {
           sortOrder: dto.sortOrder ?? 0,
           isActive: dto.isActive ?? true,
           sellable: dto.sellable ?? true,
+          costPrice: dto.costPrice ?? null,
         },
       });
     } catch (e: unknown) {
@@ -54,6 +79,7 @@ export class ItemTypesService {
         ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
         ...(dto.sellable !== undefined ? { sellable: dto.sellable } : {}),
+        ...(dto.costPrice !== undefined ? { costPrice: dto.costPrice } : {}),
       },
     });
   }

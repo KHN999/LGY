@@ -43,6 +43,14 @@ export class CreateItemTypeDto {
   @IsOptional()
   @IsBoolean()
   sellable?: boolean;
+
+  /** Unit cost in kyat for valuing stock — per YARD for rolls, per PIECE for
+   *  pieces. 0/omitted = not valued. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  costPrice?: number;
 }
 
 export class UpdateItemTypeDto extends PartialType(CreateItemTypeDto) {}

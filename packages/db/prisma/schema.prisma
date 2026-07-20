@@ -172,6 +172,9 @@ model ItemType {
   isActive  Boolean  @default(true)
   // Shown in the shop sell screen. False = warehouse-only / raw material (e.g. ROLL).
   sellable  Boolean  @default(true)
+  // Admin-set unit cost in kyat for valuing stock: per YARD for rolls, per PIECE
+  // for pieces. Null = not valued. stock value = qty × costPrice.
+  costPrice Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

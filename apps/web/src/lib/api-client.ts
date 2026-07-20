@@ -81,6 +81,29 @@ export interface ItemType {
   sortOrder: number;
   isActive: boolean;
   sellable: boolean;
+  /** Admin-set unit cost for valuing stock (per yard for rolls, per piece). */
+  costPrice?: number | null;
+  /** Admin list only: latest roll-order price/yд, offered as a default cost. */
+  suggestedCost?: number | null;
+}
+
+/** One item's stock valuation row (GET /inventory/value). */
+export interface StockValueRow {
+  itemTypeId: number;
+  key: string;
+  labelMy: string;
+  emoji: string | null;
+  costPrice: number | null;
+  warehouseQty: number;
+  shopQty: number;
+  warehouseValue: number;
+  shopValue: number;
+  totalValue: number;
+}
+
+export interface StockValuation {
+  items: StockValueRow[];
+  totals: { warehouseValue: number; shopValue: number; totalValue: number; uncostedCount: number };
 }
 
 export interface Customer {
@@ -300,6 +323,8 @@ export interface DashboardSummary {
   warehouseStock: StockRow[];
   shopStock: StockRow[];
   rollOrders: RollOrdersSummary;
+  /** Current on-hand stock value (warehouse + shop). */
+  stockValue: number;
 }
 
 export interface SaleLine {

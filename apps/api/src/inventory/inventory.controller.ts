@@ -36,6 +36,14 @@ export class InventoryController {
     return this.inventory.stockRowsAt(q.location);
   }
 
+  /** Stock valuation (warehouse + shop) — qty × cost per item, with totals. */
+  @Get("value")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  async value() {
+    return this.inventory.valuation();
+  }
+
   /** Stock currently with a specific tailor. */
   @Get("stock-at-tailor/:tailorId")
   @UseGuards(RolesGuard)
