@@ -32,28 +32,24 @@ export class CutsService {
     const occurredAt = dto.occurredAt ? new Date(dto.occurredAt) : undefined;
     await assertDateNotClosed(this.prisma, occurredAt ?? null);
 
+    const totalPieces = outputs.reduce((s, o) => s + o.qty, 0);
+
     return this.prisma.$transaction(async (tx) => {
-      // Validate every referenced item type exists.
+      // Validate every referenced item type exists; grab each one's current cost.
       const ids = [...new Set([dto.rollItemTypeId, ...outputs.map((o) => o.itemTypeId)])];
       const types = await tx.itemType.findMany({
         where: { id: { in: ids } },
-        select: { id: true, key: true },
+        select: { id: true, key: true, costPrice: true },
       });
       const byId = new Map(types.map((t) => [t.id, t]));
       for (const id of ids) {
         if (!byId.has(id)) throw new BadRequestException(`ItemType ${id} not found`);
       }
 
-      const lines: {
-        direction: "IN" | "OUT";
-        location: "WAREHOUSE";
-        itemTypeId: number;
-        qty: number;
-      }[] = [];
-
-      // Warehouse is strict: never cut more rolls than are on hand.
+      // Warehouse stock BEFORE this cut — for the roll strict-check and to weight
+      // the auto-cost moving average. Fetched once.
+      const stock = await this.inventory.stockMapAt("WAREHOUSE", tx);
       if (rolls > 0) {
-        const stock = await this.inventory.stockMapAt("WAREHOUSE", tx);
         const have = stock.get(dto.rollItemTypeId) ?? 0;
         if (have < rolls) {
           const t = byId.get(dto.rollItemTypeId);
@@ -61,17 +57,44 @@ export class CutsService {
             `Not enough roll stock for ${t?.key ?? `#${dto.rollItemTypeId}`}: have ${have}, need ${rolls}`,
           );
         }
+      }
+
+      // Auto-cost: cost per piece = (rolls × roll cost) ÷ pieces, when the roll has
+      // a cost set. It rides the IN lines (unitCost) and updates each output item's
+      // standard cost to a moving weighted average, so inventory + tailor
+      // valuations reflect real production cost with no manual entry. Skipped when
+      // the roll is uncosted or nothing was consumed/produced.
+      const rollCost = byId.get(dto.rollItemTypeId)?.costPrice ?? null;
+      const cutUnitCost =
+        rolls > 0 && totalPieces > 0 && rollCost != null
+          ? Math.round((rolls * rollCost) / totalPieces)
+          : null;
+
+      const lines: {
+        direction: "IN" | "OUT";
+        location: "WAREHOUSE";
+        itemTypeId: number;
+        qty: number;
+        unitCost?: number;
+      }[] = [];
+      if (rolls > 0) {
         lines.push({ direction: "OUT", location: "WAREHOUSE", itemTypeId: dto.rollItemTypeId, qty: rolls });
       }
       for (const o of outputs) {
-        lines.push({ direction: "IN", location: "WAREHOUSE", itemTypeId: o.itemTypeId, qty: o.qty });
+        lines.push({
+          direction: "IN",
+          location: "WAREHOUSE",
+          itemTypeId: o.itemTypeId,
+          qty: o.qty,
+          ...(cutUnitCost != null ? { unitCost: cutUnitCost } : {}),
+        });
       }
 
       // Yards is reference-only — keep it on the note so it's not lost.
       const yardNote = dto.yardsUsed && dto.yardsUsed > 0 ? `${dto.yardsUsed} yд` : null;
       const notes = [dto.notes?.trim() || null, yardNote].filter(Boolean).join(" · ") || undefined;
 
-      return tx.inventoryEvent.create({
+      const event = await tx.inventoryEvent.create({
         data: {
           kind: "CUT",
           ...(occurredAt ? { occurredAt } : {}),
@@ -81,6 +104,30 @@ export class CutsService {
         },
         include: { lines: { include: { itemType: true } } },
       });
+
+      // Blend this cut's cost into each output item's standard cost. Weighted by
+      // pre-cut warehouse qty so a stable cost emerges over many cuts (and a
+      // one-off cut doesn't wildly swing it). No prior stock/cost → adopt this
+      // cut's cost outright. Not reversed on void (cost is a forward-only standard).
+      if (cutUnitCost != null) {
+        const incomingByType = new Map<number, number>();
+        for (const o of outputs) {
+          incomingByType.set(o.itemTypeId, (incomingByType.get(o.itemTypeId) ?? 0) + o.qty);
+        }
+        for (const [itemTypeId, incQty] of incomingByType) {
+          const prevQty = Math.max(0, stock.get(itemTypeId) ?? 0);
+          const prevCost = byId.get(itemTypeId)?.costPrice ?? 0;
+          const newCost =
+            prevQty > 0 && prevCost > 0
+              ? Math.round((prevQty * prevCost + incQty * cutUnitCost) / (prevQty + incQty))
+              : cutUnitCost;
+          if (newCost !== prevCost) {
+            await tx.itemType.update({ where: { id: itemTypeId }, data: { costPrice: newCost } });
+          }
+        }
+      }
+
+      return event;
     });
   }
 
