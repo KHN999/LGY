@@ -27,6 +27,8 @@ export interface TailorWithBalance {
    * is recorded as advance/credit on the tailor's side.
    */
   balance: number;
+  /** Money value of goods this tailor is currently holding (Σ qty × cost). */
+  holdingsValue: number;
 }
 
 export interface TailorHolding {
@@ -35,12 +37,20 @@ export interface TailorHolding {
   labelMy: string;
   emoji: string | null;
   qty: number;
+  /** Admin-set unit cost (null = not costed). */
+  costPrice: number | null;
+  /** qty × costPrice (0 when not costed). */
+  value: number;
 }
 
 export interface TailorDetail extends TailorWithBalance {
   charges: TailorCharge[];
   payments: TailorPayment[];
   holdings: TailorHolding[];
+  /** Money value of the goods this tailor is holding (Σ qty × costPrice). */
+  holdingsValue: number;
+  /** How many held items have no cost set (holdingsValue understated). */
+  holdingsUncosted: number;
 }
 
 @Injectable()
@@ -80,13 +90,49 @@ export class TailorsService {
       }),
       this.prisma.tailor.count({ where }),
     ]);
-    const balances = await this.balancesFor(rows.map((r) => r.id));
+    const ids = rows.map((r) => r.id);
+    const [balances, heldValues] = await Promise.all([
+      this.balancesFor(ids),
+      this.holdingsValueFor(ids),
+    ]);
     return {
-      data: rows.map((r) => ({ ...r, balance: balances.get(r.id) ?? 0 })),
+      data: rows.map((r) => ({
+        ...r,
+        balance: balances.get(r.id) ?? 0,
+        holdingsValue: heldValues.get(r.id) ?? 0,
+      })),
       page,
       limit,
       total,
     };
+  }
+
+  /** Bulk: money value of goods held per tailor (Σ held qty × item cost). One
+   *  grouped query over TAILOR lines joined to item cost, netted client-side. */
+  async holdingsValueFor(tailorIds: number[]): Promise<Map<number, number>> {
+    if (tailorIds.length === 0) return new Map();
+    const lines = await this.prisma.inventoryLine.findMany({
+      where: {
+        tailorId: { in: tailorIds },
+        location: "TAILOR",
+        event: { voidedAt: null },
+      },
+      select: {
+        tailorId: true,
+        direction: true,
+        qty: true,
+        itemType: { select: { costPrice: true } },
+      },
+    });
+    const map = new Map<number, number>();
+    for (const id of tailorIds) map.set(id, 0);
+    for (const l of lines) {
+      if (l.tailorId == null) continue;
+      const cost = l.itemType.costPrice ?? 0;
+      const signed = (l.direction === "IN" ? l.qty : -l.qty) * cost;
+      map.set(l.tailorId, (map.get(l.tailorId) ?? 0) + signed);
+    }
+    return map;
   }
 
   async getOne(id: number): Promise<TailorDetail> {
@@ -105,24 +151,40 @@ export class TailorsService {
     ]);
     const balance =
       charges.reduce((s, c) => s + c.amount, 0) - payments.reduce((s, p) => s + p.amount, 0);
-    return { ...tailor, balance, charges, payments, holdings };
+    const holdingsValue = holdings.reduce((s, h) => s + h.value, 0);
+    const holdingsUncosted = holdings.filter((h) => h.costPrice == null).length;
+    return { ...tailor, balance, charges, payments, holdings, holdingsValue, holdingsUncosted };
   }
 
-  /** Stock currently in the tailor's hands (Σ IN − OUT at location=TAILOR). */
+  /** Stock currently in the tailor's hands (Σ IN − OUT at location=TAILOR), each
+   *  valued at its item's admin-set cost. */
   async getHoldings(tailorId: number): Promise<TailorHolding[]> {
     const lines = await this.prisma.inventoryLine.findMany({
       where: { tailorId, location: "TAILOR", event: { voidedAt: null } },
-      include: { itemType: { select: { id: true, key: true, labelMy: true, emoji: true } } },
+      include: {
+        itemType: { select: { id: true, key: true, labelMy: true, emoji: true, costPrice: true } },
+      },
     });
     const map = new Map<number, TailorHolding>();
     for (const l of lines) {
       const t = l.itemType;
       const cur =
-        map.get(t.id) ?? { itemTypeId: t.id, key: t.key, labelMy: t.labelMy, emoji: t.emoji, qty: 0 };
+        map.get(t.id) ??
+        {
+          itemTypeId: t.id,
+          key: t.key,
+          labelMy: t.labelMy,
+          emoji: t.emoji,
+          qty: 0,
+          costPrice: t.costPrice,
+          value: 0,
+        };
       cur.qty += l.direction === "IN" ? l.qty : -l.qty;
       map.set(t.id, cur);
     }
-    return [...map.values()].filter((h) => h.qty !== 0);
+    return [...map.values()]
+      .filter((h) => h.qty !== 0)
+      .map((h) => ({ ...h, value: h.qty * (h.costPrice ?? 0) }));
   }
 
   async create(dto: CreateTailorDto): Promise<TailorWithBalance> {
@@ -136,7 +198,7 @@ export class TailorsService {
         status: dto.status ?? "ACTIVE",
       },
     });
-    return { ...tailor, balance: 0 };
+    return { ...tailor, balance: 0, holdingsValue: 0 };
   }
 
   async update(id: number, dto: UpdateTailorDto): Promise<TailorWithBalance> {
@@ -155,7 +217,11 @@ export class TailorsService {
         ...(dto.status !== undefined ? { status: dto.status } : {}),
       },
     });
-    return { ...tailor, balance: await this.getBalance(id) };
+    const [balance, heldValues] = await Promise.all([
+      this.getBalance(id),
+      this.holdingsValueFor([id]),
+    ]);
+    return { ...tailor, balance, holdingsValue: heldValues.get(id) ?? 0 };
   }
 
   /** Positive = we owe the tailor: Σ charges − Σ payments (non-voided). */

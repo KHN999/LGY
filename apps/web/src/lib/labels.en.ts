@@ -317,6 +317,10 @@ export const en = {
     date: "Date",
     editDate: "Edit date",
     undoJob: "Undo this record",
+    materialAtTailor: "Material at tailor",
+    moneyOwed: "Money owed",
+    account: "Tailor account",
+    uncostedHint: "items have no cost set",
   },
 
   tailorLedger: {

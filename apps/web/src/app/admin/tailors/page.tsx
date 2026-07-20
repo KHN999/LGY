@@ -21,6 +21,7 @@ export default async function TailorsPage({
   if (search) apiParams.set("search", search);
   const data = await serverFetch<Page<Tailor>>(`/api/tailors?${apiParams.toString()}`);
   const rows = data?.data ?? [];
+  const totalHeld = rows.reduce((s, t) => s + (t.holdingsValue ?? 0), 0);
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
@@ -33,6 +34,12 @@ export default async function TailorsPage({
       />
       {params.saved && <p className="rounded-lg bg-emerald-100 px-3 py-2 text-emerald-900">{labels.admin.saved}</p>}
       <SearchInput />
+      {totalHeld > 0 && (
+        <div className="rounded-2xl border bg-card p-4">
+          <p className="text-xs text-muted-foreground">{labels.tailorWork.materialAtTailor}</p>
+          <p className="mt-1 text-xl font-bold tabular-nums">{formatKyat(totalHeld)}</p>
+        </div>
+      )}
       {rows.length === 0 ? (
         <EmptyState>{labels.admin.empty.tailors}</EmptyState>
       ) : (
@@ -47,11 +54,18 @@ export default async function TailorsPage({
                     <p className="text-sm text-muted-foreground">{labels.admin.feePerPiece}: {formatKyat(t.defaultFeePerPiece)}</p>
                   )}
                 </div>
-                {t.balance !== 0 && (
-                  <p className={"shrink-0 text-right text-sm font-medium " + (t.balance > 0 ? "text-rose-600" : "text-emerald-600")}>
-                    {t.balance > 0 ? labels.admin.toPay : "credit"}: {formatKyat(Math.abs(t.balance))}
-                  </p>
-                )}
+                <div className="shrink-0 text-right text-sm">
+                  {t.holdingsValue > 0 && (
+                    <p className="font-medium text-muted-foreground">
+                      {labels.tailorWork.materialAtTailor}: {formatKyat(t.holdingsValue)}
+                    </p>
+                  )}
+                  {t.balance !== 0 && (
+                    <p className={"font-medium " + (t.balance > 0 ? "text-rose-600" : "text-emerald-600")}>
+                      {t.balance > 0 ? labels.admin.toPay : "credit"}: {formatKyat(Math.abs(t.balance))}
+                    </p>
+                  )}
+                </div>
               </Link>
             </li>
           ))}

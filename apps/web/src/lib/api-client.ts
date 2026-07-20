@@ -195,6 +195,8 @@ export interface Tailor {
   notes: string | null;
   status: PartyStatus;
   balance: number;
+  /** Money value of goods this tailor is currently holding (Σ qty × cost). */
+  holdingsValue: number;
 }
 
 export interface TailorCharge {
@@ -222,12 +224,18 @@ export interface TailorHolding {
   labelMy: string;
   emoji: string | null;
   qty: number;
+  costPrice: number | null;
+  value: number;
 }
 
 export interface TailorDetail extends Tailor {
   charges: TailorCharge[];
   payments: TailorPaymentRow[];
   holdings: TailorHolding[];
+  /** Money value of the goods this tailor is holding (Σ qty × costPrice). */
+  holdingsValue: number;
+  /** How many held items have no cost set (holdingsValue understated). */
+  holdingsUncosted: number;
 }
 
 export interface ExpenseCategory {

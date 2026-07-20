@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { serverFetch } from "@/lib/auth-server";
 import { TailorForm } from "../tailor-form";
 import { labels } from "@/lib/labels";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatKyat } from "@/lib/utils";
 import type { TailorDetail, StockRow, ItemType, InventoryEvent } from "@/lib/api-client";
 import { PageHeader, Card } from "@/components/ui";
 import { TailorLedger } from "./tailor-ledger";
@@ -25,6 +25,24 @@ export default async function EditTailorPage({ params }: { params: Promise<{ id:
   return (
     <div className="flex flex-col gap-6">
       <PageHeader backHref="/admin/tailors" backLabel={labels.admin.tailors} title={t.name} />
+
+      {/* Tailor account — material we have in their hands (asset) kept separate
+          from money we owe them (liability). */}
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Card className="p-4">
+          <p className="text-xs text-muted-foreground">{labels.tailorWork.materialAtTailor}</p>
+          <p className="mt-1 text-xl font-bold tabular-nums">{formatKyat(t.holdingsValue)}</p>
+          {t.holdingsUncosted > 0 && (
+            <p className="mt-1 text-xs text-amber-700">
+              {t.holdingsUncosted} {labels.tailorWork.uncostedHint}
+            </p>
+          )}
+        </Card>
+        <Card className={"p-4 " + (t.balance > 0 ? "border-amber-300 bg-amber-50" : "")}>
+          <p className="text-xs text-muted-foreground">{labels.tailorWork.moneyOwed}</p>
+          <p className="mt-1 text-xl font-bold tabular-nums">{formatKyat(t.balance)}</p>
+        </Card>
+      </section>
 
       <TailorWork tailor={t} warehouseStock={warehouseStock ?? []} itemTypes={itemTypes ?? []} />
 

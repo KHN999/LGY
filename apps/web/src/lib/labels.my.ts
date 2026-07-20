@@ -318,6 +318,10 @@ export const my: DeepPartial<Labels> = {
     date: "ရက်စွဲ",
     editDate: "ရက်စွဲ ပြင်",
     undoJob: "ဤမှတ်တမ်း ပြန်ဖျက်",
+    materialAtTailor: "ချုပ်ဆရာထံ ပစ္စည်းတန်ဖိုး",
+    moneyOwed: "ပေးရန်ကျန်",
+    account: "ချုပ်ဆရာ အကောင့်",
+    uncostedHint: "ခု ကုန်ကျစရိတ် မသတ်မှတ်ရသေး",
   },
 
   tailorLedger: {
