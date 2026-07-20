@@ -22,6 +22,10 @@ export interface ReceiptData {
   paid: number;
   method?: "CASH" | "BANK_TRANSFER"; // how the paid portion was tendered
   notes?: string | null; // optional per-sale note (e.g. "collect tomorrow")
+  // ── Returns against this sale (omit/empty when none) ──────────────
+  returnedLines?: ReceiptLine[]; // goods returned (positive qty; shown as −)
+  returnedTotal?: number; // Σ value of goods returned (reduces the total)
+  refundedTotal?: number; // Σ cash handed back to the buyer
 }
 
 /** Hide the element if its image source 404s (e.g. no logo.png uploaded yet). */
@@ -103,7 +107,16 @@ export function ReceiptHeader({ shop }: { shop?: ShopSettings }) {
  * browsers drop CSS background graphics — and self-hide if the file is missing.
  */
 export function Receipt({ data, shop }: { data: ReceiptData; shop?: ShopSettings }) {
-  const remaining = data.grandTotal - data.paid;
+  const returnedLines = data.returnedLines ?? [];
+  const returnedTotal = data.returnedTotal ?? 0;
+  const refundedTotal = data.refundedTotal ?? 0;
+  const hasReturns = returnedLines.length > 0 || returnedTotal > 0 || refundedTotal > 0;
+  // Returns reduce the receivable (returnedTotal) and cash refunds reduce what was
+  // net received (refundedTotal). Net owed = (total − returned) − (paid − refunded).
+  const netTotal = data.grandTotal - returnedTotal;
+  const balance = netTotal - (data.paid - refundedTotal);
+  const remaining = balance > 0 ? balance : 0;
+  const credit = balance < 0 ? -balance : 0;
   const d = new Date(data.date);
   const footer = shop?.receiptFooter?.trim() || labels.receipt.thanks;
   return (
@@ -162,11 +175,58 @@ export function Receipt({ data, shop }: { data: ReceiptData; shop?: ShopSettings
           </tbody>
         </table>
 
+        {/* Returned goods — shown as negative lines so the paper voucher reflects
+            what actually came back, not just the original sale. */}
+        {returnedLines.length > 0 && (
+          <table className="mt-3 w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-neutral-400">
+                <th className="py-1 pr-2 text-left font-semibold" colSpan={4}>
+                  {labels.receipt.returnsHeading}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {returnedLines.map((l, i) => (
+                <tr key={i} className="align-top text-neutral-600">
+                  <td className="py-1 pr-2">{l.label}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">−{l.qty}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">
+                    {l.unitPrice.toLocaleString("en-US")}
+                  </td>
+                  <td className="px-2 py-1 text-right tabular-nums">
+                    −{l.lineTotal.toLocaleString("en-US")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
         <div className="mt-4 ml-auto w-2/3 space-y-1 text-sm sm:w-1/2">
-          <div className="flex justify-between border-t-2 border-black pt-1 text-base font-bold">
+          <div
+            className={
+              "flex justify-between " +
+              (hasReturns
+                ? "border-t border-neutral-400 pt-1"
+                : "border-t-2 border-black pt-1 text-base font-bold")
+            }
+          >
             <span>{labels.receipt.total}</span>
             <span>{formatKyat(data.grandTotal)}</span>
           </div>
+          {returnedTotal > 0 && (
+            <div className="flex justify-between text-neutral-600">
+              <span>{labels.receipt.returned}</span>
+              <span>−{formatKyat(returnedTotal)}</span>
+            </div>
+          )}
+          {hasReturns && (
+            <div className="flex justify-between border-t-2 border-black pt-1 text-base font-bold">
+              <span>{labels.receipt.netTotal}</span>
+              <span>{formatKyat(netTotal)}</span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span>
               {labels.receipt.paid}
@@ -178,10 +238,22 @@ export function Receipt({ data, shop }: { data: ReceiptData; shop?: ShopSettings
             </span>
             <span>{formatKyat(data.paid)}</span>
           </div>
+          {refundedTotal > 0 && (
+            <div className="flex justify-between text-neutral-600">
+              <span>{labels.receipt.refunded}</span>
+              <span>−{formatKyat(refundedTotal)}</span>
+            </div>
+          )}
           {remaining > 0 && (
             <div className="flex justify-between font-medium">
               <span>{labels.receipt.remaining}</span>
               <span>{formatKyat(remaining)}</span>
+            </div>
+          )}
+          {credit > 0 && (
+            <div className="flex justify-between font-medium">
+              <span>{labels.receipt.credit}</span>
+              <span>{formatKyat(credit)}</span>
             </div>
           )}
         </div>

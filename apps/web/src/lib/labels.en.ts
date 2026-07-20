@@ -643,6 +643,11 @@ export const en = {
     paid: "Paid",
     remaining: "Remaining",
     thanks: "Thank you!",
+    returned: "Returned",
+    refunded: "Refunded",
+    netTotal: "Net total",
+    credit: "Store credit",
+    returnsHeading: "Returns",
   },
 
   paymentReceipt: {

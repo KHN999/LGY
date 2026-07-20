@@ -45,6 +45,18 @@ export function ReceiptView({
     }
   }
 
+  // Fold returns into the receipt so the printed voucher shows the net position
+  // (returned goods + refunds), not just the original sale. `returns` is already
+  // non-voided (the by-sale endpoint filters them out).
+  const returnedLines = returns.flatMap((r) =>
+    r.lines.map((l) => ({
+      label: l.itemType?.labelMy ?? l.itemName ?? "",
+      qty: l.qty,
+      unitPrice: l.unitPrice,
+      lineTotal: l.lineTotal,
+    })),
+  );
+
   const data: ReceiptData = {
     saleId: sale.id,
     date: sale.saleDate,
@@ -59,6 +71,9 @@ export function ReceiptView({
     })),
     grandTotal: sale.grandTotal,
     paid: sale.paidAmount,
+    returnedLines,
+    returnedTotal: returns.reduce((s, r) => s + r.returnTotal, 0),
+    refundedTotal: returns.reduce((s, r) => s + r.refundAmount, 0),
   };
 
   const voided = sale.voidedAt != null;
