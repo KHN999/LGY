@@ -102,15 +102,17 @@ export const my: DeepPartial<Labels> = {
   cut: {
     title: "အလိပ်ဖြတ် → ကွင်း",
     roll: "အလိပ် / အထည်",
-    yardsUsed: "ကိုက် သုံးသည်",
+    rollsUsed: "အလိပ် ဖြတ်သည်",
+    yardsUsed: "စုစုပေါင်း ကိုက် (ရွေးချယ်)",
     outputItem: "ဖြတ်ရရှိ",
     pieces: "ကွင်း အရေအတွက်",
     addOutput: "ကွင်း ထပ်ထည့်",
     history: "အလိပ်ဖြတ် မှတ်တမ်း",
     empty: "အလိပ်ဖြတ် မရှိသေးပါ",
-    needSomething: "ကိုက် သို့မဟုတ် ကွင်း ထည့်ပါ",
+    needSomething: "အလိပ် ဖြတ်သည် သို့မဟုတ် ကွင်း ထည့်ပါ",
     searchItem: "အလိပ် / ပစ္စည်း ရှာရန်",
     noRolls: "ဂိုဒေါင်တွင် အလိပ် လက်ကျန် မရှိပါ",
+    rolls: "လိပ်",
   },
 
   sell: {
@@ -431,7 +433,7 @@ export const my: DeepPartial<Labels> = {
     payments: "ရရှိငွေစာရင်း",
     stockCount: "စတော့ရေတွက်",
     inventoryValue: "ကုန်ပစ္စည်း တန်ဖိုး",
-    costPrice: "ကုန်ကျစရိတ် (တစ်ကိုက်/ကွင်း)",
+    costPrice: "ကုန်ကျစရိတ် (တစ်လိပ်/ကွင်း)",
     value: "တန်ဖိုး",
     suggestedCost: "အကြံပြု",
     uncostedItems: "ခု လက်ကျန်ရှိပြီး ကုန်ကျစရိတ် မသတ်မှတ်ရသေး — စုစုပေါင်း လျော့နည်းနေသည်",

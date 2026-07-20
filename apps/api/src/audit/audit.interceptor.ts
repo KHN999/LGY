@@ -132,8 +132,8 @@ function summarize(method: string, path: string, params: Record<string, string>,
   if (entity === "cuts" && method === "POST") {
     const outs = Array.isArray(b.outputs) ? (b.outputs as Array<Record<string, unknown>>) : [];
     const pieces = outs.reduce((s, o) => s + num(o.qty), 0);
-    const yd = num(b.yardsUsed);
-    return `Cut roll${yd ? ` · ${yd} yд` : ""}${pieces ? ` → ${pieces} pcs` : ""}`;
+    const rolls = num(b.rollsUsed);
+    return `Cut ${rolls ? `${rolls} roll${rolls === 1 ? "" : "s"}` : "roll"}${pieces ? ` → ${pieces} pcs` : ""}`;
   }
   if (entity === "adjustments" && method === "POST") {
     const n = Array.isArray(b.counts) ? (b.counts as unknown[]).length : 1;
@@ -413,13 +413,13 @@ export class AuditInterceptor implements NestInterceptor {
       const rollName = Number.isInteger(Number(body.rollItemTypeId))
         ? await this.lookupName(db, "item-types", Number(body.rollItemTypeId))
         : null;
-      const yd = num(body.yardsUsed);
+      const rolls = num(body.rollsUsed);
       const desc =
         outs
           .slice(0, 3)
           .map((o) => `${num(o.qty)}×${nameMap.get(Number(o.itemTypeId)) ?? `item#${String(o.itemTypeId)}`}`)
           .join(" + ") + (outs.length > 3 ? ` +${outs.length - 3} more` : "");
-      return `Cut ${rollName ?? "roll"}${yd ? ` (${yd} yд)` : ""}${desc ? ` → ${desc}` : ""}`;
+      return `Cut ${rollName ?? "roll"}${rolls ? ` ×${rolls}` : ""}${desc ? ` → ${desc}` : ""}`;
     }
     if (entity === "supplier-orders" && method === "POST") {
       const item =

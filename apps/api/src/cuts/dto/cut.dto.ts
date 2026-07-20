@@ -24,23 +24,31 @@ export class CutOutputDto {
 }
 
 /**
- * Record a controlled cut of a roll into pieces. Yards used and pieces made are
- * BOTH optional (the gap between them is leftover) — but at least one must be
- * given. Rolls are tracked in yards; the pieces land in warehouse stock.
+ * Record a controlled cut of a roll into pieces. Rolls are counted as WHOLE
+ * ROLLS, so a cut consumes `rollsUsed` from the roll's warehouse count and adds
+ * the produced pieces. `yardsUsed` is reference-only (for costing later), not a
+ * stock quantity. rollsUsed and pieces are both optional but at least one is
+ * required.
  */
 export class CreateCutDto {
-  /** The roll/fabric being cut (its warehouse yard stock is reduced). */
+  /** The roll/fabric being cut (its warehouse roll count is reduced). */
   @IsInt()
   @Min(1)
   rollItemTypeId!: number;
 
-  /** Yards consumed from the roll. Omitted/0 = don't move the roll. */
+  /** Whole rolls consumed (reduces the roll's stock count). Omitted/0 = none. */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  rollsUsed?: number;
+
+  /** Total yards cut — reference/costing only, NOT a stock quantity. */
   @IsOptional()
   @IsInt()
   @Min(0)
   yardsUsed?: number;
 
-  /** Pieces produced (added to warehouse). May be empty (yards-only cut). */
+  /** Pieces produced (added to warehouse). May be empty. */
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(20)

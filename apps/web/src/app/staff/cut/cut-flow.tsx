@@ -25,6 +25,7 @@ export function CutFlow({
   const outputs = itemTypes.filter((t) => t.isActive);
 
   const [rollId, setRollId] = useState<number>(rolls[0]?.itemTypeId ?? 0);
+  const [rollsCut, setRollsCut] = useState("");
   const [yards, setYards] = useState("");
   const [lines, setLines] = useState<{ itemTypeId: number; qty: string }[]>([
     { itemTypeId: outputs[0]?.id ?? 0, qty: "" },
@@ -42,8 +43,9 @@ export function CutFlow({
     const outs = lines
       .map((l) => ({ itemTypeId: l.itemTypeId, qty: Math.max(0, Number(l.qty) || 0) }))
       .filter((o) => o.itemTypeId && o.qty > 0);
+    const rc = Math.max(0, Number(rollsCut) || 0);
     const yd = Math.max(0, Number(yards) || 0);
-    if (yd <= 0 && outs.length === 0) {
+    if (rc <= 0 && outs.length === 0) {
       setError(labels.cut.needSomething);
       return;
     }
@@ -56,6 +58,7 @@ export function CutFlow({
     try {
       await api.post("/cuts", {
         rollItemTypeId: rollId,
+        rollsUsed: rc > 0 ? rc : undefined,
         yardsUsed: yd > 0 ? yd : undefined,
         outputs: outs,
         notes: notes.trim() || undefined,
@@ -104,14 +107,25 @@ export function CutFlow({
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-sm font-medium">
-                {labels.cut.yardsUsed}
-                {selectedRoll ? ` — ${selectedRoll.qty}` : ""}
+                {labels.cut.rollsUsed}
+                {selectedRoll ? ` — ${selectedRoll.qty} ${labels.cut.rolls}` : ""}
               </span>
               <input
                 type="number"
                 inputMode="numeric"
                 min={0}
                 max={selectedRoll?.qty}
+                value={rollsCut}
+                onChange={(e) => setRollsCut(e.target.value)}
+                className={field + " tabular-nums"}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium">{labels.cut.yardsUsed}</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
                 value={yards}
                 onChange={(e) => setYards(e.target.value)}
                 className={field + " tabular-nums"}

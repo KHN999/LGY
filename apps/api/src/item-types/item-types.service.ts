@@ -19,14 +19,15 @@ export class ItemTypesService {
     // sets its stock-valuation cost. Keeps the hot-path pickers cheap.
     if (opts.activeOnly === false && rows.length > 0) {
       const orders = await this.prisma.supplierOrder.findMany({
-        where: { pricePerYard: { not: null }, itemTypeId: { in: rows.map((r) => r.id) } },
+        where: { itemTypeId: { in: rows.map((r) => r.id) } },
         orderBy: { orderDate: "desc" },
-        select: { itemTypeId: true, pricePerYard: true },
+        select: { itemTypeId: true, expectedTotal: true, expectedQty: true },
       });
       const suggested = new Map<number, number>();
       for (const o of orders) {
-        if (o.itemTypeId != null && o.pricePerYard != null && !suggested.has(o.itemTypeId)) {
-          suggested.set(o.itemTypeId, o.pricePerYard);
+        if (o.itemTypeId != null && !suggested.has(o.itemTypeId) && o.expectedQty > 0) {
+          // Cost per roll = order total ÷ rolls ordered (rolls are counted whole).
+          suggested.set(o.itemTypeId, Math.round(o.expectedTotal / o.expectedQty));
         }
       }
       return rows.map((r) => ({ ...r, suggestedCost: suggested.get(r.id) ?? null }));
@@ -37,13 +38,16 @@ export class ItemTypesService {
   async getOne(id: number) {
     const row = await this.prisma.itemType.findUnique({ where: { id } });
     if (!row) throw new NotFoundException(`ItemType ${id} not found`);
-    // A roll's latest order price/yд, offered as a default valuation cost.
+    // A roll's latest cost PER ROLL (order total ÷ rolls) — rolls are counted as
+    // whole rolls, so the valuation cost is per roll, offered here as a default.
     const order = await this.prisma.supplierOrder.findFirst({
-      where: { itemTypeId: id, pricePerYard: { not: null } },
+      where: { itemTypeId: id },
       orderBy: { orderDate: "desc" },
-      select: { pricePerYard: true },
+      select: { expectedTotal: true, expectedQty: true },
     });
-    return { ...row, suggestedCost: order?.pricePerYard ?? null };
+    const suggestedCost =
+      order && order.expectedQty > 0 ? Math.round(order.expectedTotal / order.expectedQty) : null;
+    return { ...row, suggestedCost };
   }
 
   async create(dto: CreateItemTypeDto) {

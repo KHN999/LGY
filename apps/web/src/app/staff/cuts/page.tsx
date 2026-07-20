@@ -42,7 +42,7 @@ export default async function StaffCutsPage({
           {rows.map((e) => {
             const rollOut = e.lines.filter((l) => l.direction === "OUT");
             const pieceIn = e.lines.filter((l) => l.direction === "IN");
-            const yards = rollOut.reduce((s, l) => s + l.qty, 0);
+            const rollsCut = rollOut.reduce((s, l) => s + l.qty, 0);
             const pieces = pieceIn.reduce((s, l) => s + l.qty, 0);
             return (
               <li key={e.id} className="p-4">
@@ -52,7 +52,7 @@ export default async function StaffCutsPage({
                 </p>
                 <p className="mt-1 font-medium">
                   {rollOut.map((l) => l.itemType?.labelMy ?? `#${l.itemTypeId}`).join(", ") || "—"}
-                  {yards ? ` · ${yards} ${labels.cut.yardsUsed}` : ""}
+                  {rollsCut ? ` · ${rollsCut} ${labels.cut.rolls}` : ""}
                   {" → "}
                   <span className="text-emerald-700">{pieces} {labels.cut.pieces}</span>
                 </p>

@@ -100,15 +100,17 @@ export const en = {
   cut: {
     title: "Cut roll → pieces",
     roll: "Roll / fabric",
-    yardsUsed: "Yards used",
+    rollsUsed: "Rolls cut",
+    yardsUsed: "Total yards (optional)",
     outputItem: "Cut into",
     pieces: "Pieces",
     addOutput: "Add another piece",
     history: "Cut history",
     empty: "No cuts yet",
-    needSomething: "Enter yards used or pieces made",
+    needSomething: "Enter rolls cut or pieces made",
     searchItem: "Search roll / item",
     noRolls: "No roll stock in the warehouse",
+    rolls: "rolls",
   },
 
   sell: {
@@ -430,7 +432,7 @@ export const en = {
     payments: "Payments received",
     stockCount: "Stock count",
     inventoryValue: "Inventory value",
-    costPrice: "Cost (per yard / piece)",
+    costPrice: "Cost (per roll / piece)",
     value: "Value",
     suggestedCost: "Suggested",
     uncostedItems: "items in stock have no cost set — the total is understated",

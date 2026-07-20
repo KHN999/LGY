@@ -10,12 +10,11 @@ import { assertDateNotClosed } from "../common/backdate";
 import { CreateCutDto, UpdateCutDto } from "./dto/cut.dto";
 
 /**
- * Roll → pieces conversion (the CUT inventory event). One transaction subtracts
- * the yards used from the roll's warehouse stock and adds the produced pieces to
- * warehouse stock. Yards used and pieces made are independent (the gap is
- * leftover); rolls are tracked in yards. Piece cost is deliberately left for the
- * valuation feature — the yards (OUT line) and pieces (IN lines) are recorded on
- * the ledger, which is all costing later needs.
+ * Roll → pieces conversion (the CUT inventory event). Rolls are counted as WHOLE
+ * ROLLS: one transaction subtracts `rollsUsed` from the roll's warehouse count
+ * and adds the produced pieces to warehouse stock. `yardsUsed` is reference-only
+ * (folded into the note for costing later), never a stock quantity. Piece cost is
+ * deferred to the valuation feature (cost = rolls × cost-per-roll ÷ pieces).
  */
 @Injectable()
 export class CutsService {
@@ -25,10 +24,10 @@ export class CutsService {
   ) {}
 
   async create(dto: CreateCutDto, createdById: number) {
-    const yards = dto.yardsUsed ?? 0;
+    const rolls = dto.rollsUsed ?? 0;
     const outputs = (dto.outputs ?? []).filter((o) => o.qty > 0);
-    if (yards <= 0 && outputs.length === 0) {
-      throw new BadRequestException("Enter yards used or pieces made");
+    if (rolls <= 0 && outputs.length === 0) {
+      throw new BadRequestException("Enter rolls cut or pieces made");
     }
     const occurredAt = dto.occurredAt ? new Date(dto.occurredAt) : undefined;
     await assertDateNotClosed(this.prisma, occurredAt ?? null);
@@ -52,27 +51,31 @@ export class CutsService {
         qty: number;
       }[] = [];
 
-      // Warehouse is strict: never cut more yards than are on hand.
-      if (yards > 0) {
+      // Warehouse is strict: never cut more rolls than are on hand.
+      if (rolls > 0) {
         const stock = await this.inventory.stockMapAt("WAREHOUSE", tx);
         const have = stock.get(dto.rollItemTypeId) ?? 0;
-        if (have < yards) {
+        if (have < rolls) {
           const t = byId.get(dto.rollItemTypeId);
           throw new ConflictException(
-            `Not enough roll stock for ${t?.key ?? `#${dto.rollItemTypeId}`}: have ${have}, need ${yards}`,
+            `Not enough roll stock for ${t?.key ?? `#${dto.rollItemTypeId}`}: have ${have}, need ${rolls}`,
           );
         }
-        lines.push({ direction: "OUT", location: "WAREHOUSE", itemTypeId: dto.rollItemTypeId, qty: yards });
+        lines.push({ direction: "OUT", location: "WAREHOUSE", itemTypeId: dto.rollItemTypeId, qty: rolls });
       }
       for (const o of outputs) {
         lines.push({ direction: "IN", location: "WAREHOUSE", itemTypeId: o.itemTypeId, qty: o.qty });
       }
 
+      // Yards is reference-only — keep it on the note so it's not lost.
+      const yardNote = dto.yardsUsed && dto.yardsUsed > 0 ? `${dto.yardsUsed} yд` : null;
+      const notes = [dto.notes?.trim() || null, yardNote].filter(Boolean).join(" · ") || undefined;
+
       return tx.inventoryEvent.create({
         data: {
           kind: "CUT",
           ...(occurredAt ? { occurredAt } : {}),
-          notes: dto.notes,
+          notes,
           createdById,
           lines: { create: lines },
         },
