@@ -123,7 +123,7 @@ export function StatementView({
 
       {mounted &&
         createPortal(
-          <div id="print-receipt" className="hidden print:block">
+          <div id="print-document" className="hidden print:block">
             <StatementDoc s={statement} shop={shop} />
           </div>,
           document.body,

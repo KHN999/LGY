@@ -109,7 +109,7 @@ export function SalesReportView({
 
       {mounted &&
         createPortal(
-          <div id="print-receipt" className="hidden print:block">
+          <div id="print-document" className="hidden print:block">
             <SalesDoc r={report} shop={shop} />
           </div>,
           document.body,

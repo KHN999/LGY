@@ -48,12 +48,37 @@
     size: A4;
     margin: 0;
   }
-  body > :not(#print-receipt) {
+  /* Long tabular exports (statement / sales / debtors) print as TRUE A5 pages,
+     not the receipt's A4-centered trick — that trick only fits a single short
+     page, so a multi-page statement clips or leaves big gaps on A5 sheets. A
+     named page paginates the table straight onto A5 instead. Falls back to the
+     default A4 page on browsers without named-page support (no worse than now). */
+  @page a5doc {
+    size: A5;
+    margin: 8mm;
+  }
+  body > :not(#print-receipt):not(#print-document) {
     display: none !important;
   }
   #print-receipt {
     display: block !important;
     width: 148mm; /* A5 width; the receipt's own padding keeps content off the edges */
     margin: 0 auto; /* horizontally centered (sheet sits centered in the feed); top-aligned */
+  }
+  #print-document {
+    display: block !important;
+    page: a5doc;
+  }
+  /* Fill the A5 content box (the @page margin provides the whitespace). */
+  #print-document > div {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  #print-document thead {
+    display: table-header-group; /* repeat column headers on every page */
+  }
+  #print-document tr {
+    break-inside: avoid; /* never split a row across a page break */
   }
 }

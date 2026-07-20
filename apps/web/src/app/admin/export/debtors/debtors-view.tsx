@@ -97,7 +97,7 @@ export function DebtorsReportView({
 
       {mounted &&
         createPortal(
-          <div id="print-receipt" className="hidden print:block">
+          <div id="print-document" className="hidden print:block">
             <DebtorsDoc r={report} shop={shop} />
           </div>,
           document.body,
