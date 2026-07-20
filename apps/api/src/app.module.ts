@@ -12,6 +12,7 @@ import { EmployeesModule } from "./employees/employees.module";
 import { InventoryModule } from "./inventory/inventory.module";
 import { OpeningStockModule } from "./opening-stock/opening-stock.module";
 import { TransfersModule } from "./transfers/transfers.module";
+import { CutsModule } from "./cuts/cuts.module";
 import { SalesModule } from "./sales/sales.module";
 import { CustomerPaymentsModule } from "./customer-payments/customer-payments.module";
 import { SupplierOrdersModule } from "./supplier-orders/supplier-orders.module";
@@ -45,6 +46,7 @@ import { ExportModule } from "./export/export.module";
     InventoryModule,
     OpeningStockModule,
     TransfersModule,
+    CutsModule,
     SalesModule,
     CustomerPaymentsModule,
     SupplierOrdersModule,

@@ -94,8 +94,23 @@ export const my: DeepPartial<Labels> = {
     receive: "ငွေလက်ခံ",
     debts: "အကြွေးစာရင်း",
     transfer: "ဆိုင်ပို့",
+    cut: "အလိပ်ဖြတ်",
     viewStock: "ဆိုင်အထည်စာရင်း",
     close: "ဆိုင်သိမ်း",
+  },
+
+  cut: {
+    title: "အလိပ်ဖြတ် → ကွင်း",
+    roll: "အလိပ် / အထည်",
+    yardsUsed: "ကိုက် သုံးသည်",
+    outputItem: "ဖြတ်ရရှိ",
+    pieces: "ကွင်း အရေအတွက်",
+    addOutput: "ကွင်း ထပ်ထည့်",
+    history: "အလိပ်ဖြတ် မှတ်တမ်း",
+    empty: "အလိပ်ဖြတ် မရှိသေးပါ",
+    needSomething: "ကိုက် သို့မဟုတ် ကွင်း ထည့်ပါ",
+    searchItem: "အလိပ် / ပစ္စည်း ရှာရန်",
+    noRolls: "ဂိုဒေါင်တွင် အလိပ် လက်ကျန် မရှိပါ",
   },
 
   sell: {

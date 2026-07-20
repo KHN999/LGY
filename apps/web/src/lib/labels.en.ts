@@ -92,8 +92,23 @@ export const en = {
     receive: "Receive money",
     debts: "Debts",
     transfer: "Send to shop",
+    cut: "Cut roll",
     viewStock: "Shop stock",
     close: "Daily close",
+  },
+
+  cut: {
+    title: "Cut roll → pieces",
+    roll: "Roll / fabric",
+    yardsUsed: "Yards used",
+    outputItem: "Cut into",
+    pieces: "Pieces",
+    addOutput: "Add another piece",
+    history: "Cut history",
+    empty: "No cuts yet",
+    needSomething: "Enter yards used or pieces made",
+    searchItem: "Search roll / item",
+    noRolls: "No roll stock in the warehouse",
   },
 
   sell: {

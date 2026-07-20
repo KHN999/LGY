@@ -129,6 +129,12 @@ function summarize(method: string, path: string, params: Record<string, string>,
     const qty = items.length ? items.reduce((s, i) => s + num(i.qty), 0) : num(b.qty);
     return `Transfer ${qty} pcs · ${String(b.fromLocation ?? "?")} → ${String(b.toLocation ?? "?")}`;
   }
+  if (entity === "cuts" && method === "POST") {
+    const outs = Array.isArray(b.outputs) ? (b.outputs as Array<Record<string, unknown>>) : [];
+    const pieces = outs.reduce((s, o) => s + num(o.qty), 0);
+    const yd = num(b.yardsUsed);
+    return `Cut roll${yd ? ` · ${yd} yд` : ""}${pieces ? ` → ${pieces} pcs` : ""}`;
+  }
   if (entity === "adjustments" && method === "POST") {
     const n = Array.isArray(b.counts) ? (b.counts as unknown[]).length : 1;
     return `Stock count · ${n} item${n === 1 ? "" : "s"}`;
@@ -396,6 +402,24 @@ export class AuditInterceptor implements NestInterceptor {
         items.slice(0, 3).map((i) => `${num(i.qty)}×${names.get(Number(i.itemTypeId)) ?? `item#${String(i.itemTypeId)}`}`).join(" + ") ||
         `${num(body.qty)} pcs`;
       return `Transfer ${desc} · ${String(body.fromLocation ?? "?")} → ${String(body.toLocation ?? "?")}`;
+    }
+    if (entity === "cuts" && method === "POST") {
+      const outs = Array.isArray(body.outputs) ? (body.outputs as Array<Record<string, unknown>>) : [];
+      const outIds = [...new Set(outs.map((o) => Number(o.itemTypeId)).filter((n) => Number.isInteger(n)))];
+      const outTypes = outIds.length
+        ? await db.itemType.findMany({ where: { id: { in: outIds } }, select: { id: true, labelMy: true } })
+        : [];
+      const nameMap = new Map(outTypes.map((t) => [t.id, t.labelMy]));
+      const rollName = Number.isInteger(Number(body.rollItemTypeId))
+        ? await this.lookupName(db, "item-types", Number(body.rollItemTypeId))
+        : null;
+      const yd = num(body.yardsUsed);
+      const desc =
+        outs
+          .slice(0, 3)
+          .map((o) => `${num(o.qty)}×${nameMap.get(Number(o.itemTypeId)) ?? `item#${String(o.itemTypeId)}`}`)
+          .join(" + ") + (outs.length > 3 ? ` +${outs.length - 3} more` : "");
+      return `Cut ${rollName ?? "roll"}${yd ? ` (${yd} yд)` : ""}${desc ? ` → ${desc}` : ""}`;
     }
     if (entity === "supplier-orders" && method === "POST") {
       const item =
