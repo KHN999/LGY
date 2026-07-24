@@ -25,6 +25,25 @@ interface StockValueRaw {
   shopQty: number;
 }
 
+export interface StockMovement {
+  eventId: number;
+  lineId: number;
+  kind: string;
+  occurredAt: Date;
+  itemTypeId: number;
+  itemLabel: string;
+  emoji: string | null;
+  location: string;
+  direction: "IN" | "OUT";
+  qty: number;
+  signedQty: number;
+  /** Running balance up to this movement — only when a single item + location is
+   *  filtered (null otherwise, since it's meaningless across items/locations). */
+  balance: number | null;
+  by: string | null;
+  notes: string | null;
+}
+
 /**
  * The inventory ledger lives in (InventoryEvent, InventoryLine).
  * Stock at any (location, itemType) = Σ IN.qty − Σ OUT.qty for non-voided events.
@@ -173,6 +192,81 @@ export class InventoryService {
       uncostedCount: items.filter((r) => r.costPrice == null).length,
     };
     return { items, totals };
+  }
+
+  /**
+   * Stock movement history straight from the ledger — every IN/OUT line with its
+   * event kind, so you can see where an item's stock came from and went (Cut +234,
+   * Tailor −100, Sale −50, …). Voided events are excluded. When BOTH an item and a
+   * location are given, a running balance is attached (computed oldest→newest over
+   * all matching movements, then returned newest-first).
+   */
+  async movements(opts: {
+    itemTypeId?: number;
+    location?: Location;
+    from?: string;
+    to?: string;
+    limit?: number;
+  }): Promise<StockMovement[]> {
+    const withBalance = opts.itemTypeId != null && opts.location != null;
+    const where: Prisma.InventoryLineWhereInput = {
+      event: {
+        voidedAt: null,
+        ...(opts.from || opts.to
+          ? {
+              occurredAt: {
+                ...(opts.from ? { gte: new Date(opts.from) } : {}),
+                ...(opts.to ? { lte: new Date(opts.to) } : {}),
+              },
+            }
+          : {}),
+      },
+      ...(opts.itemTypeId != null ? { itemTypeId: opts.itemTypeId } : {}),
+      ...(opts.location != null ? { location: opts.location } : {}),
+    };
+    const lines = await this.prisma.inventoryLine.findMany({
+      where,
+      include: {
+        event: {
+          select: {
+            id: true,
+            kind: true,
+            occurredAt: true,
+            notes: true,
+            createdBy: { select: { displayName: true, username: true } },
+          },
+        },
+        itemType: { select: { labelMy: true, emoji: true } },
+      },
+      // Balance mode: oldest→newest over EVERY movement so the running total is
+      // correct. Otherwise newest-first, capped.
+      orderBy: { event: { occurredAt: withBalance ? "asc" : "desc" } },
+      ...(withBalance ? {} : { take: opts.limit ?? 300 }),
+    });
+
+    let running = 0;
+    const rows: StockMovement[] = lines.map((l) => {
+      const signedQty = l.direction === "IN" ? l.qty : -l.qty;
+      running += signedQty;
+      return {
+        eventId: l.event.id,
+        lineId: l.id,
+        kind: l.event.kind,
+        occurredAt: l.event.occurredAt,
+        itemTypeId: l.itemTypeId,
+        itemLabel: l.itemType?.labelMy ?? `#${l.itemTypeId}`,
+        emoji: l.itemType?.emoji ?? null,
+        location: l.location,
+        direction: l.direction,
+        qty: l.qty,
+        signedQty,
+        balance: withBalance ? running : null,
+        by: l.event.createdBy?.displayName ?? l.event.createdBy?.username ?? null,
+        notes: l.event.notes ?? null,
+      };
+    });
+    // Balance mode built oldest→newest; flip to newest-first for display.
+    return withBalance ? rows.reverse() : rows;
   }
 
   /** Bulk: stock currently with a specific tailor. */

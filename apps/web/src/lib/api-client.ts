@@ -106,6 +106,24 @@ export interface StockValuation {
   totals: { warehouseValue: number; shopValue: number; totalValue: number; uncostedCount: number };
 }
 
+/** One stock-ledger movement (GET /inventory/movements). */
+export interface StockMovement {
+  eventId: number;
+  lineId: number;
+  kind: string;
+  occurredAt: string;
+  itemTypeId: number;
+  itemLabel: string;
+  emoji: string | null;
+  location: string;
+  direction: "IN" | "OUT";
+  qty: number;
+  signedQty: number;
+  balance: number | null;
+  by: string | null;
+  notes: string | null;
+}
+
 export interface Customer {
   id: number;
   name: string;

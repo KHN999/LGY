@@ -1,5 +1,6 @@
 import { Controller, Get, Param, ParseIntPipe, Query, UseGuards } from "@nestjs/common";
-import { IsEnum, IsOptional } from "class-validator";
+import { Type } from "class-transformer";
+import { IsEnum, IsInt, IsOptional } from "class-validator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -12,9 +13,33 @@ enum LocationFilter {
   IN_TRANSIT = "IN_TRANSIT",
 }
 
+enum MovementLocationFilter {
+  WAREHOUSE = "WAREHOUSE",
+  SHOP = "SHOP",
+  IN_TRANSIT = "IN_TRANSIT",
+  TAILOR = "TAILOR",
+}
+
 class StockQueryDto {
   @IsEnum(LocationFilter)
   location!: LocationFilter;
+}
+
+class MovementsQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  itemTypeId?: number;
+
+  @IsOptional()
+  @IsEnum(MovementLocationFilter)
+  location?: MovementLocationFilter;
+
+  @IsOptional()
+  from?: string;
+
+  @IsOptional()
+  to?: string;
 }
 
 class EventListQueryDto {
@@ -42,6 +67,18 @@ export class InventoryController {
   @Roles("admin")
   async value() {
     return this.inventory.valuation();
+  }
+
+  /** Stock movement history (ledger) — filterable by item + location; running
+   *  balance when both are set. Visible to staff (no admin guard). */
+  @Get("movements")
+  async movements(@Query() q: MovementsQueryDto) {
+    return this.inventory.movements({
+      itemTypeId: q.itemTypeId,
+      location: q.location,
+      from: q.from,
+      to: q.to,
+    });
   }
 
   /** Stock currently with a specific tailor. */
