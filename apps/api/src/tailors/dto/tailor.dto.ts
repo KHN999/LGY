@@ -116,6 +116,14 @@ export class SendToTailorDto {
   @Type(() => TailorSendItemDto)
   items!: TailorSendItemDto[];
 
+  /** Materials consumed on send (e.g. အထက်ဆင်) — deducted from warehouse, NOT
+   *  held at the tailor. Enter their counts separately from the pieces. */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TailorSendItemDto)
+  consumed?: TailorSendItemDto[];
+
   @IsOptional()
   @IsString()
   @MaxLength(500)

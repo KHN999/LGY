@@ -332,29 +332,46 @@ export class TailorsService {
   // ── Production: send goods to a tailor / receive them back ─────────
   async sendToTailor(tailorId: number, dto: SendToTailorDto, userId: number) {
     await this.ensureTailor(tailorId);
+    // Materials consumed on send (e.g. အထက်ဆင်) — deducted from warehouse but NOT
+    // held at the tailor; they're issued into the sewing. Voiding the send
+    // reverses these OUT lines too, so the stock returns.
+    const consumed = (dto.consumed ?? []).filter((c) => c.qty > 0);
+
     return this.prisma.$transaction(async (tx) => {
+      // Total warehouse draw per item = pieces sent (held) + materials consumed.
       const requested = new Map<number, number>();
       for (const it of dto.items) requested.set(it.itemTypeId, (requested.get(it.itemTypeId) ?? 0) + it.qty);
+      const totalOut = new Map<number, number>(requested);
+      for (const c of consumed) totalOut.set(c.itemTypeId, (totalOut.get(c.itemTypeId) ?? 0) + c.qty);
 
-      // Validate warehouse has enough.
+      // Validate warehouse has enough for the whole draw.
       const stockLines = await tx.inventoryLine.findMany({
-        where: { location: "WAREHOUSE", itemTypeId: { in: [...requested.keys()] }, event: { voidedAt: null } },
+        where: { location: "WAREHOUSE", itemTypeId: { in: [...totalOut.keys()] }, event: { voidedAt: null } },
         select: { itemTypeId: true, direction: true, qty: true },
       });
       const stock = new Map<number, number>();
       for (const l of stockLines) {
         stock.set(l.itemTypeId, (stock.get(l.itemTypeId) ?? 0) + (l.direction === "IN" ? l.qty : -l.qty));
       }
-      for (const [id, qty] of requested) {
+      for (const [id, qty] of totalOut) {
         if ((stock.get(id) ?? 0) < qty) {
           throw new BadRequestException(`Not enough warehouse stock for item #${id}`);
         }
       }
 
-      const lines = dto.items.flatMap((it) => [
-        { direction: "OUT" as const, location: "WAREHOUSE" as const, itemTypeId: it.itemTypeId, qty: it.qty },
-        { direction: "IN" as const, location: "TAILOR" as const, tailorId, itemTypeId: it.itemTypeId, qty: it.qty },
-      ]);
+      // Pieces: OUT warehouse + IN tailor (held). Materials: OUT warehouse only.
+      const lines = [
+        ...dto.items.flatMap((it) => [
+          { direction: "OUT" as const, location: "WAREHOUSE" as const, itemTypeId: it.itemTypeId, qty: it.qty },
+          { direction: "IN" as const, location: "TAILOR" as const, tailorId, itemTypeId: it.itemTypeId, qty: it.qty },
+        ]),
+        ...consumed.map((c) => ({
+          direction: "OUT" as const,
+          location: "WAREHOUSE" as const,
+          itemTypeId: c.itemTypeId,
+          qty: c.qty,
+        })),
+      ];
       return tx.inventoryEvent.create({
         data: {
           kind: "TAILOR_SEND",

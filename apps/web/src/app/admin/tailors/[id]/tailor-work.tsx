@@ -109,11 +109,15 @@ function SendForm({
 }) {
   const first = available[0]?.itemTypeId ?? 0;
   const [rows, setRows] = useState([{ itemTypeId: first, qty: "" }]);
+  // Materials consumed on send (e.g. အထက်ဆင်) — deducted from warehouse, not held.
+  const [mats, setMats] = useState<{ itemTypeId: number; qty: string }[]>([]);
   const [date, setDate] = useState(""); // optional backdate (YYYY-MM-DD); blank = now
   const [busy, setBusy] = useState(false);
 
   const setRow = (i: number, patch: Partial<(typeof rows)[number]>) =>
     setRows((p) => p.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  const setMat = (i: number, patch: Partial<{ itemTypeId: number; qty: string }>) =>
+    setMats((p) => p.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
 
   async function submit(print: boolean) {
     const items = rows
@@ -123,10 +127,14 @@ function SendForm({
       onError(labels.errors.required);
       return;
     }
+    const consumed = mats
+      .map((r) => ({ itemTypeId: r.itemTypeId, qty: Math.max(0, Number(r.qty) || 0) }))
+      .filter((m) => m.itemTypeId && m.qty > 0);
     setBusy(true);
     try {
       const ev = await api.post<{ id: number }>(`/tailors/${tailorId}/send`, {
         items,
+        ...(consumed.length ? { consumed } : {}),
         occurredAt: date || undefined,
       });
       onSaved(ev.id, print);
@@ -162,6 +170,7 @@ function SendForm({
           className={inputClass + " w-44"}
         />
       </label>
+      <p className="text-xs font-semibold text-muted-foreground">{labels.tailorWork.sendPieces}</p>
       {rows.map((r, i) => (
         <div key={i} className="flex items-center gap-2">
           <select
@@ -195,13 +204,55 @@ function SendForm({
           )}
         </div>
       ))}
+      <button
+        type="button"
+        onClick={() => setRows((p) => [...p, { itemTypeId: first, qty: "" }])}
+        className="self-start rounded-lg border-2 border-dashed border-primary/40 px-3 py-1.5 text-sm text-primary"
+      >
+        + {labels.tailorWork.addItem}
+      </button>
+
+      {/* Materials consumed on send (deducted from warehouse, not held) */}
+      <p className="mt-2 text-xs font-semibold text-muted-foreground">{labels.tailorWork.materials}</p>
+      <p className="-mt-1 text-xs text-muted-foreground">{labels.tailorWork.materialsHint}</p>
+      {mats.map((r, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <select
+            value={r.itemTypeId}
+            onChange={(e) => setMat(i, { itemTypeId: Number(e.target.value) })}
+            className={inputClass + " min-w-0 flex-1"}
+          >
+            {available.map((s) => (
+              <option key={s.itemTypeId} value={s.itemTypeId}>
+                {s.labelMy} ({s.qty})
+              </option>
+            ))}
+          </select>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={r.qty}
+            onChange={(e) => setMat(i, { qty: e.target.value })}
+            placeholder={labels.tailorWork.qty}
+            className={inputClass + " w-24 text-right"}
+          />
+          <button
+            type="button"
+            onClick={() => setMats((p) => p.filter((_, idx) => idx !== i))}
+            className="rounded-lg border px-2 py-1 text-xs text-destructive"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          onClick={() => setRows((p) => [...p, { itemTypeId: first, qty: "" }])}
+          onClick={() => setMats((p) => [...p, { itemTypeId: first, qty: "" }])}
           className="rounded-lg border-2 border-dashed border-primary/40 px-3 py-1.5 text-sm text-primary"
         >
-          + {labels.tailorWork.addItem}
+          + {labels.tailorWork.addMaterial}
         </button>
         <div className="flex-1" />
         <Button type="button" size="sm" variant="outline" onClick={onClose}>
