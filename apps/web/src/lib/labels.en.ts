@@ -93,8 +93,22 @@ export const en = {
     debts: "Debts",
     transfer: "Send to shop",
     cut: "Cut roll",
+    wash: "Wash",
     viewStock: "Shop stock",
     close: "Daily close",
+  },
+
+  wash: {
+    title: "Wash pieces",
+    inputItem: "Wash",
+    outputItem: "Becomes",
+    qty: "Pieces",
+    addLine: "Add another",
+    history: "Wash history",
+    empty: "No washes yet",
+    needSomething: "Enter what was washed",
+    searchItem: "Search item",
+    noStock: "No stock in the warehouse",
   },
 
   cut: {
@@ -238,6 +252,9 @@ export const en = {
     history: "Transfer history",
     searchItem: "Search roll / item",
     notesPlaceholder: "Note (e.g. warehouse sale)",
+    // Item name floated to the front of the transfer picker (data match, not a UI
+    // string — must be the exact labelMy of the usual shop-bound product).
+    defaultItem: "ချည်ပေါင်းသား၄တောင်",
     slipTitle: "Transfer note",
     totalPieces: "Total pieces",
     savePrint: "Save & Print",

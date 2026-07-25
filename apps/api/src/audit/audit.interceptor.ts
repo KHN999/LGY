@@ -135,6 +135,11 @@ function summarize(method: string, path: string, params: Record<string, string>,
     const rolls = num(b.rollsUsed);
     return `Cut ${rolls ? `${rolls} roll${rolls === 1 ? "" : "s"}` : "roll"}${pieces ? ` → ${pieces} pcs` : ""}`;
   }
+  if (entity === "wash" && method === "POST") {
+    const ls = Array.isArray(b.lines) ? (b.lines as Array<Record<string, unknown>>) : [];
+    const pieces = ls.reduce((s, l) => s + num(l.qty), 0);
+    return `Wash ${pieces} pcs`;
+  }
   if (entity === "adjustments" && method === "POST") {
     const n = Array.isArray(b.counts) ? (b.counts as unknown[]).length : 1;
     return `Stock count · ${n} item${n === 1 ? "" : "s"}`;
@@ -402,6 +407,26 @@ export class AuditInterceptor implements NestInterceptor {
         items.slice(0, 3).map((i) => `${num(i.qty)}×${names.get(Number(i.itemTypeId)) ?? `item#${String(i.itemTypeId)}`}`).join(" + ") ||
         `${num(body.qty)} pcs`;
       return `Transfer ${desc} · ${String(body.fromLocation ?? "?")} → ${String(body.toLocation ?? "?")}`;
+    }
+    if (entity === "wash" && method === "POST") {
+      const ls = Array.isArray(body.lines) ? (body.lines as Array<Record<string, unknown>>) : [];
+      const inIds = [...new Set(ls.map((l) => Number(l.inputItemTypeId)).filter((n) => Number.isInteger(n)))];
+      const outIds = [...new Set(ls.map((l) => Number(l.outputItemTypeId)).filter((n) => Number.isInteger(n)))];
+      const named = inIds.length || outIds.length
+        ? await db.itemType.findMany({
+            where: { id: { in: [...new Set([...inIds, ...outIds])] } },
+            select: { id: true, labelMy: true },
+          })
+        : [];
+      const nm = new Map(named.map((t) => [t.id, t.labelMy]));
+      const desc = ls
+        .slice(0, 3)
+        .map(
+          (l) =>
+            `${num(l.qty)} ${nm.get(Number(l.inputItemTypeId)) ?? `item#${String(l.inputItemTypeId)}`} → ${nm.get(Number(l.outputItemTypeId)) ?? `item#${String(l.outputItemTypeId)}`}`,
+        )
+        .join(", ");
+      return `Wash: ${desc}${ls.length > 3 ? ` +${ls.length - 3} more` : ""}`;
     }
     if (entity === "cuts" && method === "POST") {
       const outs = Array.isArray(body.outputs) ? (body.outputs as Array<Record<string, unknown>>) : [];

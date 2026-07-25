@@ -13,6 +13,7 @@ const actions = [
   { href: "/staff/debts", label: labels.staff.debts, icon: "📋", color: "bg-violet-600" },
   { href: "/staff/transfer", label: labels.staff.transfer, icon: "🚚", color: "bg-sky-600" },
   { href: "/staff/cut", label: labels.staff.cut, icon: "✂️", color: "bg-teal-600" },
+  { href: "/staff/wash", label: labels.staff.wash, icon: "🧼", color: "bg-cyan-600" },
   { href: "/staff/stock", label: labels.staff.viewStock, icon: "📦", color: "bg-slate-600" },
   { href: "/staff/stock-movements", label: labels.movements.title, icon: "📜", color: "bg-slate-700" },
   { href: "/staff/close", label: labels.staff.close, icon: "🌙", color: "bg-rose-600" },

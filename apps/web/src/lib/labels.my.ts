@@ -95,8 +95,22 @@ export const my: DeepPartial<Labels> = {
     debts: "အကြွေးစာရင်း",
     transfer: "ဆိုင်ပို့",
     cut: "အလိပ်ဖြတ်",
+    wash: "လျှော်ဖွပ်",
     viewStock: "ဆိုင်အထည်စာရင်း",
     close: "ဆိုင်သိမ်း",
+  },
+
+  wash: {
+    title: "အထည် လျှော်ဖွပ်",
+    inputItem: "လျှော်မည့်",
+    outputItem: "ဖြစ်လာ",
+    qty: "အရေအတွက်",
+    addLine: "ထပ်ထည့်",
+    history: "လျှော်ဖွပ် မှတ်တမ်း",
+    empty: "လျှော်ဖွပ် မရှိသေးပါ",
+    needSomething: "လျှော်သည့် ပစ္စည်း ထည့်ပါ",
+    searchItem: "ပစ္စည်း ရှာရန်",
+    noStock: "ဂိုဒေါင်တွင် လက်ကျန် မရှိပါ",
   },
 
   cut: {
@@ -240,6 +254,7 @@ export const my: DeepPartial<Labels> = {
     history: "ဆိုင်ပို့ မှတ်တမ်း",
     searchItem: "အလိပ် / ပစ္စည်း ရှာရန်",
     notesPlaceholder: "မှတ်ချက် (ဥပမာ - ဂိုဒေါင်ရောင်း)",
+    defaultItem: "ချည်ပေါင်းသား၄တောင်",
     slipTitle: "ပစ္စည်းပို့ စလစ်",
     totalPieces: "စုစုပေါင်း",
     savePrint: "သိမ်း & ပုံနှိပ်",

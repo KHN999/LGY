@@ -13,6 +13,7 @@ import { InventoryModule } from "./inventory/inventory.module";
 import { OpeningStockModule } from "./opening-stock/opening-stock.module";
 import { TransfersModule } from "./transfers/transfers.module";
 import { CutsModule } from "./cuts/cuts.module";
+import { WashModule } from "./wash/wash.module";
 import { SalesModule } from "./sales/sales.module";
 import { CustomerPaymentsModule } from "./customer-payments/customer-payments.module";
 import { SupplierOrdersModule } from "./supplier-orders/supplier-orders.module";
@@ -47,6 +48,7 @@ import { ExportModule } from "./export/export.module";
     OpeningStockModule,
     TransfersModule,
     CutsModule,
+    WashModule,
     SalesModule,
     CustomerPaymentsModule,
     SupplierOrdersModule,
