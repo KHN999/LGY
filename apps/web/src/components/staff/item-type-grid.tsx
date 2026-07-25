@@ -55,6 +55,9 @@ interface Props {
   allowOversell?: boolean;
   /** Only show item types marked sellable in the shop (hides warehouse-only items). */
   sellableOnly?: boolean;
+  /** Float the item with this exact labelMy to the front (still shows all others).
+   *  No-op when nothing matches. Used to default the transfer picker. */
+  preferLabel?: string;
   /** Server-known active shop. The cookie is httpOnly, so the browser cannot read it. */
   shopId?: ShopId;
 }
@@ -70,6 +73,7 @@ export function ItemTypeGrid({
   minStock = 0,
   allowOversell = false,
   sellableOnly = false,
+  preferLabel,
   shopId = "main",
 }: Props) {
   const stockKey = locationForStock ?? "";
@@ -150,8 +154,15 @@ export function ItemTypeGrid({
     if (hideZeroStock && !allowOversell) {
       list = list.filter((t) => (stockByItem.get(t.id) ?? 0) > 0);
     }
+    // Float the preferred item to the front (stable order otherwise).
+    if (preferLabel) {
+      const pref = preferLabel.trim();
+      list = [...list].sort(
+        (a, b) => Number(b.labelMy === pref) - Number(a.labelMy === pref),
+      );
+    }
     return list;
-  }, [types, stockByItem, hideZeroStock, allowOversell, sellableOnly]);
+  }, [types, stockByItem, hideZeroStock, allowOversell, sellableOnly, preferLabel]);
 
   if (loading) {
     return (

@@ -185,6 +185,7 @@ export function TransferFlow({ drivers, shopId }: { drivers: Driver[]; shopId: S
         hideZeroStock
         onPick={add}
         minStock={1}
+        preferLabel={labels.transfer.defaultItem}
         shopId={shopId}
       />
 
