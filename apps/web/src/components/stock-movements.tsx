@@ -70,6 +70,78 @@ export function MovementFilters({
   );
 }
 
+/** Transaction view — one row per event, with the −out / +in lines grouped as
+ *  chips (a cut's −roll and +pieces read as a single transaction). Used in the
+ *  staff app. Shows the running balance when the API returned one. */
+export function GroupedMovements({ movements }: { movements: StockMovement[] }) {
+  if (movements.length === 0) {
+    return (
+      <p className="rounded-2xl border bg-card p-6 text-center text-sm text-muted-foreground">
+        {labels.movements.empty}
+      </p>
+    );
+  }
+  // Group by event, preserving the newest-first order the API returned.
+  const groups: { head: StockMovement; lines: StockMovement[] }[] = [];
+  const at = new Map<number, number>();
+  for (const m of movements) {
+    let i = at.get(m.eventId);
+    if (i == null) {
+      i = groups.length;
+      at.set(m.eventId, i);
+      groups.push({ head: m, lines: [] });
+    }
+    groups[i].lines.push(m);
+  }
+  return (
+    <ul className="flex flex-col divide-y rounded-2xl border bg-card">
+      {groups.map(({ head, lines }) => {
+        // Outs (−) before ins (+) so it reads "from → to".
+        const sorted = [...lines].sort(
+          (a, b) => (a.direction === "OUT" ? 0 : 1) - (b.direction === "OUT" ? 0 : 1),
+        );
+        const bal = lines.find((l) => l.balance != null)?.balance ?? null;
+        return (
+          <li key={head.eventId} className="flex flex-col gap-1.5 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-semibold">
+                {labels.movements.kinds[head.kind] ?? head.kind}
+              </span>
+              <span className="text-xs text-muted-foreground">{formatDateTime(head.occurredAt)}</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {sorted.map((l) => (
+                <span
+                  key={l.lineId}
+                  className={
+                    "rounded-full px-2.5 py-1 text-xs font-medium tabular-nums " +
+                    (l.signedQty >= 0
+                      ? "bg-emerald-100 text-emerald-800"
+                      : "bg-rose-100 text-rose-800")
+                  }
+                >
+                  {l.signedQty >= 0 ? "+" : "−"}
+                  {Math.abs(l.signedQty).toLocaleString("en-US")} {l.emoji ? `${l.emoji} ` : ""}
+                  {l.itemLabel}
+                  <span className="opacity-60"> · {LOC[l.location] ?? l.location}</span>
+                </span>
+              ))}
+            </div>
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{head.by ?? ""}</span>
+              {bal != null && (
+                <span>
+                  {labels.movements.balance}: <span className="font-semibold tabular-nums">{bal.toLocaleString("en-US")}</span>
+                </span>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 /** The movement list. Shows a running balance column when the API returned one
  *  (single item + location). */
 export function MovementsList({ movements }: { movements: StockMovement[] }) {

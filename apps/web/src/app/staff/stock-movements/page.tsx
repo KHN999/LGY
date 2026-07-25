@@ -2,7 +2,7 @@ import Link from "next/link";
 import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
 import type { StockMovement, ItemType } from "@/lib/api-client";
-import { MovementFilters, MovementsList } from "@/components/stock-movements";
+import { MovementFilters, GroupedMovements } from "@/components/stock-movements";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +37,7 @@ export default async function StaffStockMovementsPage({
         itemTypeId={itemTypeId ? Number(itemTypeId) : undefined}
         location={location}
       />
-      <MovementsList movements={movements ?? []} />
+      <GroupedMovements movements={movements ?? []} />
     </main>
   );
 }
