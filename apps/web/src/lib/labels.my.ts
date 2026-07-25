@@ -116,7 +116,7 @@ export const my: DeepPartial<Labels> = {
   cut: {
     title: "အလိပ်ဖြတ် → ကွင်း",
     roll: "အလိပ် / အထည်",
-    oneRollHint: "တစ်ကြိမ်လျှင် အလိပ် တစ်လိပ်",
+    rollsUsed: "အလိပ် ဖြတ်သည်",
     yardsUsed: "စုစုပေါင်း ကိုက် (မထည့်လည်းရ)",
     note: "မှတ်ချက် (မထည့်လည်းရ)",
     outputItem: "ဖြတ်ရရှိ",
@@ -124,7 +124,7 @@ export const my: DeepPartial<Labels> = {
     addOutput: "ကွင်း ထပ်ထည့်",
     history: "အလိပ်ဖြတ် မှတ်တမ်း",
     empty: "အလိပ်ဖြတ် မရှိသေးပါ",
-    needSomething: "ရရှိသော ကွင်း ထည့်ပါ",
+    needSomething: "အလိပ် ဖြတ်သည် သို့မဟုတ် ကွင်း ထည့်ပါ",
     searchItem: "အလိပ် / ပစ္စည်း ရှာရန်",
     noRolls: "ဂိုဒေါင်တွင် အလိပ် လက်ကျန် မရှိပါ",
     rolls: "လိပ်",

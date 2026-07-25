@@ -114,7 +114,7 @@ export const en = {
   cut: {
     title: "Cut roll → pieces",
     roll: "Roll / fabric",
-    oneRollHint: "One roll per entry",
+    rollsUsed: "Rolls cut",
     yardsUsed: "Total yards (optional)",
     note: "Note (optional)",
     outputItem: "Cut into",
@@ -122,7 +122,7 @@ export const en = {
     addOutput: "Add another piece",
     history: "Cut history",
     empty: "No cuts yet",
-    needSomething: "Enter the pieces made",
+    needSomething: "Enter rolls cut or pieces made",
     searchItem: "Search roll / item",
     noRolls: "No roll stock in the warehouse",
     rolls: "rolls",

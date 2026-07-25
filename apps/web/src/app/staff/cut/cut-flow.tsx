@@ -34,6 +34,7 @@ export function CutFlow({
   const defaultOutput = outputs.find((t) => !isRoll(t.sellable)) ?? outputs[0];
 
   const [rollId, setRollId] = useState<number>(defaultRoll?.itemTypeId ?? 0);
+  const [rollsCut, setRollsCut] = useState(""); // how many rolls this batch consumed
   const [yards, setYards] = useState("");
   const [lines, setLines] = useState<{ itemTypeId: number; qty: string }[]>([
     { itemTypeId: defaultOutput?.id ?? 0, qty: "" },
@@ -51,9 +52,9 @@ export function CutFlow({
     const outs = lines
       .map((l) => ({ itemTypeId: l.itemTypeId, qty: Math.max(0, Number(l.qty) || 0) }))
       .filter((o) => o.itemTypeId && o.qty > 0);
+    const rc = Math.max(0, Number(rollsCut) || 0);
     const yd = Math.max(0, Number(yards) || 0);
-    // Each entry cuts exactly ONE roll (rolls vary, so each is logged separately).
-    if (outs.length === 0) {
+    if (rc <= 0 && outs.length === 0) {
       setError(labels.cut.needSomething);
       return;
     }
@@ -66,7 +67,7 @@ export function CutFlow({
     try {
       await api.post("/cuts", {
         rollItemTypeId: rollId,
-        rollsUsed: 1,
+        rollsUsed: rc > 0 ? rc : undefined,
         yardsUsed: yd > 0 ? yd : undefined,
         outputs: outs,
         notes: notes.trim() || undefined,
@@ -100,13 +101,10 @@ export function CutFlow({
         </p>
       ) : (
         <>
-          {/* Roll cut (one roll per entry) + optional yards */}
+          {/* Roll + rolls cut + optional yards */}
           <section className="flex flex-col gap-3 rounded-2xl border bg-card p-4">
             <label className="flex flex-col gap-1">
-              <span className="text-sm font-medium">
-                {labels.cut.roll}
-                {selectedRoll ? ` — ${selectedRoll.qty} ${labels.cut.rolls}` : ""}
-              </span>
+              <span className="text-sm font-medium">{labels.cut.roll}</span>
               <select value={rollId} onChange={(e) => setRollId(Number(e.target.value))} className={field}>
                 {rolls.map((r) => (
                   <option key={r.itemTypeId} value={r.itemTypeId}>
@@ -115,19 +113,35 @@ export function CutFlow({
                   </option>
                 ))}
               </select>
-              <span className="text-xs text-muted-foreground">{labels.cut.oneRollHint}</span>
             </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-sm font-medium">{labels.cut.yardsUsed}</span>
-              <input
-                type="number"
-                inputMode="numeric"
-                min={0}
-                value={yards}
-                onChange={(e) => setYards(e.target.value)}
-                className={field + " tabular-nums"}
-              />
-            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex flex-col gap-1">
+                <span className="text-sm font-medium">
+                  {labels.cut.rollsUsed}
+                  {selectedRoll ? ` — ${selectedRoll.qty}` : ""}
+                </span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={selectedRoll?.qty}
+                  value={rollsCut}
+                  onChange={(e) => setRollsCut(e.target.value)}
+                  className={field + " tabular-nums"}
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-sm font-medium">{labels.cut.yardsUsed}</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  value={yards}
+                  onChange={(e) => setYards(e.target.value)}
+                  className={field + " tabular-nums"}
+                />
+              </label>
+            </div>
           </section>
 
           {/* Pieces produced */}
