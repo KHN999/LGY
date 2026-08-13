@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
@@ -19,10 +19,12 @@ export function ReceiptView({
   sale,
   returns,
   shop,
+  autoPrint = false,
 }: {
   sale: SaleDetail;
   returns: SaleReturnRow[];
   shop?: ShopSettings;
+  autoPrint?: boolean;
 }) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -30,7 +32,18 @@ export function ReceiptView({
   const [adding, setAdding] = useState(false);
   const [voidingId, setVoidingId] = useState<number | null>(null);
   const [voidError, setVoidError] = useState<string | null>(null);
+  const printedRef = useRef(false);
   useEffect(() => setMounted(true), []);
+  // Auto-print once when arriving from "Save & Print" (?print=1). Printing from
+  // this fully-loaded receipt page is reliable on mobile — unlike the old in-place
+  // print that raced the sell-flow's navigation.
+  useEffect(() => {
+    if (mounted && autoPrint && !printedRef.current) {
+      printedRef.current = true;
+      const t = setTimeout(() => window.print(), 400);
+      return () => clearTimeout(t);
+    }
+  }, [mounted, autoPrint]);
 
   async function voidReturn(id: number) {
     setVoidingId(id);

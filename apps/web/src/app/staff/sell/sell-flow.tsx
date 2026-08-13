@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -70,34 +69,6 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
   // 0-price line — NOT reactively on price===0, which would flicker (and steal
   // focus) on every normal price entry as the first digit makes price non-zero.
   const [freeNotePrompt, setFreeNotePrompt] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [savedSale, setSavedSale] = useState<{ id: number; date: string } | null>(null);
-  const wantPrintRef = useRef(false);
-  useEffect(() => setMounted(true), []);
-  useEffect(() => {
-    // After a "Save & Print", the receipt has re-rendered with the real sale
-    // number. Two things that made the preview blank before: printing before the
-    // receipt painted, and navigating home in the same tick (which tore the
-    // receipt DOM out from under the async print flow). So: let it paint, print,
-    // then go home only once printing finishes (afterprint), with a fallback.
-    if (!(savedSale && wantPrintRef.current)) return;
-    wantPrintRef.current = false;
-    let navigated = false;
-    const goHome = () => {
-      if (navigated) return;
-      navigated = true;
-      router.push("/staff?saved=sell");
-      router.refresh();
-    };
-    window.addEventListener("afterprint", goHome, { once: true });
-    const printTimer = setTimeout(() => window.print(), 300);
-    const fallback = setTimeout(goHome, 60_000); // browsers that never fire afterprint
-    return () => {
-      clearTimeout(printTimer);
-      clearTimeout(fallback);
-      window.removeEventListener("afterprint", goHome);
-    };
-  }, [savedSale, router]);
 
   const goodsTotal = cart.reduce((s, l) => s + l.qty * l.unitPrice, 0);
   const remaining = goodsTotal - paid;
@@ -273,9 +244,10 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
       const firstLabel = cart[0]?.itemType?.labelMy ?? cart[0]?.itemName ?? labels.units.htee;
       speak(labels.sell.voicePiecesSold(totalPieces, firstLabel));
       if (print) {
-        // Re-render the receipt with the real sale number, then print + go home (see effect).
-        wantPrintRef.current = true;
-        setSavedSale({ id: sale.id, date: sale.saleDate });
+        // Land on the saved sale's receipt page, which auto-prints (?print=1).
+        // Printing from a fully-loaded page is reliable on mobile — the old
+        // in-place print raced this navigation and left a blank preview.
+        router.push(`/staff/sales/${sale.id}?print=1`);
       } else {
         router.push("/staff?saved=sell");
         router.refresh();
@@ -674,11 +646,12 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
   }
 
   // ─── STEP 3: Review = receipt preview + save / save & print ───────
+  // Pre-save preview only (no sale # yet). The printed copy is the saved sale's
+  // own receipt page, reached with ?print=1 after Save & Print.
   const receiptData: ReceiptData = {
-    saleId: savedSale?.id ?? null,
-    // Preview reflects the selected backdate (noon of that day); after save we
-    // use the authoritative saleDate the server returned.
-    date: savedSale?.date ?? backdateIso() ?? new Date().toISOString(),
+    saleId: null,
+    // Preview reflects the selected backdate (noon of that day).
+    date: backdateIso() ?? new Date().toISOString(),
     customerName: customer?.name ?? (newName.trim() || null),
     customerContact: customer?.contact ?? null,
     lines: cart.map((l) => ({
@@ -816,14 +789,6 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
           </button>
         </div>
       </div>
-
-      {mounted &&
-        createPortal(
-          <div id="print-receipt" className="hidden print:block">
-            <Receipt data={receiptData} shop={shop} />
-          </div>,
-          document.body,
-        )}
     </main>
   );
 }
