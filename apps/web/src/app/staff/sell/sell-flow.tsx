@@ -75,13 +75,28 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
   const wantPrintRef = useRef(false);
   useEffect(() => setMounted(true), []);
   useEffect(() => {
-    // After a "Save & Print", the receipt has re-rendered with the real number — print, then go home.
-    if (savedSale && wantPrintRef.current) {
-      wantPrintRef.current = false;
-      window.print();
+    // After a "Save & Print", the receipt has re-rendered with the real sale
+    // number. Two things that made the preview blank before: printing before the
+    // receipt painted, and navigating home in the same tick (which tore the
+    // receipt DOM out from under the async print flow). So: let it paint, print,
+    // then go home only once printing finishes (afterprint), with a fallback.
+    if (!(savedSale && wantPrintRef.current)) return;
+    wantPrintRef.current = false;
+    let navigated = false;
+    const goHome = () => {
+      if (navigated) return;
+      navigated = true;
       router.push("/staff?saved=sell");
       router.refresh();
-    }
+    };
+    window.addEventListener("afterprint", goHome, { once: true });
+    const printTimer = setTimeout(() => window.print(), 300);
+    const fallback = setTimeout(goHome, 60_000); // browsers that never fire afterprint
+    return () => {
+      clearTimeout(printTimer);
+      clearTimeout(fallback);
+      window.removeEventListener("afterprint", goHome);
+    };
   }, [savedSale, router]);
 
   const goodsTotal = cart.reduce((s, l) => s + l.qty * l.unitPrice, 0);
