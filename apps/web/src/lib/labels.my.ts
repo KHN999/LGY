@@ -292,6 +292,7 @@ export const my: DeepPartial<Labels> = {
     title: "အရောင်းမှတ်တမ်း",
     empty: "အရောင်းမှတ်တမ်း မရှိသေးပါ",
     reprint: "ပြန်ပုံနှိပ်",
+    print: "ဘောက်ချာ ပုံနှိပ်",
   },
 
   returns: {

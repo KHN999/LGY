@@ -292,6 +292,7 @@ export const en = {
     title: "Sales history",
     empty: "No sales yet",
     reprint: "Reprint",
+    print: "Print receipt",
   },
 
   returns: {

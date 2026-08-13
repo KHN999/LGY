@@ -34,15 +34,18 @@ export function ReceiptView({
   const [voidError, setVoidError] = useState<string | null>(null);
   const printedRef = useRef(false);
   useEffect(() => setMounted(true), []);
-  // Auto-print once when arriving from "Save & Print" (?print=1). Printing from
-  // this fully-loaded receipt page is reliable on mobile — unlike the old in-place
-  // print that raced the sell-flow's navigation.
+  // Arriving from "Save & Print" (?print=1). Android Chrome renders a BLANK page
+  // when window.print() fires without a user gesture, so only auto-fire on iOS
+  // (where it works). Everywhere else the prominent "Print" button below triggers
+  // it from a real tap — the same gesture the Reprint button uses successfully.
   useEffect(() => {
-    if (mounted && autoPrint && !printedRef.current) {
-      printedRef.current = true;
-      const t = setTimeout(() => window.print(), 400);
-      return () => clearTimeout(t);
-    }
+    if (!mounted || !autoPrint || printedRef.current) return;
+    const isIOS =
+      typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (!isIOS) return;
+    printedRef.current = true;
+    const t = setTimeout(() => window.print(), 400);
+    return () => clearTimeout(t);
   }, [mounted, autoPrint]);
 
   async function voidReturn(id: number) {
@@ -94,6 +97,18 @@ export function ReceiptView({
 
   return (
     <>
+      {/* Arrived from Save & Print — a big tap-to-print CTA. A real tap is required
+          on Android (auto-fired printing renders blank there). */}
+      {autoPrint && (
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="rounded-2xl bg-emerald-600 py-4 text-lg font-bold text-white shadow active:scale-[0.98]"
+        >
+          🖨 {labels.history.print}
+        </button>
+      )}
+
       <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
         <Receipt data={data} shop={shop} />
       </div>
