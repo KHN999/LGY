@@ -32,8 +32,10 @@ export class AuthController {
   @Post("logout")
   @HttpCode(204)
   async logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie(COOKIE_NAME, this.cookieOptions());
-    res.clearCookie(SHOP_COOKIE, this.cookieOptions());
+    // clearCookie must match the set attributes (path/secure/sameSite) but NOT
+    // maxAge — Express 5 ignores it and warns; it expires the cookie itself.
+    res.clearCookie(COOKIE_NAME, this.baseCookieOptions());
+    res.clearCookie(SHOP_COOKIE, this.baseCookieOptions());
   }
 
   @Get("me")
@@ -42,14 +44,18 @@ export class AuthController {
     return { user: await this.auth.getCurrentUser(user.sub) };
   }
 
-  private cookieOptions() {
+  /** Attributes shared by set + clear (clear must match these to remove the cookie). */
+  private baseCookieOptions() {
     const isProd = process.env.NODE_ENV === "production";
     return {
       httpOnly: true,
       secure: isProd,
       sameSite: "lax" as const,
-      maxAge: COOKIE_MAX_AGE_MS,
       path: "/",
     };
+  }
+
+  private cookieOptions() {
+    return { ...this.baseCookieOptions(), maxAge: COOKIE_MAX_AGE_MS };
   }
 }
