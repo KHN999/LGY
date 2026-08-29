@@ -32,46 +32,88 @@ function writeCustomerCache(list: Customer[]) {
   }
 }
 
+// NFC + lowercase + strip separators — the offline fallback filter, mirroring
+// the server's nameKey so Burmese byte-form variants still match.
+const norm = (s: string) => s.normalize("NFC").toLowerCase().replace(/[\s._-]/g, "");
+
 export function CustomerPicker({ open, onClose, onPick, debtorsOnly }: Props) {
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [browse, setBrowse] = useState<Customer[]>([]); // full list (cache / initial fetch)
+  const [results, setResults] = useState<Customer[] | null>(null); // server search hits
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     // Show cached customers immediately (works offline), then refresh online.
+    // limit=1000 loads the WHOLE list — the old limit=200 left later customers
+    // unfindable, which is a big reason staff created duplicates.
     const cached = readCustomerCache();
-    if (cached.length) setCustomers(cached);
+    if (cached.length) setBrowse(cached);
     const ctrl = new AbortController();
     setLoading(cached.length === 0);
     setError(null);
     api
-      .get<Page<Customer>>("/customers?limit=200", ctrl.signal)
+      .get<Page<Customer>>("/customers?limit=1000", ctrl.signal)
       .then((r) => {
-        setCustomers(r.data);
+        setBrowse(r.data);
         writeCustomerCache(r.data);
       })
       .catch((e: Error) => {
         if (e.name === "AbortError") return;
-        // Offline / failed: fall back to the cache; only error if we have nothing.
         if (readCustomerCache().length === 0) setError(e.message);
       })
       .finally(() => setLoading(false));
     return () => ctrl.abort();
   }, [open]);
 
+  // Debounced server search — NFC-aware and over ALL customers (not just the
+  // loaded page). Falls back to a normalized client filter when offline.
+  useEffect(() => {
+    const q = search.trim();
+    if (!open || !q) {
+      setResults(null);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const ctrl = new AbortController();
+    const t = setTimeout(() => {
+      api
+        .get<Page<Customer>>(`/customers?limit=50&search=${encodeURIComponent(q)}`, ctrl.signal)
+        .then((r) => setResults(r.data))
+        .catch((e: Error) => {
+          if (e.name !== "AbortError") setResults(null); // offline → client fallback below
+        })
+        .finally(() => setSearching(false));
+    }, 250);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [search, open]);
+
   const filtered = useMemo(() => {
-    let list = customers;
+    const q = search.trim();
+    let list: Customer[];
+    if (!q) {
+      list = browse;
+    } else if (results) {
+      list = results; // server results (NFC-aware, all rows)
+    } else {
+      // Offline fallback: normalized filter of the loaded list.
+      const k = norm(q);
+      const digits = q.replace(/\D/g, "");
+      list = browse.filter(
+        (c) =>
+          norm(c.name).includes(k) ||
+          (digits.length >= 3 && (c.contact ?? "").replace(/\D/g, "").includes(digits)),
+      );
+    }
     if (debtorsOnly) list = list.filter((c) => c.balance > 0);
-    const q = search.trim().toLowerCase();
-    if (!q) return list;
-    return list.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        (c.contact ?? "").toLowerCase().includes(q),
-    );
-  }, [customers, search, debtorsOnly]);
+    return list;
+  }, [browse, results, search, debtorsOnly]);
 
   if (!open) return null;
 
@@ -94,11 +136,11 @@ export function CustomerPicker({ open, onClose, onPick, debtorsOnly }: Props) {
         />
       </header>
       <div className="flex-1 overflow-y-auto p-3">
-        {loading && (
+        {(loading || searching) && (
           <p className="p-4 text-center text-muted-foreground">{labels.common.loading}</p>
         )}
         {error && <p className="p-4 text-center text-destructive">{error}</p>}
-        {!loading && !error && filtered.length === 0 && (
+        {!loading && !searching && !error && filtered.length === 0 && (
           <p className="p-8 text-center text-muted-foreground">
             {debtorsOnly ? labels.debts.none : labels.sell.noResults}
           </p>

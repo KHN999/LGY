@@ -14,6 +14,7 @@ import { AddPaymentDto } from "./dto/add-payment.dto";
 import { AddItemsDto } from "./dto/add-items.dto";
 import { EditSaleDto } from "./dto/edit-sale-lines.dto";
 import { ListSalesQueryDto } from "./dto/list-sales.query.dto";
+import { normalizeName } from "../common/name";
 
 function statusFor(grandTotal: number, paidAmount: number): TxnStatus {
   if (paidAmount <= 0) return "UNPAID";
@@ -112,8 +113,11 @@ export class SalesService {
     const saleDate = dto.saleDate ? new Date(dto.saleDate) : new Date();
     // Backdated sales can't land on a closed day (only the explicit-date case).
     await assertDateNotClosed(this.prisma, dto.saleDate ? saleDate : null);
+    // NFC-normalize the buyer name so a saved customer's name is canonical (same
+    // fix as the customers service — stops Burmese byte-form duplicates).
+    const buyerName = normalizeName(dto.customerName ?? "") || null;
     const oneTimeName =
-      dto.customerId === undefined && !willCreateCustomer ? cleanText(dto.customerName) : null;
+      dto.customerId === undefined && !willCreateCustomer ? buyerName : null;
     const items: CreateSaleItemInput[] = dto.items.map((i) => ({
       itemTypeId: i.itemTypeId ?? null,
       itemName: i.itemTypeId === undefined ? cleanText(i.itemName) : null,
@@ -133,7 +137,7 @@ export class SalesService {
           SELECT
             ${dto.customerId ?? null}::int AS customer_id,
             ${willCreateCustomer}::boolean AS will_create_customer,
-            ${cleanText(dto.customerName)}::text AS customer_name,
+            ${buyerName}::text AS customer_name,
             ${oneTimeName}::text AS one_time_name,
             ${JSON.stringify(items)}::jsonb AS sale_items,
             ${dto.kind ?? null}::"SaleKind" AS kind_override,

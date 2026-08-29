@@ -4,6 +4,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import type { PageResult } from "../common/pagination.dto";
 import { CreateCustomerDto, UpdateCustomerDto } from "./dto/customer.dto";
 import { ImportCustomersDto } from "./dto/import-customers.dto";
+import { normalizeName, nameKey } from "../common/name";
 
 export interface CustomerWithBalance {
   id: number;
@@ -43,9 +44,26 @@ export class CustomersService {
     const filters: Prisma.Sql[] = [Prisma.sql`c."deletedAt" IS NULL`];
     if (inactiveOnly) filters.push(Prisma.sql`c.status = 'INACTIVE'::"PartyStatus"`);
     else if (activeOnly) filters.push(Prisma.sql`c.status = 'ACTIVE'::"PartyStatus"`);
-    if (search) {
-      const q = `%${search}%`;
-      filters.push(Prisma.sql`(c.name ILIKE ${q} OR COALESCE(c.contact, '') ILIKE ${q})`);
+    if (search && search.trim()) {
+      // Match on a normalized name (NFC + lowercase + separators stripped) so a
+      // name typed in either Burmese byte-form still matches — the fix for staff
+      // not finding an existing customer and creating a duplicate. Also match on
+      // digits-only contact when the query looks like a phone number.
+      const key = nameKey(search);
+      const nameClauses: Prisma.Sql[] = [];
+      if (key) {
+        const q = `%${key.replace(/[%\\]/g, (m) => "\\" + m)}%`;
+        nameClauses.push(
+          Prisma.sql`regexp_replace(lower(normalize(c.name, NFC)), '[[:space:]._-]', '', 'g') LIKE ${q}`,
+        );
+      }
+      const digits = search.replace(/\D/g, "");
+      if (digits.length >= 3) {
+        nameClauses.push(
+          Prisma.sql`regexp_replace(COALESCE(c.contact, ''), '[^0-9]', '', 'g') LIKE ${`%${digits}%`}`,
+        );
+      }
+      if (nameClauses.length) filters.push(Prisma.sql`(${Prisma.join(nameClauses, " OR ")})`);
     }
     const whereSql = filters.length
       ? Prisma.sql`WHERE ${Prisma.join(filters, " AND ")}`
@@ -133,7 +151,7 @@ export class CustomersService {
    * repeatedly importing the same contact doesn't pile up duplicates.
    */
   async findOrCreateFromContact(name: string, contact?: string): Promise<CustomerWithBalance> {
-    const cleanName = name.trim();
+    const cleanName = normalizeName(name);
     if (!cleanName) throw new BadRequestException("Contact name is required");
     const cleanContact = contact?.trim() || null;
     const digits = (s: string | null) => (s ?? "").replace(/\D/g, "");
@@ -145,7 +163,7 @@ export class CustomersService {
     });
     const match = phone
       ? all.find((c) => digits(c.contact) === phone)
-      : all.find((c) => c.name.trim().toLowerCase() === cleanName.toLowerCase());
+      : all.find((c) => nameKey(c.name) === nameKey(cleanName));
 
     if (match) {
       const existing = await this.prisma.customer.findUnique({ where: { id: match.id } });
@@ -161,7 +179,7 @@ export class CustomersService {
   async create(dto: CreateCustomerDto): Promise<CustomerWithBalance> {
     const customer = await this.prisma.customer.create({
       data: {
-        name: dto.name,
+        name: normalizeName(dto.name),
         contact: dto.contact,
         photoUrl: dto.photoUrl,
         defaultKind: dto.defaultKind ?? "WHOLESALE",
@@ -180,24 +198,25 @@ export class CustomersService {
 
     const existing = await this.prisma.customer.findMany({ select: { name: true, contact: true } });
     const seenPhones = new Set(existing.map((c) => digits(c.contact)).filter(Boolean));
-    const seenNames = new Set(existing.map((c) => c.name.trim().toLowerCase()));
+    const seenNames = new Set(existing.map((c) => nameKey(c.name)));
 
     const toCreate: { name: string; contact: string | null }[] = [];
     let skipped = 0;
     for (const c of dto.contacts) {
-      const name = c.name.trim();
+      const name = normalizeName(c.name);
       const phone = digits(c.contact);
       if (!name) {
         skipped++;
         continue;
       }
-      const dup = phone ? seenPhones.has(phone) : seenNames.has(name.toLowerCase());
+      const key = nameKey(name);
+      const dup = phone ? seenPhones.has(phone) : seenNames.has(key);
       if (dup) {
         skipped++;
         continue;
       }
       if (phone) seenPhones.add(phone);
-      else seenNames.add(name.toLowerCase());
+      else seenNames.add(key);
       toCreate.push({ name, contact: c.contact?.trim() || null });
     }
 
@@ -213,7 +232,7 @@ export class CustomersService {
     const customer = await this.prisma.customer.update({
       where: { id },
       data: {
-        ...(dto.name !== undefined ? { name: dto.name } : {}),
+        ...(dto.name !== undefined ? { name: normalizeName(dto.name) } : {}),
         ...(dto.contact !== undefined ? { contact: dto.contact } : {}),
         ...(dto.photoUrl !== undefined ? { photoUrl: dto.photoUrl } : {}),
         ...(dto.defaultKind !== undefined ? { defaultKind: dto.defaultKind } : {}),
@@ -248,10 +267,10 @@ export class CustomersService {
     name: string,
     excludeId?: number,
   ): Promise<{ id: number; name: string; contact: string | null }[]> {
-    // Strip only separators (spaces, . _ -) and lowercase, so "B-204"/"B 204"/
-    // "B204" collapse to "b204" while Burmese letters/digits are preserved (a
-    // "keep only a-z0-9" rule would erase Burmese names entirely).
-    const norm = name.toLowerCase().replace(/[\s._-]/g, "");
+    // NFC + lowercase + strip separators, so "B-204"/"B 204"/"B204" collapse to
+    // "b204" AND both Burmese byte-forms of a name collapse together — Burmese
+    // letters/digits are preserved (a "keep only a-z0-9" rule would erase them).
+    const norm = nameKey(name);
     if (norm.length < 2) return [];
     // Escape LIKE metacharacters that could survive normalization.
     const like = `%${norm.replace(/[%\\]/g, (m) => "\\" + m)}%`;
@@ -261,7 +280,7 @@ export class CustomersService {
       SELECT id, name, contact
       FROM "Customer"
       WHERE "deletedAt" IS NULL
-        AND regexp_replace(lower(name), '[[:space:]._-]', '', 'g') LIKE ${like}
+        AND regexp_replace(lower(normalize(name, NFC)), '[[:space:]._-]', '', 'g') LIKE ${like}
         ${excludeId ? Prisma.sql`AND id <> ${excludeId}` : Prisma.empty}
       ORDER BY name ASC
       LIMIT 8
