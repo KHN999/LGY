@@ -18,7 +18,10 @@ export default async function CustomersPage({
   const params = await searchParams;
   const showInactive = params.activeOnly === "false";
   const search = params.search?.trim() ?? "";
-  const apiParams = new URLSearchParams({ limit: "200" });
+  // Load the whole customer list so the list AND the top-debtors chart are
+  // complete — a 200 cap (sorted by name) dropped later-sorting names like
+  // "ဦး…", hiding real customers/debtors. Search stays server-side (NFC-aware).
+  const apiParams = new URLSearchParams({ limit: "1000" });
   if (showInactive) apiParams.set("activeOnly", "false");
   if (search) apiParams.set("search", search);
   const data = await serverFetch<Page<Customer>>(`/api/customers?${apiParams.toString()}`);

@@ -13,7 +13,9 @@ export default async function DebtsPage({
   searchParams: Promise<{ search?: string }>;
 }) {
   const { search } = await searchParams;
-  const params = new URLSearchParams({ limit: "200" });
+  // Load all customers so no debtor is hidden — a 200 cap (name-sorted) dropped
+  // later-sorting names, so the biggest debts (e.g. "ဦး…") never appeared here.
+  const params = new URLSearchParams({ limit: "1000" });
   if (search) params.set("search", search);
   const data = await serverFetch<Page<Customer>>(`/api/customers?${params.toString()}`);
   const debtors = (data?.data ?? [])
