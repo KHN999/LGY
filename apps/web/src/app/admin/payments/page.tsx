@@ -2,7 +2,7 @@ import Link from "next/link";
 import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
 import { formatKyat, formatDateTime } from "@/lib/utils";
-import type { ReceivedPaymentRow } from "@/lib/api-client";
+import type { PaymentHistory } from "@/lib/api-client";
 import { PageHeader, EmptyState } from "@/components/ui";
 import { DateFilter } from "@/components/admin/date-filter";
 import { VoidPaymentButton } from "./void-payment-button";
@@ -19,8 +19,9 @@ export default async function AdminPaymentsPage({
   if (from) params.set("fromDate", from);
   if (to) params.set("toDate", to);
   if (linked === "account" || linked === "sale") params.set("linked", linked);
-  const rows = (await serverFetch<ReceivedPaymentRow[]>(`/api/customer-payments?${params.toString()}`)) ?? [];
-  const total = rows.reduce((s, r) => s + r.amount, 0);
+  const data = await serverFetch<PaymentHistory>(`/api/customer-payments?${params.toString()}`);
+  const rows = data?.rows ?? [];
+  const total = data?.total ?? 0; // true total over the whole range, not just the shown rows
 
   const FILTERS: Array<{ key?: "account" | "sale"; label: string }> = [
     { label: labels.salesAdmin.filterAll },

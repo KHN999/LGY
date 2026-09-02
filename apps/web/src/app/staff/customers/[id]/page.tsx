@@ -23,8 +23,8 @@ export default async function CustomerLedgerPage({
   const { id } = await params;
   const [customer, salesPage, payments] = await Promise.all([
     serverFetch<Customer>(`/api/customers/${id}`),
-    serverFetch<Page<Sale>>(`/api/sales?customerId=${id}&limit=200`),
-    serverFetch<CustomerPayment[]>(`/api/customer-payments/by-customer/${id}`),
+    serverFetch<Page<Sale>>(`/api/sales?customerId=${id}&limit=1000`),
+    serverFetch<CustomerPayment[]>(`/api/customer-payments/by-customer/${id}?limit=1000`),
   ]);
   if (!customer) notFound();
 

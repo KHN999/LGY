@@ -2,7 +2,7 @@ import Link from "next/link";
 import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
 import { formatKyat, formatDateTime } from "@/lib/utils";
-import type { ReceivedPaymentRow } from "@/lib/api-client";
+import type { PaymentHistory } from "@/lib/api-client";
 import { SalesDateFilter } from "../../sales/sales-date-filter";
 
 export const dynamic = "force-dynamic";
@@ -19,8 +19,9 @@ export default async function ReceivedHistoryPage({
     params.set("toDate", new Date(`${date}T23:59:59.999+06:30`).toISOString());
   }
   if (linked === "account" || linked === "sale") params.set("linked", linked);
-  const rows = (await serverFetch<ReceivedPaymentRow[]>(`/api/customer-payments?${params.toString()}`)) ?? [];
-  const total = rows.reduce((s, r) => s + r.amount, 0);
+  const data = await serverFetch<PaymentHistory>(`/api/customer-payments?${params.toString()}`);
+  const rows = data?.rows ?? [];
+  const total = data?.total ?? 0; // true total over the range, not just the shown rows
 
   const FILTERS: Array<{ key?: "account" | "sale"; label: string }> = [
     { label: labels.salesAdmin.filterAll },

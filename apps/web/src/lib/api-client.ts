@@ -500,6 +500,14 @@ export interface ReceivedPaymentRow {
   customerName: string | null;
 }
 
+/** GET /customer-payments — a capped page of rows plus the TRUE total/count over
+ *  the whole filtered range (so the total isn't limited to the shown rows). */
+export interface PaymentHistory {
+  rows: ReceivedPaymentRow[];
+  total: number;
+  count: number;
+}
+
 export interface DailyClosePreview {
   date: string;
   openingCash: number;

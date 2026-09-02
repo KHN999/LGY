@@ -1,4 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@lgy/db";
 import { PrismaService } from "../prisma/prisma.service";
 import { CustomersService } from "../customers/customers.service";
 import { assertDateNotClosed } from "../common/backdate";
@@ -64,34 +65,44 @@ export class CustomerPaymentsService {
    *  a sale (paying off previous sales), "sale" = paid at a sale. Excludes voided. */
   async recent(opts: { limit?: number; from?: string; to?: string; linked?: "sale" | "account" }) {
     const { limit = 50, from, to, linked } = opts;
-    const rows = await this.prisma.customerPayment.findMany({
-      where: {
-        voidedAt: null,
-        ...(from && to ? { paymentDate: { gte: new Date(from), lte: new Date(to) } } : {}),
-        ...(linked === "account" ? { saleId: null } : {}),
-        ...(linked === "sale" ? { saleId: { not: null } } : {}),
-      },
-      orderBy: { paymentDate: "desc" },
-      take: limit,
-      select: {
-        id: true,
-        amount: true,
-        method: true,
-        paymentDate: true,
-        saleId: true,
-        customerId: true,
-        customer: { select: { name: true } },
-      },
-    });
-    return rows.map((p) => ({
-      id: p.id,
-      amount: p.amount,
-      method: p.method,
-      paymentDate: p.paymentDate,
-      saleId: p.saleId,
-      customerId: p.customerId,
-      customerName: p.customer?.name ?? null,
-    }));
+    // Shared filter for the displayed page AND the totals, so the total reflects
+    // the WHOLE range — not just the capped rows shown (that under-reported it).
+    const where: Prisma.CustomerPaymentWhereInput = {
+      voidedAt: null,
+      ...(from && to ? { paymentDate: { gte: new Date(from), lte: new Date(to) } } : {}),
+      ...(linked === "account" ? { saleId: null } : {}),
+      ...(linked === "sale" ? { saleId: { not: null } } : {}),
+    };
+    const [rows, agg] = await Promise.all([
+      this.prisma.customerPayment.findMany({
+        where,
+        orderBy: { paymentDate: "desc" },
+        take: limit,
+        select: {
+          id: true,
+          amount: true,
+          method: true,
+          paymentDate: true,
+          saleId: true,
+          customerId: true,
+          customer: { select: { name: true } },
+        },
+      }),
+      this.prisma.customerPayment.aggregate({ where, _sum: { amount: true }, _count: true }),
+    ]);
+    return {
+      rows: rows.map((p) => ({
+        id: p.id,
+        amount: p.amount,
+        method: p.method,
+        paymentDate: p.paymentDate,
+        saleId: p.saleId,
+        customerId: p.customerId,
+        customerName: p.customer?.name ?? null,
+      })),
+      total: agg._sum.amount ?? 0,
+      count: agg._count,
+    };
   }
 
   async listForCustomer(customerId: number, limit = 50) {
