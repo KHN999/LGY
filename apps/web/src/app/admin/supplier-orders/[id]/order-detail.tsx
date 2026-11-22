@@ -70,10 +70,11 @@ export function OrderDetail({ order }: Props) {
     try {
       await api.patch(`/supplier-orders/${order.id}`, {
         expectedQty: Number(expectedQty),
-        expectedYards: expectedYards ? Number(expectedYards) : undefined,
-        pricePerYard: pricePerYard ? Number(pricePerYard) : undefined,
+        // null when cleared so the old value doesn't come back
+        expectedYards: expectedYards ? Number(expectedYards) : null,
+        pricePerYard: pricePerYard ? Number(pricePerYard) : null,
         expectedTotal: Number(expectedTotal),
-        notes: notes.trim() || undefined,
+        notes: notes.trim() || null,
       });
       reset();
       router.refresh();

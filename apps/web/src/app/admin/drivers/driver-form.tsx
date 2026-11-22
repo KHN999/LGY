@@ -27,11 +27,13 @@ export function DriverForm({ initial }: Props) {
     setSubmitting(true);
     const body: Record<string, unknown> = {
       name: name.trim(),
-      contact: contact.trim() || undefined,
-      notes: notes.trim() || undefined,
+      // null (not undefined) when cleared: undefined is dropped from the request,
+      // and the API would then keep the old value.
+      contact: contact.trim() || null,
+      notes: notes.trim() || null,
       status,
     };
-    if (defaultFee.trim()) body.defaultFee = Number(defaultFee);
+    body.defaultFee = defaultFee.trim() ? Number(defaultFee) : null;
     try {
       if (isEdit) await api.patch(`/drivers/${initial.id}`, body);
       else await api.post(`/drivers`, body);

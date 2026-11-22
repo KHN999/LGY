@@ -1,3 +1,4 @@
+import { blankToNull } from "../common/blank";
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import type { PageResult } from "../common/pagination.dto";
@@ -55,7 +56,11 @@ export class EmployeesService {
     if (!existing) throw new NotFoundException(`Employee ${id} not found`);
     return this.prisma.employee.update({
       where: { id },
-      data: { ...dto },
+      data: {
+        ...dto,
+        ...(dto.contact !== undefined ? { contact: blankToNull(dto.contact) } : {}),
+        ...(dto.notes !== undefined ? { notes: blankToNull(dto.notes) } : {}),
+      },
     });
   }
 }

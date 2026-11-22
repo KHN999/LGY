@@ -1,3 +1,4 @@
+import { blankToNull } from "../common/blank";
 import {
   BadRequestException,
   ConflictException,
@@ -147,7 +148,7 @@ export class SupplierOrdersService {
         ...(dto.expectedYards !== undefined ? { expectedYards: dto.expectedYards } : {}),
         ...(dto.pricePerYard !== undefined ? { pricePerYard: dto.pricePerYard } : {}),
         ...(dto.expectedTotal !== undefined ? { expectedTotal: dto.expectedTotal } : {}),
-        ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+        ...(dto.notes !== undefined ? { notes: blankToNull(dto.notes) } : {}),
         ...(dto.status !== undefined ? { status: dto.status as SupplierOrderStatus } : {}),
       },
       include: { supplier: true, itemType: true, receipts: true, payments: true },

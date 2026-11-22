@@ -1,3 +1,4 @@
+import { blankToNull } from "../common/blank";
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import type { TailorCharge, TailorPayment } from "@lgy/db";
 import { PrismaService } from "../prisma/prisma.service";
@@ -208,12 +209,12 @@ export class TailorsService {
       where: { id },
       data: {
         ...(dto.name !== undefined ? { name: dto.name } : {}),
-        ...(dto.contact !== undefined ? { contact: dto.contact } : {}),
+        ...(dto.contact !== undefined ? { contact: blankToNull(dto.contact) } : {}),
         ...(dto.photoUrl !== undefined ? { photoUrl: dto.photoUrl } : {}),
         ...(dto.defaultFeePerPiece !== undefined
           ? { defaultFeePerPiece: dto.defaultFeePerPiece }
           : {}),
-        ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+        ...(dto.notes !== undefined ? { notes: blankToNull(dto.notes) } : {}),
         ...(dto.status !== undefined ? { status: dto.status } : {}),
       },
     });
@@ -290,7 +291,7 @@ export class TailorsService {
         ...(dto.amount !== undefined ? { amount: dto.amount } : {}),
         ...(dto.pieces !== undefined ? { pieces: dto.pieces } : {}),
         ...(dto.feePerPiece !== undefined ? { feePerPiece: dto.feePerPiece } : {}),
-        ...(dto.note !== undefined ? { note: dto.note } : {}),
+        ...(dto.note !== undefined ? { note: blankToNull(dto.note) } : {}),
       },
     });
   }

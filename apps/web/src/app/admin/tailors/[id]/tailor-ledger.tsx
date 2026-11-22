@@ -217,9 +217,10 @@ function ChargeForm({
     try {
       const body = {
         amount: amt,
-        pieces: pieces.trim() === "" ? undefined : Math.max(0, Number(pieces) || 0),
-        feePerPiece: fee.trim() === "" ? undefined : Math.max(0, Number(fee) || 0),
-        note: note.trim() || undefined,
+        // null (not undefined) when cleared, so an edit really clears the field
+        pieces: pieces.trim() === "" ? null : Math.max(0, Number(pieces) || 0),
+        feePerPiece: fee.trim() === "" ? null : Math.max(0, Number(fee) || 0),
+        note: note.trim() || null,
       };
       if (initial) await api.patch(`/tailors/charges/${initial.id}`, body);
       else await api.post(`/tailors/${tailor.id}/charges`, body);

@@ -26,8 +26,10 @@ export function SupplierForm({ initial }: Props) {
     setSubmitting(true);
     const body = {
       name: name.trim(),
-      contact: contact.trim() || undefined,
-      notes: notes.trim() || undefined,
+      // null (not undefined) when cleared: undefined is dropped from the request,
+      // and the API would then keep the old value.
+      contact: contact.trim() || null,
+      notes: notes.trim() || null,
       status,
     };
     try {
