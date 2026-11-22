@@ -87,6 +87,7 @@ export function ReceiptView({
     })),
     grandTotal: sale.grandTotal,
     paid: sale.paidAmount,
+    notes: sale.notes,
     returnedLines,
     returnedTotal: returns.reduce((s, r) => s + r.returnTotal, 0),
     refundedTotal: returns.reduce((s, r) => s + r.refundAmount, 0),
