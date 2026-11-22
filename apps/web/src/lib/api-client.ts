@@ -96,14 +96,23 @@ export interface StockValueRow {
   costPrice: number | null;
   warehouseQty: number;
   shopQty: number;
+  /** Held by tailors (all tailors combined). */
+  tailorQty: number;
   warehouseValue: number;
   shopValue: number;
+  tailorValue: number;
   totalValue: number;
 }
 
 export interface StockValuation {
   items: StockValueRow[];
-  totals: { warehouseValue: number; shopValue: number; totalValue: number; uncostedCount: number };
+  totals: {
+    warehouseValue: number;
+    shopValue: number;
+    tailorValue: number;
+    totalValue: number;
+    uncostedCount: number;
+  };
 }
 
 /** One stock-ledger movement (GET /inventory/movements). */

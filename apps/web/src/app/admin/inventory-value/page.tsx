@@ -25,6 +25,7 @@ export default async function InventoryValuePage({
   const totals = data?.totals ?? {
     warehouseValue: 0,
     shopValue: 0,
+    tailorValue: 0,
     totalValue: 0,
     uncostedCount: 0,
   };
@@ -40,9 +41,10 @@ export default async function InventoryValuePage({
         {isPast ? ` — ${labels.admin.valuePastNote}` : ""}
       </p>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <ValueCard label={labels.transfer.locWarehouse} value={totals.warehouseValue} />
         <ValueCard label={labels.transfer.locShop} value={totals.shopValue} />
+        <ValueCard label={labels.admin.valueAtTailors} value={totals.tailorValue} />
         <ValueCard label={labels.receipt.total} value={totals.totalValue} highlight />
       </div>
 
@@ -62,6 +64,7 @@ export default async function InventoryValuePage({
                 <th className="p-3">{labels.receipt.item}</th>
                 <th className="p-3 text-right">{labels.transfer.locWarehouse}</th>
                 <th className="p-3 text-right">{labels.transfer.locShop}</th>
+                <th className="p-3 text-right">{labels.admin.valueAtTailors}</th>
                 <th className="p-3 text-right">{labels.admin.costPrice}</th>
                 <th className="p-3 text-right">{labels.admin.value}</th>
               </tr>
@@ -78,6 +81,9 @@ export default async function InventoryValuePage({
                   </td>
                   <td className="p-3 text-right tabular-nums">
                     {r.shopQty.toLocaleString("en-US")}
+                  </td>
+                  <td className="p-3 text-right tabular-nums">
+                    {r.tailorQty.toLocaleString("en-US")}
                   </td>
                   <td className="p-3 text-right tabular-nums text-muted-foreground">
                     {r.costPrice != null ? r.costPrice.toLocaleString("en-US") : "—"}
@@ -104,6 +110,7 @@ export default async function InventoryValuePage({
                 <th className="py-1 pr-1">{labels.receipt.item}</th>
                 <th className="px-1 py-1 text-right">{labels.transfer.locWarehouse}</th>
                 <th className="px-1 py-1 text-right">{labels.transfer.locShop}</th>
+                <th className="px-1 py-1 text-right">{labels.admin.valueAtTailors}</th>
                 <th className="px-1 py-1 text-right">{labels.admin.costPrice}</th>
                 <th className="py-1 pl-1 text-right">{labels.admin.value}</th>
               </tr>
@@ -117,6 +124,9 @@ export default async function InventoryValuePage({
                   </td>
                   <td className="px-1 py-1 text-right tabular-nums">
                     {r.shopQty.toLocaleString("en-US")}
+                  </td>
+                  <td className="px-1 py-1 text-right tabular-nums">
+                    {r.tailorQty.toLocaleString("en-US")}
                   </td>
                   <td className="px-1 py-1 text-right tabular-nums">
                     {r.costPrice != null ? r.costPrice.toLocaleString("en-US") : "—"}
@@ -136,6 +146,10 @@ export default async function InventoryValuePage({
             <div className="flex justify-between">
               <dt>{labels.transfer.locShop}</dt>
               <dd className="tabular-nums">{formatKyat(totals.shopValue)}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>{labels.admin.valueAtTailors}</dt>
+              <dd className="tabular-nums">{formatKyat(totals.tailorValue)}</dd>
             </div>
             <div className="flex justify-between border-t border-black pt-1 text-sm font-bold">
               <dt>{labels.receipt.total}</dt>

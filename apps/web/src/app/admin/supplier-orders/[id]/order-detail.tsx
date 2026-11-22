@@ -17,7 +17,13 @@ export function OrderDetail({ order }: Props) {
   // Deletable at any stage — the API reverses its receipts and payments.
   const canCancel = order.status !== "CANCELLED";
   // Paying is allowed after the goods arrive — most orders are paid on arrival.
-  const canPay = order.status !== "CANCELLED";
+  // …but never past the order total, and not at all once it is fully paid.
+  const owed = Math.max(
+    0,
+    order.expectedTotal -
+      order.payments.filter((p) => !p.voidedAt).reduce((s, p) => s + p.amount, 0),
+  );
+  const canPay = order.status !== "CANCELLED" && owed > 0;
   const received = order.receipts
     .filter((r) => !r.voidedAt)
     .reduce((s, r) => s + r.receivedQty, 0);
@@ -271,12 +277,15 @@ export function OrderDetail({ order }: Props) {
 
       {openPanel === "payment" && (
         <Panel title={labels.admin.order.recordPayment}>
-          <Field label={labels.admin.order.paymentAmount}>
+          <Field
+            label={`${labels.admin.order.paymentAmount} (${labels.admin.order.remaining}: ${formatKyat(owed)})`}
+          >
             <input
               autoFocus
               type="number"
               inputMode="numeric"
               min={1}
+              max={owed}
               value={payAmount}
               onChange={(e) => setPayAmount(e.target.value)}
               className={inp}
@@ -308,7 +317,7 @@ export function OrderDetail({ order }: Props) {
             onCancel={reset}
             onSave={recordPayment}
             submitting={submitting}
-            disabled={!payAmount || Number(payAmount) <= 0}
+            disabled={!payAmount || Number(payAmount) <= 0 || Number(payAmount) > owed}
           />
         </Panel>
       )}

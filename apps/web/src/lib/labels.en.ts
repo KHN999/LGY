@@ -487,6 +487,7 @@ export const en = {
     stockCount: "Stock count",
     inventoryValue: "Inventory value",
     valueAsOf: "Stock at end of day",
+    valueAtTailors: "At tailors",
     valuePrevDay: "Previous day",
     valueNextDay: "Next day",
     valuePastNote: "Quantities are as of the end of the chosen day; value uses today's cost price.",

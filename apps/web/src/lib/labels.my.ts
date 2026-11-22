@@ -486,6 +486,7 @@ export const my: DeepPartial<Labels> = {
     stockCount: "စတော့ရေတွက်",
     inventoryValue: "ကုန်ပစ္စည်း တန်ဖိုး",
     valueAsOf: "နေ့အဆုံး လက်ကျန်",
+    valueAtTailors: "ချုပ်သမားဆီ",
     valuePrevDay: "ရှေ့ရက်",
     valueNextDay: "နောက်ရက်",
     valuePastNote: "ရွေးထားတဲ့နေ့အဆုံးက လက်ကျန်အရေအတွက် ဖြစ်ပြီး တန်ဖိုးကို ယခုလက်ရှိ ကုန်ကျစရိတ်နဲ့ တွက်ထားသည်",

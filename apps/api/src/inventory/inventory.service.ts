@@ -23,6 +23,7 @@ interface StockValueRaw {
   costPrice: number | null;
   warehouseQty: number;
   shopQty: number;
+  tailorQty: number;
 }
 
 export interface StockMovement {
@@ -144,7 +145,8 @@ export class InventoryService {
   }
 
   /**
-   * Stock valuation across warehouse + shop: each item's on-hand qty × its
+   * Stock valuation across warehouse + shop + goods held by tailors (all tailors
+   * combined): each item's on-hand qty × its
    * admin-set costPrice. Rolls are valued per yard, pieces per piece. Items with
    * zero stock are dropped; items with stock but no cost set are surfaced so the
    * admin knows the total is understated.
@@ -173,12 +175,19 @@ export class InventoryService {
         COALESCE(SUM(CASE
           WHEN ${live} AND il.location = 'SHOP'::"Location" AND il.direction = 'IN'::"InventoryDirection" THEN il.qty
           WHEN ${live} AND il.location = 'SHOP'::"Location" AND il.direction = 'OUT'::"InventoryDirection" THEN -il.qty
-          ELSE 0 END), 0)::int AS "shopQty"
+          ELSE 0 END), 0)::int AS "shopQty",
+        COALESCE(SUM(CASE
+          WHEN ${live} AND il.location = 'TAILOR'::"Location" AND il.direction = 'IN'::"InventoryDirection" THEN il.qty
+          WHEN ${live} AND il.location = 'TAILOR'::"Location" AND il.direction = 'OUT'::"InventoryDirection" THEN -il.qty
+          ELSE 0 END), 0)::int AS "tailorQty"
       FROM "ItemType" t
       LEFT JOIN "InventoryLine" il
         ON il."itemTypeId" = t.id
-       AND il."tailorId" IS NULL
-       AND il.location IN ('WAREHOUSE'::"Location", 'SHOP'::"Location")
+       AND (
+         (il."tailorId" IS NULL AND il.location IN ('WAREHOUSE'::"Location", 'SHOP'::"Location"))
+         -- goods out with a tailor are still ours: summed across all tailors
+         OR (il."tailorId" IS NOT NULL AND il.location = 'TAILOR'::"Location")
+       )
       LEFT JOIN "InventoryEvent" ev ON ev.id = il."eventId"
       GROUP BY t.id
       ORDER BY t."sortOrder" ASC, t.id ASC
@@ -189,14 +198,22 @@ export class InventoryService {
         const cost = r.costPrice ?? 0;
         const warehouseValue = r.warehouseQty * cost;
         const shopValue = r.shopQty * cost;
-        return { ...r, warehouseValue, shopValue, totalValue: warehouseValue + shopValue };
+        const tailorValue = r.tailorQty * cost;
+        return {
+          ...r,
+          warehouseValue,
+          shopValue,
+          tailorValue,
+          totalValue: warehouseValue + shopValue + tailorValue,
+        };
       })
-      .filter((r) => r.warehouseQty !== 0 || r.shopQty !== 0)
+      .filter((r) => r.warehouseQty !== 0 || r.shopQty !== 0 || r.tailorQty !== 0)
       .sort((a, b) => b.totalValue - a.totalValue);
 
     const totals = {
       warehouseValue: items.reduce((s, r) => s + r.warehouseValue, 0),
       shopValue: items.reduce((s, r) => s + r.shopValue, 0),
+      tailorValue: items.reduce((s, r) => s + r.tailorValue, 0),
       totalValue: items.reduce((s, r) => s + r.totalValue, 0),
       uncostedCount: items.filter((r) => r.costPrice == null).length,
     };

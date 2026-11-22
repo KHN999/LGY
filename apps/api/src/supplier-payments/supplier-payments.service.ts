@@ -16,10 +16,20 @@ export class SupplierPaymentsService {
     if (!supplier) throw new NotFoundException(`Supplier ${dto.supplierId} not found`);
 
     if (dto.orderId !== undefined) {
-      const order = await this.prisma.supplierOrder.findUnique({ where: { id: dto.orderId } });
+      const order = await this.prisma.supplierOrder.findUnique({
+        where: { id: dto.orderId },
+        include: { payments: { where: { voidedAt: null }, select: { amount: true } } },
+      });
       if (!order) throw new BadRequestException(`SupplierOrder ${dto.orderId} not found`);
       if (order.supplierId !== dto.supplierId) {
         throw new BadRequestException(`Order ${dto.orderId} does not belong to supplier ${dto.supplierId}`);
+      }
+      // An order can't be paid past its total.
+      const remaining = order.expectedTotal - order.payments.reduce((s, p) => s + p.amount, 0);
+      if (dto.amount > remaining) {
+        throw new BadRequestException(
+          `Payment exceeds what is owed on this order (remaining ${Math.max(0, remaining)})`,
+        );
       }
     }
 
