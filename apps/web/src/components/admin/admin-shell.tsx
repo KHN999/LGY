@@ -59,6 +59,8 @@ const GROUPS: { title: string; items: NavItem[] }[] = [
       { href: "/admin/audit", label: labels.admin.audit, icon: "📋" },
       { href: "/admin/export", label: labels.admin.export, icon: "⬇️" },
       { href: "/admin/settings", label: labels.admin.settings, icon: "⚙️" },
+      { href: "/data-analysis", label: labels.admin.dataAnalysis, icon: "📈" },
+      { href: "/explain", label: labels.admin.explain, icon: "📖" },
     ],
   },
 ];

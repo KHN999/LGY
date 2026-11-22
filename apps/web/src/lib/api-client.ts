@@ -711,3 +711,65 @@ export interface DebtorsReport {
   total: number;
   count: number;
 }
+
+/** GET /analytics/overview — whole-business figures for /data-analysis. */
+export interface AnalyticsOverview {
+  generatedAt: string;
+  period: { from: string | null; to: string | null };
+  totals: {
+    revenue: number; orders: number; avgOrder: number; collected: number; walkinRevenue: number;
+    accountRevenue: number; saleDays: number; revenuePerDay: number;
+  };
+  monthly: {
+    month: string; orders: number; revenue: number; days: number; walkinRevenue: number;
+    collected: number; cash: number; bank: number; debtCollected: number;
+  }[];
+  weekly: { week: string; orders: number; revenue: number }[];
+  weekdays: { dow: number; orders: number; revenue: number }[];
+  products: {
+    itemTypeId: number; label: string; qty: number; revenue: number; share: number; avgPrice: number;
+    costPrice: number | null; marginPct: number | null; belowCost: boolean; grossProfit: number | null;
+    qty30: number; onHand: number; atTailors: number; daysCover: number | null;
+  }[];
+  productCount: number;
+  nonCatalog: { lines: number; revenue: number };
+  profit: {
+    costedRevenue: number; costedShare: number; grossProfit: number; marginPct: number | null;
+    expenseTotal: number; expenses: number; tailorCharged: number;
+  };
+  customers: {
+    total: number; buyers: number; active30: number; active90: number; oneOrder: number;
+    top1Share: number; top5Share: number; top20Share: number;
+    top: { id: number; name: string; orders: number; revenue: number; balance: number; lastSale: string | null }[];
+  };
+  receivables: {
+    total: number; debtors: number; top1Share: number;
+    aging: Record<"d0_30" | "d31_60" | "d61_90" | "d90plus", { count: number; amount: number }>;
+    top: {
+      id: number; name: string; balance: number; lastSale: string | null; lastPayment: string | null;
+      daysSincePayment: number | null;
+    }[];
+    inCredit: { count: number; amount: number };
+    deleted: { customers: number; revenue: number; unpaidCount: number; unpaid: number };
+  };
+  payments: { mix: { method: string; bank: string | null; count: number; total: number }[] };
+  payables: {
+    supplierOrdered: number; supplierPaid: number; supplierOwed: number;
+    tailorCharged: number; tailorPaid: number; tailorOwed: number;
+  };
+  stock: {
+    totals: { warehouseValue: number; shopValue: number; tailorValue: number; totalValue: number; uncostedCount: number };
+    idle: { label: string; qty: number; value: number }[];
+    idleValue: number;
+    negative: { label: string; warehouseQty: number; shopQty: number }[];
+  };
+  flow: ({ month: string } & Record<
+    "RECEIPT" | "CUT" | "TAILOR_SEND" | "TAILOR_RETURN" | "TRANSFER",
+    { events: number; qty: number }
+  >)[];
+  hygiene: {
+    sales: number; voidedSales: number; saleDays: number; closedSaleDays: number; closes: number;
+    closesOff: number; closeDiff: number; openExceptions: number; expenses: number; returns: number;
+    returnTotal: number; refundTotal: number; uncostedItems: number;
+  };
+}

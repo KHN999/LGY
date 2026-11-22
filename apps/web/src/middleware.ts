@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const SESSION_COOKIE = "lgy_session";
-const PROTECTED_PREFIXES = ["/admin", "/staff"];
+const PROTECTED_PREFIXES = ["/admin", "/staff", "/explain", "/data-analysis"];
 
 /**
  * Cheap presence check only — if the cookie is missing, redirect to /login
@@ -27,5 +27,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/staff/:path*"],
+  matcher: ["/admin/:path*", "/staff/:path*", "/explain/:path*", "/data-analysis/:path*"],
 };

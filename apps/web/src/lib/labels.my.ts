@@ -485,6 +485,8 @@ export const my: DeepPartial<Labels> = {
     payments: "ရရှိငွေစာရင်း",
     stockCount: "စတော့ရေတွက်",
     inventoryValue: "ကုန်ပစ္စည်း တန်ဖိုး",
+    dataAnalysis: "ဒေတာ သုံးသပ်ချက်",
+    explain: "စနစ် ရှင်းလင်းချက်",
     valueAsOf: "နေ့အဆုံး လက်ကျန်",
     valueAtTailors: "ချုပ်သမားဆီ",
     valuePrevDay: "ရှေ့ရက်",

@@ -1,0 +1,71 @@
+"use client";
+
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { formatKyat } from "@/lib/utils";
+
+// Axis in သိန်း (lakh) — the unit the shop thinks in.
+const axisLakh = (v: number) => (v / 100_000).toLocaleString("en-US", { maximumFractionDigits: 0 });
+const money = (v: unknown) => formatKyat(Number(v) || 0);
+
+export function TwoBars({
+  data,
+  aName,
+  bName,
+  unitNote,
+}: {
+  data: { label: string; a: number; b: number }[];
+  aName: string;
+  bName: string;
+  unitNote: string;
+}) {
+  return (
+    <div>
+      <ResponsiveContainer width="100%" height={280}>
+        <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+          <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+          <YAxis tickFormatter={axisLakh} tick={{ fontSize: 11 }} width={44} />
+          <Tooltip formatter={money} />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
+          <Bar name={aName} dataKey="a" fill="#10b981" radius={[3, 3, 0, 0]} />
+          <Bar name={bName} dataKey="b" fill="#3b82f6" radius={[3, 3, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+      <p className="mt-1 text-right text-xs text-muted-foreground">{unitNote}</p>
+    </div>
+  );
+}
+
+export function OneBar({
+  data,
+  name,
+  unitNote,
+}: {
+  data: { label: string; a: number }[];
+  name: string;
+  unitNote: string;
+}) {
+  return (
+    <div>
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+          <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={0} />
+          <YAxis tickFormatter={axisLakh} tick={{ fontSize: 11 }} width={44} />
+          <Tooltip formatter={money} />
+          <Bar name={name} dataKey="a" fill="#10b981" radius={[3, 3, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+      <p className="mt-1 text-right text-xs text-muted-foreground">{unitNote}</p>
+    </div>
+  );
+}

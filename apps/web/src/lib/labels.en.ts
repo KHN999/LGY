@@ -486,6 +486,8 @@ export const en = {
     payments: "Payments received",
     stockCount: "Stock count",
     inventoryValue: "Inventory value",
+    dataAnalysis: "Data analysis",
+    explain: "How the system works",
     valueAsOf: "Stock at end of day",
     valueAtTailors: "At tailors",
     valuePrevDay: "Previous day",
