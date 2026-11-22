@@ -13,7 +13,7 @@ export interface WeekRow { week: Date; orders: number; revenue: number }
 export interface ItemRow { itemTypeId: number; labelMy: string; qty: number; revenue: number; qty30: number; costPrice: number | null }
 export interface ManualRow { lines: number; revenue: number }
 export interface CustRow {
-  id: number; name: string; deleted: boolean; deletedAt: Date | null; lateOrders: number; lateRevenue: number; orders: number; revenue: number; paid: number; returned: number; refunded: number;
+  id: number; name: string; createdAt: Date; deleted: boolean; deletedAt: Date | null; lateOrders: number; lateRevenue: number; orders: number; revenue: number; paid: number; returned: number; refunded: number;
   firstSale: Date | null; lastSale: Date | null; lastPayment: Date | null;
 }
 export interface MixRow { method: string; bank: string | null; count: number; total: number }
@@ -103,7 +103,7 @@ export class AnalyticsService {
             WHERE s."voidedAt" IS NULL AND d."deletedAt" IS NOT NULL AND s."createdAt" > d."deletedAt"
             GROUP BY 1
           )
-          SELECT c.id, c.name, (c."deletedAt" IS NOT NULL) AS deleted, c."deletedAt",
+          SELECT c.id, c.name, c."createdAt", (c."deletedAt" IS NOT NULL) AS deleted, c."deletedAt",
                  COALESCE(late."lateOrders", 0)::int AS "lateOrders",
                  COALESCE(late."lateRevenue", 0)::float8 AS "lateRevenue",
                  COALESCE(sa.orders, 0)::int AS orders,
@@ -264,6 +264,29 @@ export class AnalyticsService {
     };
     const inCredit = withBalance.filter((c) => c.balance < 0);
 
+    // Deleted customers who still owe, each paired with an active customer of
+    // the same name if there is one (the usual sign of one order entered under
+    // two records). Their invoices are fetched so the page can lay out what
+    // happened, in order.
+    const nameKey = (s: string) => s.normalize("NFC").trim().toLowerCase();
+    const goneDebtors = gone
+      .filter((c) => c.balance > 0)
+      .sort((a, b) => b.balance - a.balance)
+      .slice(0, 5)
+      .map((c) => ({ c, twin: withBalance.find((l) => nameKey(l.name) === nameKey(c.name)) ?? null }));
+    const caseIds = goneDebtors.flatMap((g) => [g.c.id, ...(g.twin ? [g.twin.id] : [])]);
+    const caseSales = caseIds.length
+      ? await db.sale.findMany({
+          where: { customerId: { in: caseIds }, voidedAt: null },
+          select: { id: true, customerId: true, saleDate: true, createdAt: true, grandTotal: true },
+          orderBy: { createdAt: "asc" },
+        })
+      : [];
+    const invoicesOf = (id: number) =>
+      caseSales
+        .filter((s) => s.customerId === id)
+        .map((s) => ({ id: s.id, saleDate: s.saleDate, enteredAt: s.createdAt, total: s.grandTotal }));
+
     // ── Production flow: events + pieces/rolls received per kind per month ──
     const flowKinds = ["RECEIPT", "CUT", "TAILOR_SEND", "TAILOR_RETURN", "TRANSFER"] as const;
     const flowMonths = [...new Set(prod.map((p) => p.month))].sort();
@@ -341,34 +364,30 @@ export class AnalyticsService {
           unpaid: gone.filter((c) => c.balance > 0).reduce((s, c) => s + c.balance, 0),
           // Who they are, and whether an active customer with the same name
           // exists — the usual sign of one order entered under two records.
-          list: gone
-            .filter((c) => c.balance > 0)
-            .sort((a, b) => b.balance - a.balance)
-            .slice(0, 5)
-            .map((c) => {
-              const key = c.name.normalize("NFC").trim().toLowerCase();
-              const twin = withBalance.find((l) => l.name.normalize("NFC").trim().toLowerCase() === key);
-              return {
-                id: c.id,
-                name: c.name,
-                deletedAt: c.deletedAt,
-                revenue: c.revenue,
-                paid: c.paid,
-                unpaid: c.balance,
-                lateOrders: c.lateOrders,
-                lateRevenue: c.lateRevenue,
-                twin: twin
-                  ? {
-                      id: twin.id,
-                      revenue: twin.revenue,
-                      paid: twin.paid,
-                      balance: twin.balance,
-                      // their invoices add up to exactly what the deleted record still "owes"
-                      matchesUnpaid: Math.round(twin.revenue) === Math.round(c.balance),
-                    }
-                  : null,
-              };
-            }),
+          list: goneDebtors.map(({ c, twin }) => ({
+            id: c.id,
+            name: c.name,
+            createdAt: c.createdAt,
+            deletedAt: c.deletedAt,
+            revenue: c.revenue,
+            paid: c.paid,
+            unpaid: c.balance,
+            lateOrders: c.lateOrders,
+            lateRevenue: c.lateRevenue,
+            invoices: invoicesOf(c.id),
+            twin: twin
+              ? {
+                  id: twin.id,
+                  createdAt: twin.createdAt,
+                  revenue: twin.revenue,
+                  paid: twin.paid,
+                  balance: twin.balance,
+                  invoices: invoicesOf(twin.id),
+                  // their invoices add up to exactly what the deleted record still "owes"
+                  matchesUnpaid: Math.round(twin.revenue) === Math.round(c.balance),
+                }
+              : null,
+          })),
         },
       },
       payments: { mix },

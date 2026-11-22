@@ -723,6 +723,9 @@ export interface DebtorsReport {
   count: number;
 }
 
+/** An invoice in a deleted-customer case: when it is dated and when it was typed in. */
+export interface CaseInvoice { id: number; saleDate: string; enteredAt: string; total: number }
+
 /** GET /analytics/overview — whole-business figures for /data-analysis. */
 export interface AnalyticsOverview {
   generatedAt: string;
@@ -764,9 +767,13 @@ export interface AnalyticsOverview {
     deleted: {
       customers: number; revenue: number; unpaidCount: number; unpaid: number;
       list: {
-        id: number; name: string; deletedAt: string | null; revenue: number; paid: number; unpaid: number;
-        lateOrders: number; lateRevenue: number;
-        twin: { id: number; revenue: number; paid: number; balance: number; matchesUnpaid: boolean } | null;
+        id: number; name: string; createdAt: string; deletedAt: string | null;
+        revenue: number; paid: number; unpaid: number; lateOrders: number; lateRevenue: number;
+        invoices: CaseInvoice[];
+        twin: {
+          id: number; createdAt: string; revenue: number; paid: number; balance: number;
+          invoices: CaseInvoice[]; matchesUnpaid: boolean;
+        } | null;
       }[];
     };
   };

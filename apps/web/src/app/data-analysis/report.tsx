@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { AnalyticsOverview } from "@/lib/api-client";
 import { formatDate, formatKyat } from "@/lib/utils";
 import { OneBar, TwoBars } from "./charts";
+import { DeletedCases } from "./cases";
 import { Fold, HBars, Meter, MiniCols, ORDINAL, SERIES, Segments } from "./viz";
 import { BANKS, WEEKDAYS, lakh, pct, t } from "./text.my";
 
@@ -395,53 +396,7 @@ export function Report({ o }: { o: AnalyticsOverview }) {
         {o.receivables.inCredit.count > 0 && (
           <Note tone="warn">{t.recv.inCredit(o.receivables.inCredit.count, formatKyat(o.receivables.inCredit.amount))}</Note>
         )}
-        {o.receivables.deleted.list.length > 0 && (
-          <div className="flex flex-col gap-3">
-            <h3 className="mt-2 text-sm font-semibold">{t.del.title}</h3>
-            {o.receivables.deleted.list.map((d) => (
-              <article key={d.id} className={`flex flex-col gap-3 rounded-2xl border p-4 ${TONE.bad}`}>
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                  <p className="text-base font-bold">{d.name}</p>
-                  <p className="text-sm">
-                    {d.deletedAt ? t.del.deletedOn(formatDate(d.deletedAt)) : ""} ·{" "}
-                    <Link href={`/admin/customers/${d.id}`} className="underline">{t.del.open}</Link>
-                  </p>
-                </div>
-                <Segments
-                  parts={[
-                    { label: t.del.paid, value: d.paid, display: lakh(d.paid), color: SERIES[0] },
-                    { label: t.del.unpaid, value: d.unpaid, display: lakh(d.unpaid), color: SERIES[1] },
-                  ]}
-                />
-                {d.lateOrders > 0 && <p className="text-sm leading-relaxed">⚠ {t.del.late(d.lateOrders, lakh(d.lateRevenue))}</p>}
-                {d.twin && (
-                  <div className="rounded-xl border border-rose-200 bg-white/70 p-3 text-sm">
-                    <p className="font-semibold">
-                      {t.del.twinTitle} ·{" "}
-                      <Link href={`/admin/customers/${d.twin.id}`} className="underline">{t.del.open}</Link>
-                    </p>
-                    <dl className="mt-1.5 grid grid-cols-3 gap-2 tabular-nums">
-                      {(
-                        [
-                          [t.del.invoiced, d.twin.revenue],
-                          [t.del.paid, d.twin.paid],
-                          [t.del.twinBalance, d.twin.balance],
-                        ] as const
-                      ).map(([k, v]) => (
-                        <div key={k}>
-                          <dt className="text-xs opacity-80">{k}</dt>
-                          <dd className="font-semibold">{lakh(v)}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                    {d.twin.matchesUnpaid && <p className="mt-2 leading-relaxed">{t.del.match(formatKyat(d.twin.revenue))}</p>}
-                  </div>
-                )}
-                <p className="text-sm font-semibold leading-relaxed">{t.del.confirm}</p>
-              </article>
-            ))}
-          </div>
-        )}
+        <DeletedCases list={o.receivables.deleted.list} />
       </Section>
 
       <Section title={t.s.payables}>
