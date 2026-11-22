@@ -15,6 +15,8 @@ export function OrderDetail({ order }: Props) {
   const router = useRouter();
   const editable = order.status !== "RECEIVED" && order.status !== "CANCELLED";
   const canCancel = order.status === "PENDING";
+  // Paying is allowed after the goods arrive — most orders are paid on arrival.
+  const canPay = order.status !== "CANCELLED";
   const received = order.receipts
     .filter((r) => !r.voidedAt)
     .reduce((s, r) => s + r.receivedQty, 0);
@@ -176,27 +178,29 @@ export function OrderDetail({ order }: Props) {
             >
               {labels.admin.order.recordReceipt}
             </Button>
-            <Button
-              type="button"
-              variant="primary"
-              className="!bg-amber-600 text-white"
-              onClick={() => setOpenPanel(openPanel === "payment" ? "none" : "payment")}
-            >
-              {labels.admin.order.recordPayment}
-            </Button>
-            {canCancel && (
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={() => {
-                  if (confirm("Cancel this order?")) cancelOrder();
-                }}
-                disabled={submitting}
-              >
-                {labels.admin.order.cancel}
-              </Button>
-            )}
           </>
+        )}
+        {canPay && (
+          <Button
+            type="button"
+            variant="primary"
+            className="!bg-amber-600 text-white"
+            onClick={() => setOpenPanel(openPanel === "payment" ? "none" : "payment")}
+          >
+            {labels.admin.order.recordPayment}
+          </Button>
+        )}
+        {canCancel && (
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => {
+              if (confirm("Cancel this order?")) cancelOrder();
+            }}
+            disabled={submitting}
+          >
+            {labels.admin.order.cancel}
+          </Button>
         )}
       </div>
 
