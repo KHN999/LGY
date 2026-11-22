@@ -798,3 +798,28 @@ export interface AnalyticsOverview {
     returnTotal: number; refundTotal: number; uncostedItems: number;
   };
 }
+
+/** GET /customers/:id/statement — one customer's account for a period. */
+export interface CustomerStatement {
+  customer: { id: number; name: string; contact: string | null; deleted: boolean };
+  from: string | null;
+  to: string | null;
+  firstDate: string | null;
+  opening: number;
+  closing: number;
+  totals: {
+    sales: number; salesCount: number; payments: number; paymentsCount: number; returned: number; refunded: number;
+  };
+  rows: {
+    date: string;
+    kind: "SALE" | "PAYMENT" | "RETURN";
+    refId: number;
+    saleId: number | null;
+    debit: number;
+    credit: number;
+    method: string | null;
+    bank: string | null;
+    items: { label: string; qty: number; unitPrice: number }[];
+    balance: number;
+  }[];
+}

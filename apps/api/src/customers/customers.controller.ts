@@ -61,6 +61,19 @@ export class CustomersController {
     return this.customers.getOne(id);
   }
 
+  /** Account statement for one customer: opening balance, every sale / payment /
+   *  return in the period with a running balance, and the closing balance.
+   *  `from` / `to` are Yangon days (YYYY-MM-DD); omit either for an open end. */
+  @Get(":id/statement")
+  statement(
+    @Param("id", ParseIntPipe) id: number,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) {
+    const ymd = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
+    return this.customers.statement(id, ymd(from), ymd(to));
+  }
+
   /** Staff-accessible (no admin role): import a buyer from a phone contact during
    *  the sell flow — finds an existing customer by phone or creates a new one. */
   @Post("from-contact")

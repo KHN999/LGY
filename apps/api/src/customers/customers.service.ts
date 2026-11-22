@@ -5,6 +5,7 @@ import type { PageResult } from "../common/pagination.dto";
 import { CreateCustomerDto, UpdateCustomerDto } from "./dto/customer.dto";
 import { ImportCustomersDto } from "./dto/import-customers.dto";
 import { normalizeName, nameKey } from "../common/name";
+import { addDays, ymdToYangonStart } from "../common/yangon-time";
 
 export interface CustomerWithBalance {
   id: number;
@@ -406,5 +407,102 @@ export class CustomersService {
       map.set(Number(r.customerId), Number(r.balance));
     }
     return map;
+  }
+
+  /**
+   * Account statement. Reads ALL of the customer's non-voided sales, payments and
+   * returns (no row cap — a truncated list would give a wrong balance), then
+   * splits them at the period start: everything earlier becomes the opening
+   * balance, everything inside is listed with a running balance. Uses the same
+   * balance rule as everywhere else: sale +total, payment −amount, return
+   * −goods value +cash refunded.
+   */
+  async statement(id: number, from?: string, to?: string) {
+    const customer = await this.prisma.customer.findUnique({ where: { id } });
+    if (!customer) throw new NotFoundException(`Customer ${id} not found`);
+
+    const [sales, payments, returns] = await Promise.all([
+      this.prisma.sale.findMany({
+        where: { customerId: id, voidedAt: null },
+        select: {
+          id: true,
+          saleDate: true,
+          grandTotal: true,
+          lines: {
+            select: { qty: true, unitPrice: true, itemName: true, itemType: { select: { labelMy: true } } },
+          },
+        },
+      }),
+      this.prisma.customerPayment.findMany({
+        where: { customerId: id, voidedAt: null },
+        select: { id: true, paymentDate: true, amount: true, method: true, bank: true, saleId: true },
+      }),
+      this.prisma.saleReturn.findMany({
+        where: { customerId: id, voidedAt: null },
+        select: { id: true, returnDate: true, returnTotal: true, refundAmount: true, saleId: true },
+      }),
+    ]);
+
+    type Row = {
+      date: Date;
+      kind: "SALE" | "PAYMENT" | "RETURN";
+      refId: number;
+      saleId: number | null;
+      /** Adds to what the customer owes. */
+      debit: number;
+      /** Reduces what the customer owes. */
+      credit: number;
+      method: string | null;
+      bank: string | null;
+      items: { label: string; qty: number; unitPrice: number }[];
+    };
+    const all: Row[] = [
+      ...sales.map((s): Row => ({
+        date: s.saleDate, kind: "SALE", refId: s.id, saleId: s.id, debit: s.grandTotal, credit: 0,
+        method: null, bank: null,
+        items: s.lines.map((l) => ({ label: l.itemType?.labelMy ?? l.itemName ?? "", qty: l.qty, unitPrice: l.unitPrice })),
+      })),
+      ...payments.map((p): Row => ({
+        date: p.paymentDate, kind: "PAYMENT", refId: p.id, saleId: p.saleId, debit: 0, credit: p.amount,
+        method: p.method, bank: p.bank, items: [],
+      })),
+      ...returns.map((r): Row => ({
+        date: r.returnDate, kind: "RETURN", refId: r.id, saleId: r.saleId, debit: r.refundAmount, credit: r.returnTotal,
+        method: null, bank: null, items: [],
+      })),
+    ];
+    // Oldest first; on the same instant a sale comes before the payment for it.
+    const order = { SALE: 0, RETURN: 1, PAYMENT: 2 } as const;
+    all.sort((a, b) => a.date.getTime() - b.date.getTime() || order[a.kind] - order[b.kind] || a.refId - b.refId);
+
+    const start = from ? ymdToYangonStart(from) : null;
+    const end = to ? addDays(ymdToYangonStart(to), 1) : null; // exclusive
+    let balance = 0;
+    let opening = 0;
+    const rows: (Row & { balance: number })[] = [];
+    for (const r of all) {
+      if (end && r.date >= end) continue; // after the period: not part of this statement
+      balance += r.debit - r.credit;
+      if (start && r.date < start) opening = balance;
+      else rows.push({ ...r, balance });
+    }
+    const inPeriod = (k: Row["kind"]) => rows.filter((r) => r.kind === k);
+    return {
+      customer: { id: customer.id, name: customer.name, contact: customer.contact, deleted: customer.deletedAt != null },
+      from: from ?? null,
+      to: to ?? null,
+      firstDate: all[0]?.date ?? null,
+      opening,
+      closing: balance,
+      totals: {
+        sales: inPeriod("SALE").reduce((s, r) => s + r.debit, 0),
+        salesCount: inPeriod("SALE").length,
+        payments: inPeriod("PAYMENT").reduce((s, r) => s + r.credit, 0),
+        paymentsCount: inPeriod("PAYMENT").length,
+        returned: inPeriod("RETURN").reduce((s, r) => s + r.credit, 0),
+        refunded: inPeriod("RETURN").reduce((s, r) => s + r.debit, 0),
+      },
+      rows,
+    };
   }
 }

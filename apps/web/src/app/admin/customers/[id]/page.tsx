@@ -62,6 +62,14 @@ export default async function CustomerDetailPage({
         backLabel={labels.admin.customers}
         title={customer.name}
         subtitle={customer.contact ?? undefined}
+        action={
+          <Link
+            href={`/admin/customers/${customer.id}/statement`}
+            className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90"
+          >
+            🖨 {labels.customerStatement.button}
+          </Link>
+        }
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
