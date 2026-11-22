@@ -25,8 +25,11 @@ export interface DashboardSummary {
   trend: { date: string; sales: number; expenses: number }[];
   expenseBreakdown: { name: string; value: number }[];
   // ── Selected-period figures (respond to the date filter) ──
-  /** Gross sales (Σ grandTotal of non-voided sales in range). */
+  /** Our own gross sales in range: Σ (grandTotal − externalTotal), non-voided. */
   rangeSalesTotal: number;
+  /** Goods fetched from other shops and passed on to buyers — charged on the
+   *  receipt and owed by the buyer, but not part of our sales. */
+  externalSalesTotal: number;
   /** Operating expenses (Σ Expense.amount in range) — not all money out. */
   rangeExpenseTotal: number;
   /** Σ SaleReturn.returnTotal in range. */
@@ -122,7 +125,10 @@ export class DashboardService {
         select: {
           saleDate: true,
           grandTotal: true,
+          externalTotal: true,
           lines: {
+            // other-shop goods are not our sale: left out of "items sold"
+            where: { external: false },
             select: {
               itemTypeId: true,
               itemName: true,
@@ -188,6 +194,7 @@ export class DashboardService {
       return v;
     };
     let rangeSalesTotal = 0;
+    let externalSalesTotal = 0;
     let rangeExpenseTotal = 0;
     // Total pieces sold per item over the range. Keyed by display NAME (not item
     // id) so a catalog item and a free-text line typed with the same name count
@@ -197,8 +204,11 @@ export class DashboardService {
     type SoldItem = { itemTypeId: number | null; label: string; emoji: string | null; qty: number };
     const itemsMap = new Map<string, SoldItem>();
     for (const s of salesRows) {
-      bucket(toYangonYmd(s.saleDate)).sales += s.grandTotal;
-      rangeSalesTotal += s.grandTotal;
+      // Our own sales only — goods passed on from another shop are tracked apart.
+      const own = s.grandTotal - s.externalTotal;
+      bucket(toYangonYmd(s.saleDate)).sales += own;
+      rangeSalesTotal += own;
+      externalSalesTotal += s.externalTotal;
       for (const l of s.lines) {
         const display = (l.itemType?.labelMy ?? l.itemName ?? "—").trim();
         const key = display.toLowerCase();
@@ -289,6 +299,7 @@ export class DashboardService {
       trend,
       expenseBreakdown,
       rangeSalesTotal,
+      externalSalesTotal,
       rangeExpenseTotal,
       returnsTotal,
       netSales: rangeSalesTotal - returnsTotal,

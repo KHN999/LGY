@@ -7,7 +7,7 @@ import { InventoryService } from "../inventory/inventory.service";
 const YGN = Prisma.sql`interval '390 minutes'`;
 const DAY_MS = 86_400_000;
 
-export interface MonthRow { month: string; orders: number; revenue: number; walkinOrders: number; walkinRevenue: number; days: number }
+export interface MonthRow { month: string; orders: number; revenue: number; external: number; walkinOrders: number; walkinRevenue: number; days: number }
 export interface CollectRow { month: string; total: number; cash: number; bank: number; atSale: number; debt: number }
 export interface WeekRow { week: Date; orders: number; revenue: number }
 export interface ItemRow { itemTypeId: number; labelMy: string; qty: number; revenue: number; qty30: number; costPrice: number | null }
@@ -47,9 +47,10 @@ export class AnalyticsService {
         db.$queryRaw<MonthRow[]>(Prisma.sql`
           SELECT to_char("saleDate" + ${YGN}, 'YYYY-MM') AS month,
                  COUNT(*)::int AS orders,
-                 COALESCE(SUM("grandTotal"), 0)::float8 AS revenue,
+                 COALESCE(SUM("grandTotal" - "externalTotal"), 0)::float8 AS revenue,
                  COUNT(*) FILTER (WHERE "customerId" IS NULL)::int AS "walkinOrders",
-                 COALESCE(SUM("grandTotal") FILTER (WHERE "customerId" IS NULL), 0)::float8 AS "walkinRevenue",
+                 COALESCE(SUM("grandTotal" - "externalTotal") FILTER (WHERE "customerId" IS NULL), 0)::float8 AS "walkinRevenue",
+                 COALESCE(SUM("externalTotal"), 0)::float8 AS external,
                  COUNT(DISTINCT ("saleDate" + ${YGN})::date)::int AS days
           FROM "Sale" WHERE "voidedAt" IS NULL
           GROUP BY 1 ORDER BY 1`),
@@ -65,7 +66,7 @@ export class AnalyticsService {
         db.$queryRaw<WeekRow[]>(Prisma.sql`
           SELECT date_trunc('week', "saleDate" + ${YGN}) AS week,
                  COUNT(*)::int AS orders,
-                 COALESCE(SUM("grandTotal"), 0)::float8 AS revenue
+                 COALESCE(SUM("grandTotal" - "externalTotal"), 0)::float8 AS revenue
           FROM "Sale"
           WHERE "voidedAt" IS NULL AND "saleDate" >= now() - interval '84 days'
           GROUP BY 1 ORDER BY 1`),
@@ -84,7 +85,7 @@ export class AnalyticsService {
                  COALESCE(SUM(l."lineTotal"), 0)::float8 AS revenue
           FROM "SaleLine" l
           JOIN "Sale" s ON s.id = l."saleId" AND s."voidedAt" IS NULL
-          WHERE l."itemTypeId" IS NULL`),
+          WHERE l."itemTypeId" IS NULL AND l.external = FALSE`),
         db.$queryRaw<CustRow[]>(Prisma.sql`
           WITH sa AS (
             SELECT "customerId" AS id, COUNT(*)::int AS orders, SUM("grandTotal")::float8 AS revenue,
@@ -124,7 +125,7 @@ export class AnalyticsService {
         db.$queryRaw<DowRow[]>(Prisma.sql`
           SELECT EXTRACT(isodow FROM "saleDate" + ${YGN})::int AS dow,
                  COUNT(*)::int AS orders,
-                 COALESCE(SUM("grandTotal"), 0)::float8 AS revenue
+                 COALESCE(SUM("grandTotal" - "externalTotal"), 0)::float8 AS revenue
           FROM "Sale" WHERE "voidedAt" IS NULL
           GROUP BY 1 ORDER BY 1`),
         db.$queryRaw<ProdRow[]>(Prisma.sql`
@@ -312,6 +313,8 @@ export class AnalyticsService {
         collected: totalCollected,
         walkinRevenue,
         accountRevenue,
+        // charged to buyers for goods from other shops; not in `revenue`
+        external: months.reduce((s, m) => s + m.external, 0),
         saleDays: h.saleDays,
         revenuePerDay: h.saleDays > 0 ? Math.round(totalRevenue / h.saleDays) : 0,
       },

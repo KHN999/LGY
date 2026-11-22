@@ -49,6 +49,12 @@ export class CreateSaleItemDto {
   @Min(0)
   unitPrice!: number;
 
+  /** Goods brought in from another shop for this buyer: charged on the receipt
+   *  but kept out of our own sales figures. Only for ad-hoc (itemName) lines. */
+  @IsOptional()
+  @IsBoolean()
+  external?: boolean;
+
   /** Optional per-line note (e.g. reason for a free / replacement line). */
   @IsOptional()
   @IsString()

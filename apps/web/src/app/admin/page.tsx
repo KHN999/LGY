@@ -17,6 +17,7 @@ const EMPTY: DashboardSummary = {
   trend: [],
   expenseBreakdown: [],
   rangeSalesTotal: 0,
+  externalSalesTotal: 0,
   rangeExpenseTotal: 0,
   returnsTotal: 0,
   netSales: 0,
@@ -107,7 +108,15 @@ export default async function AdminHomePage({
             value={formatKyat(summary.moneyOut)}
             tone={summary.moneyOut > 0 ? "warn" : "default"}
           />
-          <KpiCard label={labels.dash.grossSales} value={formatKyat(summary.rangeSalesTotal)} />
+          <KpiCard
+            label={labels.dash.grossSales}
+            value={formatKyat(summary.rangeSalesTotal)}
+            sub={
+              summary.externalSalesTotal > 0
+                ? `🏬 ${labels.dash.otherShopGoods}: ${formatKyat(summary.externalSalesTotal)}`
+                : undefined
+            }
+          />
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">

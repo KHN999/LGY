@@ -32,6 +32,7 @@ interface CartLine {
   unitPrice: number;
   stock: number;
   note: string | null; // reason for a free / replacement line
+  external?: boolean; // fetched from another shop: on the receipt, not in our sales
 }
 
 /**
@@ -53,6 +54,7 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
     qty: number;
     price: number;
     note: string;
+    external?: boolean;
   } | null>(null);
   const [paid, setPaid] = useState(0);
   const [pay, setPay] = useState<PayChoice>(DEFAULT_PAY);
@@ -87,6 +89,14 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
     setEditingIndex(null);
     setFreeNotePrompt(false);
   }
+  /** Goods fetched from another shop for this buyer — same entry as a typed-in
+   *  item (name, qty, price), flagged so it stays out of our sales and stock. */
+  function startAddOtherShop() {
+    setDraft({ type: null, name: labels.sell.otherShopDefaultName, stock: 0, qty: 0, price: 0, note: "", external: true });
+    setActiveField("qty");
+    setEditingIndex(null);
+    setFreeNotePrompt(false);
+  }
   function editLine(i: number) {
     const l = cart[i];
     if (!l) return;
@@ -97,6 +107,7 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
       qty: l.qty,
       price: l.unitPrice,
       note: l.note ?? "",
+      external: l.external,
     });
     setEditingIndex(i);
     setActiveField("qty");
@@ -150,6 +161,7 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
       unitPrice: draft.price,
       stock: draft.stock,
       note: draft.note.trim() || null,
+      external: !draft.type && !!draft.external,
     };
     setCart((prev) =>
       editingIndex !== null
@@ -238,6 +250,7 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
           qty: l.qty,
           unitPrice: l.unitPrice,
           ...(l.note ? { note: l.note } : {}),
+          ...(l.external ? { external: true } : {}),
         })),
         paidAmount: paidAmount > 0 ? paidAmount : undefined,
         // Cash/bank applies to any paid amount — walk-in included.
@@ -451,6 +464,11 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
                 placeholder={labels.sell.itemNamePlaceholder}
                 className="w-full rounded-xl border bg-background px-4 py-3 text-xl outline-none focus:ring-2 focus:ring-ring"
               />
+              {draft.external && (
+                <span className="rounded-lg bg-sky-50 px-3 py-2 text-sm leading-relaxed text-sky-900">
+                  🏬 {labels.sell.otherShopHint}
+                </span>
+              )}
             </label>
           )}
 
@@ -603,6 +621,13 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
         >
           ✏️ {labels.sell.manualItem}
         </button>
+        <button
+          type="button"
+          onClick={startAddOtherShop}
+          className="self-center rounded-xl border-2 border-dashed border-sky-500/60 px-5 py-2 text-sm font-semibold text-sky-700 active:scale-[0.98]"
+        >
+          🏬 {labels.sell.otherShopItem}
+        </button>
 
         {cart.length > 0 && (
           <section className="rounded-2xl border bg-card p-3">
@@ -612,7 +637,12 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
                 <li key={i} className="flex items-center justify-between gap-2 py-2">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">
-                      {l.itemType?.emoji ?? "🧾"} {l.itemType?.labelMy ?? l.itemName} × {l.qty}
+                      {l.external ? "🏬" : (l.itemType?.emoji ?? "🧾")} {l.itemType?.labelMy ?? l.itemName} × {l.qty}
+                      {l.external && (
+                        <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-900">
+                          {labels.sell.otherShopTag}
+                        </span>
+                      )}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {formatKyat(l.unitPrice)} × {l.qty} = {formatKyat(l.qty * l.unitPrice)}

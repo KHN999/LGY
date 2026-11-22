@@ -335,6 +335,7 @@ export interface DashboardSummary {
   expenseBreakdown: { name: string; value: number }[];
   /** Gross sales in the selected period. */
   rangeSalesTotal: number;
+  externalSalesTotal: number;
   /** Operating expenses (Expense table) in the period. */
   rangeExpenseTotal: number;
   /** Returns (SaleReturn.returnTotal) in the period. */
@@ -371,6 +372,8 @@ export interface SaleLine {
   unitPrice: number;
   lineTotal: number;
   note: string | null;
+  /** Goods fetched from another shop: on the receipt, not in our sales. */
+  external?: boolean;
 }
 
 export interface Sale {
@@ -383,6 +386,8 @@ export interface Sale {
   goodsTotal: number;
   discount: number;
   grandTotal: number;
+  /** Part of grandTotal that is other-shop goods (not our own sale). */
+  externalTotal?: number;
   paidAmount: number;
   status: "UNPAID" | "PARTIAL" | "PAID";
   notes: string | null;
@@ -732,7 +737,7 @@ export interface AnalyticsOverview {
   period: { from: string | null; to: string | null };
   totals: {
     revenue: number; orders: number; avgOrder: number; collected: number; walkinRevenue: number;
-    accountRevenue: number; saleDays: number; revenuePerDay: number;
+    accountRevenue: number; external: number; saleDays: number; revenuePerDay: number;
   };
   monthly: {
     month: string; orders: number; revenue: number; days: number; walkinRevenue: number;

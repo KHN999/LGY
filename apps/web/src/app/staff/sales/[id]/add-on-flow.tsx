@@ -13,6 +13,7 @@ interface AddLine {
   itemName: string; // set for ad-hoc lines
   qty: number;
   unitPrice: number;
+  external?: boolean; // fetched from another shop
 }
 
 const fieldCx = (active: boolean) =>
@@ -36,6 +37,7 @@ export function AddOnFlow({ sale, onClose }: { sale: SaleDetail; onClose: () => 
     name: string;
     qty: number;
     price: number;
+    external?: boolean;
   } | null>(null);
   const [activeField, setActiveField] = useState<"qty" | "price">("qty");
   const [paid, setPaid] = useState(0);
@@ -78,6 +80,7 @@ export function AddOnFlow({ sale, onClose }: { sale: SaleDetail; onClose: () => 
         itemName: draft.type ? "" : draft.name.trim(),
         qty: draft.qty,
         unitPrice: draft.price,
+        external: !draft.type && !!draft.external,
       },
     ]);
     setDraft(null);
@@ -98,6 +101,7 @@ export function AddOnFlow({ sale, onClose }: { sale: SaleDetail; onClose: () => 
       await api.post(`/sales/${sale.id}/add-items`, {
         items: cart.map((l) => ({
           ...(l.itemType ? { itemTypeId: l.itemType.id } : { itemName: l.itemName }),
+          ...(l.external ? { external: true } : {}),
           qty: l.qty,
           unitPrice: l.unitPrice,
         })),
@@ -222,6 +226,16 @@ export function AddOnFlow({ sale, onClose }: { sale: SaleDetail; onClose: () => 
         className="self-center rounded-xl border-2 border-dashed border-primary/40 px-5 py-2 text-sm font-semibold text-primary active:scale-[0.98]"
       >
         ✏️ {labels.sell.manualItem}
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setDraft({ type: null, name: labels.sell.otherShopDefaultName, qty: 0, price: 0, external: true });
+          setActiveField("qty");
+        }}
+        className="self-center rounded-xl border-2 border-dashed border-sky-500/60 px-5 py-2 text-sm font-semibold text-sky-700 active:scale-[0.98]"
+      >
+        🏬 {labels.sell.otherShopItem}
       </button>
 
       {cart.length > 0 && (

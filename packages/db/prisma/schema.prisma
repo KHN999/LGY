@@ -296,6 +296,10 @@ model Sale {
   goodsTotal Int
   discount   Int       @default(0)
   grandTotal Int
+  // Part of grandTotal that is NOT our sale: goods fetched from another shop and
+  // passed on to the buyer (Σ lineTotal of external lines). The buyer still owes
+  // and pays the full grandTotal; our own sales = grandTotal − externalTotal.
+  externalTotal Int    @default(0)
   // Cached sum of non-voided CustomerPayment.amount tied to this sale.
   // Service maintains this on payment create/void.
   paidAmount Int       @default(0)
@@ -339,6 +343,9 @@ model SaleLine {
   lineTotal  Int
   // Optional per-line note — e.g. why a line is free (price 0) or a replacement.
   note       String?
+  // Goods brought in from another shop for this buyer: shown and charged on the
+  // receipt, but not our sale, not our stock. Always an ad-hoc (itemName) line.
+  external   Boolean   @default(false)
 
   returnLines SaleReturnLine[]
 

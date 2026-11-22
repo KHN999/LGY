@@ -13,6 +13,8 @@ type Draft = {
   itemName: string;
   qty: string;
   unitPrice: string;
+  note: string | null; // carried through unchanged
+  external: boolean; // other-shop goods — carried through unchanged
 };
 
 const CUSTOM = "__custom__";
@@ -34,6 +36,8 @@ export function EditSaleLines({ sale, itemTypes }: { sale: SaleDetail; itemTypes
       itemName: l.itemName ?? "",
       qty: String(l.qty),
       unitPrice: String(l.unitPrice),
+      note: l.note,
+      external: !!l.external,
     }));
 
   const [lines, setLines] = useState<Draft[]>(fromSale);
@@ -72,6 +76,8 @@ export function EditSaleLines({ sale, itemTypes }: { sale: SaleDetail; itemTypes
         itemName: "",
         qty: "1",
         unitPrice: "0",
+        note: null,
+        external: false,
       },
     ]);
   }
@@ -91,8 +97,14 @@ export function EditSaleLines({ sale, itemTypes }: { sale: SaleDetail; itemTypes
       await api.patch(`/sales/${sale.id}/lines`, {
         lines: lines.map((l) =>
           l.itemTypeId !== null
-            ? { itemTypeId: l.itemTypeId, qty: toNum(l.qty), unitPrice: toNum(l.unitPrice) }
-            : { itemName: l.itemName.trim(), qty: toNum(l.qty), unitPrice: toNum(l.unitPrice) },
+            ? { itemTypeId: l.itemTypeId, qty: toNum(l.qty), unitPrice: toNum(l.unitPrice), ...(l.note ? { note: l.note } : {}) }
+            : {
+                itemName: l.itemName.trim(),
+                qty: toNum(l.qty),
+                unitPrice: toNum(l.unitPrice),
+                ...(l.note ? { note: l.note } : {}),
+                ...(l.external ? { external: true } : {}),
+              },
         ),
         discount: disc,
         paidAmount: paidNum,

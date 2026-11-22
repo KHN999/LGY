@@ -29,7 +29,18 @@ type CreateSaleItemInput = {
   qty: number;
   unitPrice: number;
   note: string | null;
+  external: boolean;
 };
+
+/** Other-shop lines must be free-text: a catalog item is our own stock. */
+function assertExternalLines(items: { itemTypeId?: number; external?: boolean }[]) {
+  if (items.some((i) => i.external && i.itemTypeId !== undefined)) {
+    throw new BadRequestException("An other-shop line cannot be a catalog item");
+  }
+}
+/** Σ value of the other-shop lines — the part of the total that is not our sale. */
+const externalSum = (items: { external?: boolean; qty: number; unitPrice: number }[]) =>
+  items.reduce((s, i) => s + (i.external ? i.qty * i.unitPrice : 0), 0);
 
 type CreateSaleSqlRow = {
   id: number | null;
@@ -47,6 +58,7 @@ type SaleListSqlRow = {
   goodsTotal: number;
   discount: number;
   grandTotal: number;
+  externalTotal: number;
   paidAmount: number;
   status: TxnStatus;
   notes: string | null;
@@ -93,6 +105,8 @@ export class SalesService {
     const discount = dto.discount ?? 0;
     const grandTotal = goodsTotal - discount;
     const paidAmount = dto.paidAmount ?? 0;
+    assertExternalLines(dto.items);
+    const externalTotal = externalSum(dto.items);
 
     if (discount < 0) throw new BadRequestException("Discount cannot be negative");
     if (discount > goodsTotal) throw new BadRequestException("Discount cannot exceed goods total");
@@ -125,6 +139,7 @@ export class SalesService {
       qty: i.qty,
       unitPrice: i.unitPrice,
       note: cleanText(i.note),
+      external: !!i.external,
     }));
     const status = statusFor(grandTotal, paidAmount);
     // One row per tender — two when the buyer splits cash + bank.
@@ -147,6 +162,7 @@ export class SalesService {
             ${goodsTotal}::int AS goods_total,
             ${discount}::int AS discount,
             ${grandTotal}::int AS grand_total,
+            ${externalTotal}::int AS external_total,
             ${paidAmount}::int AS paid_amount,
             ${status}::"TxnStatus" AS txn_status,
             ${JSON.stringify(payments)}::jsonb AS payment_parts,
@@ -167,7 +183,8 @@ export class SalesService {
             NULLIF(BTRIM(elem->>'itemName'), '') AS item_name,
             (elem->>'qty')::int AS qty,
             (elem->>'unitPrice')::int AS unit_price,
-            NULLIF(BTRIM(elem->>'note'), '') AS note
+            NULLIF(BTRIM(elem->>'note'), '') AS note,
+            COALESCE((elem->>'external')::boolean, FALSE) AS external
           FROM raw_items
         ),
         customer_existing AS (
@@ -300,6 +317,7 @@ export class SalesService {
             "goodsTotal",
             discount,
             "grandTotal",
+            "externalTotal",
             "paidAmount",
             status,
             notes,
@@ -314,6 +332,7 @@ export class SalesService {
             a.goods_total,
             a.discount,
             a.grand_total,
+            a.external_total,
             a.paid_amount,
             a.txn_status,
             a.notes,
@@ -333,7 +352,8 @@ export class SalesService {
             qty,
             "unitPrice",
             "lineTotal",
-            note
+            note,
+            external
           )
           SELECT
             s.id,
@@ -342,7 +362,8 @@ export class SalesService {
             i.qty,
             i.unit_price,
             i.qty * i.unit_price,
-            i.note
+            i.note,
+            i.external
           FROM inserted_sale s
           CROSS JOIN items i
           ORDER BY i.ord
@@ -535,6 +556,7 @@ export class SalesService {
           s."goodsTotal",
           s.discount,
           s."grandTotal",
+          s."externalTotal",
           s."paidAmount",
           s.status,
           s.notes,
@@ -561,6 +583,7 @@ export class SalesService {
         f."goodsTotal",
         f.discount,
         f."grandTotal",
+        f."externalTotal",
         f."paidAmount",
         f.status,
         f.notes,
@@ -582,7 +605,8 @@ export class SalesService {
                 'qty', l.qty,
                 'unitPrice', l."unitPrice",
                 'lineTotal', l."lineTotal",
-                'note', l.note
+                'note', l.note,
+                'external', l.external
               )
               ORDER BY l.id
             )
@@ -618,6 +642,7 @@ export class SalesService {
         s."goodsTotal",
         s.discount,
         s."grandTotal",
+        s."externalTotal",
         s."paidAmount",
         s.status,
         s.notes,
@@ -650,6 +675,7 @@ export class SalesService {
                 'unitPrice', l."unitPrice",
                 'lineTotal', l."lineTotal",
                 'note', l.note,
+                'external', l.external,
                 'itemType',
                   CASE
                     WHEN t.id IS NULL THEN NULL
@@ -827,6 +853,7 @@ export class SalesService {
         throw new BadRequestException("Each item needs an itemTypeId or itemName");
       }
     }
+    assertExternalLines(dto.items);
     const addedGoods = dto.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
     const paidNow = dto.paidAmount ?? 0;
     if (paidNow > addedGoods) {
@@ -905,6 +932,7 @@ export class SalesService {
           unitPrice: i.unitPrice,
           lineTotal: i.unitPrice * i.qty,
           note: i.note?.trim() || null,
+          external: !!i.external,
         })),
       });
 
@@ -955,6 +983,7 @@ export class SalesService {
         data: {
           goodsTotal: sale.goodsTotal + addedGoods,
           grandTotal: newGrand,
+          externalTotal: sale.externalTotal + externalSum(dto.items),
           paidAmount: newPaid,
           status: statusFor(newGrand, newPaid),
         },
@@ -985,6 +1014,7 @@ export class SalesService {
         throw new BadRequestException("Each item needs an itemTypeId or itemName");
       }
     }
+    assertExternalLines(dto.lines);
     const goodsTotal = dto.lines.reduce((s, i) => s + i.unitPrice * i.qty, 0);
 
     await this.prisma.$transaction(async (tx) => {
@@ -1011,6 +1041,7 @@ export class SalesService {
           unitPrice: i.unitPrice,
           lineTotal: i.unitPrice * i.qty,
           note: i.note?.trim() || null,
+          external: !!i.external,
         })),
       });
 
@@ -1130,7 +1161,14 @@ export class SalesService {
       // ── Update sale totals + status ──
       await tx.sale.update({
         where: { id: saleId },
-        data: { goodsTotal, discount, grandTotal, paidAmount, status: statusFor(grandTotal, paidAmount) },
+        data: {
+          goodsTotal,
+          discount,
+          grandTotal,
+          externalTotal: externalSum(dto.lines),
+          paidAmount,
+          status: statusFor(grandTotal, paidAmount),
+        },
       });
     });
 

@@ -306,6 +306,7 @@ export function Report({ o }: { o: AnalyticsOverview }) {
             [t.profit.margin, o.profit.marginPct != null ? pct(o.profit.marginPct) : t.never],
             [t.profit.expenses, `${formatKyat(o.profit.expenseTotal)} (${num(o.profit.expenses)})`],
             [t.profit.tailor, formatKyat(o.profit.tailorCharged)],
+            ...(o.totals.external > 0 ? ([[t.profit.external, formatKyat(o.totals.external)]] as [string, string][]) : []),
           ]}
         />
       </Section>
