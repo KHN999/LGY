@@ -148,8 +148,17 @@ export class InventoryService {
    * admin-set costPrice. Rolls are valued per yard, pieces per piece. Items with
    * zero stock are dropped; items with stock but no cost set are surfaced so the
    * admin knows the total is understated.
+   *
+   * `before` (optional) gives the stock as it stood just before that instant —
+   * a past day's snapshot is "everything that happened before the next Yangon
+   * midnight". It replays the ledger as corrected today (voided entries stay
+   * out, backdated ones count on their own date) and values it at TODAY's cost
+   * price, since cost history is not kept.
    */
-  async valuation() {
+  async valuation(before?: Date) {
+    const live = before
+      ? Prisma.sql`ev."voidedAt" IS NULL AND ev."occurredAt" < ${before}`
+      : Prisma.sql`ev."voidedAt" IS NULL`;
     const rows = await this.prisma.$queryRaw<StockValueRaw[]>(Prisma.sql`
       SELECT
         t.id AS "itemTypeId",
@@ -158,12 +167,12 @@ export class InventoryService {
         t.emoji,
         t."costPrice",
         COALESCE(SUM(CASE
-          WHEN ev."voidedAt" IS NULL AND il.location = 'WAREHOUSE'::"Location" AND il.direction = 'IN'::"InventoryDirection" THEN il.qty
-          WHEN ev."voidedAt" IS NULL AND il.location = 'WAREHOUSE'::"Location" AND il.direction = 'OUT'::"InventoryDirection" THEN -il.qty
+          WHEN ${live} AND il.location = 'WAREHOUSE'::"Location" AND il.direction = 'IN'::"InventoryDirection" THEN il.qty
+          WHEN ${live} AND il.location = 'WAREHOUSE'::"Location" AND il.direction = 'OUT'::"InventoryDirection" THEN -il.qty
           ELSE 0 END), 0)::int AS "warehouseQty",
         COALESCE(SUM(CASE
-          WHEN ev."voidedAt" IS NULL AND il.location = 'SHOP'::"Location" AND il.direction = 'IN'::"InventoryDirection" THEN il.qty
-          WHEN ev."voidedAt" IS NULL AND il.location = 'SHOP'::"Location" AND il.direction = 'OUT'::"InventoryDirection" THEN -il.qty
+          WHEN ${live} AND il.location = 'SHOP'::"Location" AND il.direction = 'IN'::"InventoryDirection" THEN il.qty
+          WHEN ${live} AND il.location = 'SHOP'::"Location" AND il.direction = 'OUT'::"InventoryDirection" THEN -il.qty
           ELSE 0 END), 0)::int AS "shopQty"
       FROM "ItemType" t
       LEFT JOIN "InventoryLine" il

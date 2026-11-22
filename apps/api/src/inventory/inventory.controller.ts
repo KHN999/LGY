@@ -1,6 +1,7 @@
 import { Controller, Get, Param, ParseIntPipe, Query, UseGuards } from "@nestjs/common";
 import { Type } from "class-transformer";
-import { IsEnum, IsInt, IsOptional } from "class-validator";
+import { IsEnum, IsInt, IsOptional, Matches } from "class-validator";
+import { addDays, ymdToYangonStart } from "../common/yangon-time";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -23,6 +24,12 @@ enum MovementLocationFilter {
 class StockQueryDto {
   @IsEnum(LocationFilter)
   location!: LocationFilter;
+}
+
+class ValueQueryDto {
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  date?: string;
 }
 
 class MovementsQueryDto {
@@ -61,12 +68,14 @@ export class InventoryController {
     return this.inventory.stockRowsAt(q.location);
   }
 
-  /** Stock valuation (warehouse + shop) — qty × cost per item, with totals. */
+  /** Stock valuation (warehouse + shop) — qty × cost per item, with totals.
+   *  `?date=YYYY-MM-DD` gives the snapshot at the end of that Yangon day. */
   @Get("value")
   @UseGuards(RolesGuard)
   @Roles("admin")
-  async value() {
-    return this.inventory.valuation();
+  async value(@Query() q: ValueQueryDto) {
+    // A day's snapshot = stock at the END of that Yangon day.
+    return this.inventory.valuation(q.date ? addDays(ymdToYangonStart(q.date), 1) : undefined);
   }
 
   /** Stock movement history (ledger) — filterable by item + location; running

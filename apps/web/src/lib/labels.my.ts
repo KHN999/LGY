@@ -241,6 +241,8 @@ export const my: DeepPartial<Labels> = {
   },
 
   transfer: {
+    delete: "ဖျက်မယ်",
+    deleteConfirm: "ဒီဆိုင်ပို့မှတ်တမ်း ဖျက်မလား။ ပစ္စည်းတွေ မူလနေရာကို ပြန်ရောက်ပါမယ်။",
     title: "ဆိုင်သို့ ပစ္စည်းပို့",
     fromLocation: "မှ",
     toLocation: "သို့",
@@ -483,6 +485,10 @@ export const my: DeepPartial<Labels> = {
     payments: "ရရှိငွေစာရင်း",
     stockCount: "စတော့ရေတွက်",
     inventoryValue: "ကုန်ပစ္စည်း တန်ဖိုး",
+    valueAsOf: "နေ့အဆုံး လက်ကျန်",
+    valuePrevDay: "ရှေ့ရက်",
+    valueNextDay: "နောက်ရက်",
+    valuePastNote: "ရွေးထားတဲ့နေ့အဆုံးက လက်ကျန်အရေအတွက် ဖြစ်ပြီး တန်ဖိုးကို ယခုလက်ရှိ ကုန်ကျစရိတ်နဲ့ တွက်ထားသည်",
     stockMovements: "စတော့ လှုပ်ရှားမှု",
     costPrice: "ကုန်ကျစရိတ် (တစ်လိပ်/ကွင်း)",
     value: "တန်ဖိုး",
@@ -595,6 +601,8 @@ export const my: DeepPartial<Labels> = {
       cancelReceiptConfirm: "ဒီပစ္စည်းရောက်မှု ပယ်ဖျက်မလား။ ထည့်ထားတဲ့ ပစ္စည်းကို ပြန်နုတ်ပါမယ်။",
       cancelPayment: "ဒီငွေပေးချေမှု ပယ်ဖျက်",
       cancelPaymentConfirm: "ဒီငွေပေးချေမှု ပယ်ဖျက်မလား။",
+      deleteConfirm:
+        "ဒီအလိပ်မှာစာရင်း ဖျက်မလား။ ရောက်ပြီးသား ပစ္စည်းတွေကို ပြန်နုတ်ပြီး ပေးထားတဲ့ငွေ မှတ်တမ်းတွေလည်း ပယ်ဖျက်ပါမယ်။",
     },
   },
 
@@ -705,6 +713,11 @@ export const my: DeepPartial<Labels> = {
     methodCash: "ငွေသား",
     methodBank: "ဘဏ်လွှဲ",
     methodMobile: "မိုဘိုင်းငွေ",
+    methodSplit: "ခွဲပေး",
+    bankChoose: "ဘဏ်ရွေးပါ",
+    bankRequired: "ဘယ်ဘဏ်ကနေ လွှဲတာလဲ ရွေးပေးပါ။",
+    banks: { KPAY: "KPay", CB: "CB", KBZ: "KBZ", AYA: "AYA", MAB: "MAB", UNKNOWN: "မသိ" },
+    splitHint: "ငွေသားနဲ့ပေးတဲ့ ပမာဏကို ထည့်ပါ — ကျန်တာက ဘဏ်လွှဲ ဖြစ်ပါမယ်။",
     methodOther: "အခြား",
   },
 

@@ -9,6 +9,10 @@ export interface PaymentReceiptData {
   customerName: string;
   amount: number;
   method: string;
+  /** Bank-transfer part of `amount`, when the payment was split cash + bank. */
+  bankAmount?: number;
+  /** Which bank the transfer came through, already labelled. */
+  bankName?: string;
   /** Authoritative remaining debt after this payment. */
   balanceAfter: number;
   by?: string | null;
@@ -36,6 +40,10 @@ export function PaymentReceipt({
   const d = new Date(data.date);
   const footer = shop?.receiptFooter?.trim() || labels.receipt.thanks;
   const previousDebt = data.balanceAfter + data.amount;
+  const bank = data.bankAmount ?? 0;
+  const bankName = data.bankName
+    ? `${labels.paymentReceipt.methodBank} · ${data.bankName}`
+    : labels.paymentReceipt.methodBank;
 
   return (
     <div className="relative mx-auto w-full max-w-[150mm] overflow-hidden bg-white p-6 text-black">
@@ -64,7 +72,13 @@ export function PaymentReceipt({
         </div>
         <div className="flex justify-between text-sm text-neutral-700">
           <span>{labels.paymentReceipt.method}</span>
-          <span>{METHOD_LABEL[data.method] ?? data.method}</span>
+          <span>
+            {bank > 0 && bank < data.amount
+              ? `${labels.paymentReceipt.methodCash} ${formatKyat(data.amount - bank)} + ${bankName} ${formatKyat(bank)}`
+              : data.method === "BANK_TRANSFER"
+                ? bankName
+                : (METHOD_LABEL[data.method] ?? data.method)}
+          </span>
         </div>
 
         <div className="mt-4 ml-auto w-2/3 space-y-1 text-sm sm:w-1/2">

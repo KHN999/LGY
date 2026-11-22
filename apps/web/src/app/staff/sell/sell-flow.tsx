@@ -12,6 +12,8 @@ import {
   type ShopId,
   type ShopSettings,
 } from "@/lib/api-client";
+import { DEFAULT_PAY, PayMethodPicker, bankPart, payFields, payError, type PayChoice } from "@/components/staff/pay-method-picker";
+import { bankLabel } from "@/lib/banks";
 import { labels } from "@/lib/labels";
 import { formatKyat } from "@/lib/utils";
 import { speak } from "@/lib/speech";
@@ -53,7 +55,7 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
     note: string;
   } | null>(null);
   const [paid, setPaid] = useState(0);
-  const [payMethod, setPayMethod] = useState<"CASH" | "BANK_TRANSFER">("CASH");
+  const [pay, setPay] = useState<PayChoice>(DEFAULT_PAY);
   const [note, setNote] = useState(""); // optional per-sale note (e.g. "collect tomorrow")
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -220,6 +222,12 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
     try {
       // One-time buyer = cash sale, paid in full. Existing/saved buyers can use credit.
       const paidAmount = walkIn ? goodsTotal : paid;
+      const payProblem = paidAmount > 0 ? payError(paidAmount, pay) : null;
+      if (payProblem) {
+        setError(payProblem);
+        return;
+      }
+      const tender = payFields(paidAmount, pay);
       const sale = await api.post<{ id: number; saleDate: string }>("/sales", {
         customerId: customer?.id,
         customerName: !customer ? newName.trim() || undefined : undefined,
@@ -233,7 +241,8 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
         })),
         paidAmount: paidAmount > 0 ? paidAmount : undefined,
         // Cash/bank applies to any paid amount — walk-in included.
-        paymentMethod: paidAmount > 0 ? payMethod : undefined,
+        paymentMethod: paidAmount > 0 ? tender.method : undefined,
+        bankAmount: paidAmount > 0 ? tender.bankAmount : undefined,
         notes: note.trim() || undefined,
         saleDate: backdateIso(),
       });
@@ -663,7 +672,8 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
     })),
     grandTotal: goodsTotal,
     paid: walkIn ? goodsTotal : paid,
-    method: payMethod,
+    paidBank: bankPart(walkIn ? goodsTotal : paid, pay),
+    paidBankName: pay.mode !== "CASH" ? bankLabel(pay.bank) : undefined,
     notes: note.trim() || null,
   };
 
@@ -725,7 +735,7 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
           </div>
           {paid > 0 && (
             <div className="mt-3">
-              <MethodToggle value={payMethod} onChange={setPayMethod} />
+              <PayMethodPicker total={paid} value={pay} onChange={setPay} />
             </div>
           )}
           <div className="mt-3 flex items-center justify-between text-base">
@@ -742,7 +752,7 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
       {walkIn && (
         <section className="rounded-2xl border bg-card p-4">
           <p className="mb-2 text-sm text-muted-foreground">{labels.sell.paymentMethod}</p>
-          <MethodToggle value={payMethod} onChange={setPayMethod} />
+          <PayMethodPicker total={goodsTotal} value={pay} onChange={setPay} />
         </section>
       )}
 
@@ -798,36 +808,5 @@ function BackLink({ href }: { href: string }) {
     <Link href={href} className="self-start rounded-lg border px-4 py-2">
       ← {labels.common.back}
     </Link>
-  );
-}
-
-/** Cash / Bank chooser for the paid amount (account customers and walk-ins). */
-function MethodToggle({
-  value,
-  onChange,
-}: {
-  value: "CASH" | "BANK_TRANSFER";
-  onChange: (m: "CASH" | "BANK_TRANSFER") => void;
-}) {
-  return (
-    <div className="grid grid-cols-2 gap-2">
-      {(["CASH", "BANK_TRANSFER"] as const).map((m) => (
-        <button
-          key={m}
-          type="button"
-          onClick={() => onChange(m)}
-          className={
-            "rounded-xl border py-2.5 text-base font-semibold transition " +
-            (value === m
-              ? "border-2 border-emerald-500 bg-emerald-50 text-emerald-700"
-              : "border-border bg-card text-muted-foreground")
-          }
-        >
-          {m === "CASH"
-            ? `💵 ${labels.paymentReceipt.methodCash}`
-            : `🏦 ${labels.paymentReceipt.methodBank}`}
-        </button>
-      ))}
-    </div>
   );
 }

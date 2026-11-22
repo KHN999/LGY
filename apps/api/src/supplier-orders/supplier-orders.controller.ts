@@ -61,6 +61,14 @@ export class SupplierOrdersController {
     return this.service.update(id, dto);
   }
 
+  /** Delete an order at any stage — reverses its receipts (stock) and payments. */
+  @Post(":id/delete")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  remove(@Param("id", ParseIntPipe) id: number, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.remove(id, user.sub);
+  }
+
   @Post(":id/receipts")
   @UseGuards(RolesGuard)
   @Roles("admin")

@@ -239,6 +239,8 @@ export const en = {
   },
 
   transfer: {
+    delete: "Delete",
+    deleteConfirm: "Delete this transfer? The items go back to where they came from.",
     title: "Send to shop",
     fromLocation: "From",
     toLocation: "To",
@@ -484,6 +486,10 @@ export const en = {
     payments: "Payments received",
     stockCount: "Stock count",
     inventoryValue: "Inventory value",
+    valueAsOf: "Stock at end of day",
+    valuePrevDay: "Previous day",
+    valueNextDay: "Next day",
+    valuePastNote: "Quantities are as of the end of the chosen day; value uses today's cost price.",
     stockMovements: "Stock movements",
     costPrice: "Cost (per roll / piece)",
     value: "Value",
@@ -598,6 +604,8 @@ export const en = {
       cancelReceiptConfirm: "Cancel this arrival? The stock it added will be removed again.",
       cancelPayment: "Cancel this payment",
       cancelPaymentConfirm: "Cancel this payment?",
+      deleteConfirm:
+        "Delete this order? Stock already received is taken back out and its payment records are voided.",
     },
   },
 
@@ -708,6 +716,11 @@ export const en = {
     methodCash: "Cash",
     methodBank: "Bank transfer",
     methodMobile: "Mobile money",
+    methodSplit: "Split",
+    bankChoose: "Choose bank",
+    bankRequired: "Choose which bank the transfer came through.",
+    banks: { KPAY: "KPay", CB: "CB", KBZ: "KBZ", AYA: "AYA", MAB: "MAB", UNKNOWN: "Unknown" },
+    splitHint: "Enter the cash part — the rest goes to bank.",
     methodOther: "Other",
   },
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { serverFetch } from "@/lib/auth-server";
+import { bankLabel } from "@/lib/banks";
 import { labels } from "@/lib/labels";
 import { formatKyat, formatDateTime } from "@/lib/utils";
 import type { PaymentHistory } from "@/lib/api-client";
@@ -85,7 +86,7 @@ export default async function AdminPaymentsPage({
                 <p className="text-xs text-muted-foreground">
                   {formatDateTime(p.paymentDate)} ·{" "}
                   {p.method === "BANK_TRANSFER"
-                    ? labels.paymentReceipt.methodBank
+                    ? `${labels.paymentReceipt.methodBank}${p.bank ? ` · ${bankLabel(p.bank)}` : ""}`
                     : labels.paymentReceipt.methodCash}
                   {p.saleId ? ` · #${p.saleId}` : ""}
                 </p>

@@ -21,6 +21,8 @@ export interface ReceiptData {
   grandTotal: number;
   paid: number;
   method?: "CASH" | "BANK_TRANSFER"; // how the paid portion was tendered
+  paidBank?: number; // bank-transfer part of `paid`; overrides `method` (split tender)
+  paidBankName?: string; // which bank(s) the transfer came through, already labelled
   notes?: string | null; // optional per-sale note (e.g. "collect tomorrow")
   // ── Returns against this sale (omit/empty when none) ──────────────
   returnedLines?: ReceiptLine[]; // goods returned (positive qty; shown as −)
@@ -119,6 +121,15 @@ export function Receipt({ data, shop }: { data: ReceiptData; shop?: ShopSettings
   const credit = balance < 0 ? -balance : 0;
   const d = new Date(data.date);
   const footer = shop?.receiptFooter?.trim() || labels.receipt.thanks;
+  // Tender breakdown of the paid amount (split cash + bank shows both parts).
+  const paidBank = Math.min(
+    data.paid,
+    data.paidBank ?? (data.method === "BANK_TRANSFER" ? data.paid : 0),
+  );
+  const paidCash = data.paid - paidBank;
+  const bankName = data.paidBankName
+    ? `${labels.paymentReceipt.methodBank} · ${data.paidBankName}`
+    : labels.paymentReceipt.methodBank;
   return (
     <div className="relative mx-auto w-full max-w-[150mm] overflow-hidden bg-white p-6 text-black">
       <ReceiptWatermark />
@@ -230,11 +241,13 @@ export function Receipt({ data, shop }: { data: ReceiptData; shop?: ShopSettings
           <div className="flex justify-between">
             <span>
               {labels.receipt.paid}
-              {data.paid > 0 && data.method === "BANK_TRANSFER"
-                ? ` (${labels.paymentReceipt.methodBank})`
-                : data.paid > 0
-                  ? ` (${labels.paymentReceipt.methodCash})`
-                  : ""}
+              {paidBank > 0 && paidCash > 0
+                ? ` (${labels.paymentReceipt.methodCash} ${formatKyat(paidCash)} + ${bankName} ${formatKyat(paidBank)})`
+                : paidBank > 0
+                  ? ` (${bankName})`
+                  : data.paid > 0
+                    ? ` (${labels.paymentReceipt.methodCash})`
+                    : ""}
             </span>
             <span>{formatKyat(data.paid)}</span>
           </div>

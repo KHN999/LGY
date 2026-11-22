@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { InventoryEvent, ShopSettings } from "@/lib/api-client";
+import { useRouter } from "next/navigation";
+import { api, ApiError, type InventoryEvent, type ShopSettings } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 import { TransferReceipt, type TransferSlip } from "@/components/staff/transfer-receipt";
 
@@ -22,8 +23,26 @@ export function TransferView({
   shop?: ShopSettings;
   autoPrint?: boolean;
 }) {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const printedRef = useRef(false);
+
+  async function deleteTransfer() {
+    if (!confirm(labels.transfer.deleteConfirm)) return;
+    setError(null);
+    setDeleting(true);
+    try {
+      await api.post(`/transfers/${transfer.id}/void`, {});
+      // Stay disabled while navigating so a second tap can't fire again.
+      router.push("/staff/transfers");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : labels.errors.unknown);
+      setDeleting(false);
+    }
+  }
   useEffect(() => setMounted(true), []);
 
   const outLines = transfer.lines.filter((l) => l.direction === "OUT");
@@ -72,8 +91,24 @@ export function TransferView({
         </p>
       )}
 
+      {error && (
+        <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-center text-destructive">
+          {error}
+        </p>
+      )}
+
       <div className="fixed inset-x-0 bottom-0 border-t bg-background p-3 sm:p-4">
-        <div className="mx-auto flex max-w-2xl">
+        <div className="mx-auto flex max-w-2xl gap-3">
+          {!transfer.voidedAt && (
+            <button
+              type="button"
+              onClick={deleteTransfer}
+              disabled={deleting}
+              className="rounded-2xl border-2 border-rose-600 px-5 py-4 text-lg font-bold text-rose-700 active:scale-[0.98] disabled:opacity-50"
+            >
+              🗑 {labels.transfer.delete}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => window.print()}

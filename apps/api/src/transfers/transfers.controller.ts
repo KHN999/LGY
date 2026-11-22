@@ -1,7 +1,5 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Post, Query, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
-import { RolesGuard } from "../auth/guards/roles.guard";
-import { Roles } from "../auth/decorators/roles.decorator";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import type { AuthenticatedUser } from "../auth/jwt-payload";
 import { TransfersService } from "./transfers.service";
@@ -28,9 +26,9 @@ export class TransfersController {
     return this.service.getOne(id);
   }
 
+  // Open to staff: they record transfers, so they can delete a mistaken one.
+  // Soft void — the row and who voided it stay in the audit trail.
   @Post(":id/void")
-  @UseGuards(RolesGuard)
-  @Roles("admin")
   void(
     @Param("id", ParseIntPipe) id: number,
     @Body() dto: VoidTransferDto,

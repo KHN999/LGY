@@ -8,6 +8,7 @@ import { Prisma, type TxnStatus } from "@lgy/db";
 import { PrismaService } from "../prisma/prisma.service";
 import type { PageResult } from "../common/pagination.dto";
 import { assertDateNotClosed } from "../common/backdate";
+import { paymentParts } from "../common/payment-parts";
 import { StockExceptionsService } from "../stock-exceptions/stock-exceptions.service";
 import { CreateSaleDto } from "./dto/create-sale.dto";
 import { AddPaymentDto } from "./dto/add-payment.dto";
@@ -126,6 +127,8 @@ export class SalesService {
       note: cleanText(i.note),
     }));
     const status = statusFor(grandTotal, paidAmount);
+    // One row per tender — two when the buyer splits cash + bank.
+    const payments = paymentParts(paidAmount, dto.paymentMethod, dto.bankAmount, dto.bank);
     // Stock policy (launch default): SHOP sales NEVER block — physical stock is
     // the source of truth and the ledger is corrected later. Set
     // SHOP_OVERSELL=block to enforce strict shop stock instead.
@@ -146,7 +149,7 @@ export class SalesService {
             ${grandTotal}::int AS grand_total,
             ${paidAmount}::int AS paid_amount,
             ${status}::"TxnStatus" AS txn_status,
-            ${dto.paymentMethod ?? "CASH"}::"PaymentMethod" AS payment_method,
+            ${JSON.stringify(payments)}::jsonb AS payment_parts,
             ${dto.notes ?? null}::text AS notes,
             ${saleDate}::timestamp(3) AS sale_date,
             ${createdById}::int AS created_by_id,
@@ -377,19 +380,21 @@ export class SalesService {
             "saleId",
             amount,
             method,
+            bank,
             "paymentDate",
             "createdById"
           )
           SELECT
             s."customerId",
             s.id,
-            a.paid_amount,
-            a.payment_method,
+            p.amount,
+            p.method::"PaymentMethod",
+            p.bank,
             a.sale_date,
             a.created_by_id
           FROM args a
           CROSS JOIN inserted_sale s
-          WHERE a.paid_amount > 0
+          CROSS JOIN LATERAL jsonb_to_recordset(a.payment_parts) AS p(method text, amount int, bank text)
           RETURNING id
         ),
         shortfalls AS (
@@ -675,6 +680,7 @@ export class SalesService {
                 'amount', p.amount,
                 'paymentDate', p."paymentDate",
                 'method', p.method,
+                'bank', p.bank,
                 'notes', p.notes
               )
               ORDER BY p."paymentDate" ASC, p.id ASC
@@ -779,17 +785,26 @@ export class SalesService {
         );
       }
 
-      const payment = await tx.customerPayment.create({
-        data: {
-          customerId: sale.customerId,
-          saleId: sale.id,
-          amount: dto.amount,
-          method: dto.method ?? "CASH",
-          paymentDate: dto.paymentDate ? new Date(dto.paymentDate) : new Date(),
-          notes: dto.notes,
-          createdById,
-        },
-      });
+      // One row per tender — two when the payment is split cash + bank.
+      const paymentDate = dto.paymentDate ? new Date(dto.paymentDate) : new Date();
+      const created = [];
+      for (const part of paymentParts(dto.amount, dto.method, dto.bankAmount, dto.bank)) {
+        created.push(
+          await tx.customerPayment.create({
+            data: {
+              customerId: sale.customerId,
+              saleId: sale.id,
+              amount: part.amount,
+              method: part.method,
+              bank: part.bank,
+              paymentDate,
+              notes: dto.notes,
+              createdById,
+            },
+          }),
+        );
+      }
+      const payment = created[0];
 
       await tx.sale.update({
         where: { id: sale.id },

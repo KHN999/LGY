@@ -370,6 +370,9 @@ model CustomerPayment {
   amount      Int
   paymentDate DateTime      @default(now())
   method      PaymentMethod @default(CASH)
+  // Which bank/wallet a BANK_TRANSFER came through: KPAY | CB | KBZ | AYA | MAB |
+  // UNKNOWN. Null for cash and for rows recorded before this was captured.
+  bank        String?
   notes       String?
   createdById Int
   createdBy   User          @relation("CustPayCreatedBy", fields: [createdById], references: [id])

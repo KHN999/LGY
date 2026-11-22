@@ -12,6 +12,8 @@ import {
 } from "@/lib/api-client";
 import { Receipt, type ReceiptData } from "@/components/staff/receipt";
 import { AddOnFlow } from "./add-on-flow";
+import { DEFAULT_PAY, PayMethodPicker, payFields, payError, type PayChoice } from "@/components/staff/pay-method-picker";
+import { bankLabel } from "@/lib/banks";
 import { labels } from "@/lib/labels";
 import { formatKyat, formatDate } from "@/lib/utils";
 
@@ -88,6 +90,16 @@ export function ReceiptView({
     grandTotal: sale.grandTotal,
     paid: sale.paidAmount,
     notes: sale.notes,
+    paidBank: sale.payments
+      .filter((pm) => pm.method === "BANK_TRANSFER")
+      .reduce((s, pm) => s + pm.amount, 0),
+    paidBankName: [
+      ...new Set(
+        sale.payments
+          .filter((pm) => pm.method === "BANK_TRANSFER" && pm.bank)
+          .map((pm) => bankLabel(pm.bank)),
+      ),
+    ].join(", "),
     returnedLines,
     returnedTotal: returns.reduce((s, r) => s + r.returnTotal, 0),
     refundedTotal: returns.reduce((s, r) => s + r.refundAmount, 0),
@@ -221,7 +233,7 @@ function PaymentPanel({ saleId, remaining }: { saleId: number; remaining: number
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState(String(remaining));
-  const [method, setMethod] = useState<"CASH" | "BANK_TRANSFER">("CASH");
+  const [pay, setPay] = useState<PayChoice>(DEFAULT_PAY);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -230,10 +242,15 @@ function PaymentPanel({ saleId, remaining }: { saleId: number; remaining: number
   async function submit() {
     const amt = toNum(amount);
     if (amt <= 0) return;
+    const payProblem = payError(amt, pay);
+    if (payProblem) {
+      setError(payProblem);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      await api.post(`/sales/${saleId}/payments`, { amount: amt, method });
+      await api.post(`/sales/${saleId}/payments`, { amount: amt, ...payFields(amt, pay) });
       setOpen(false);
       router.refresh();
     } catch (e) {
@@ -275,25 +292,7 @@ function PaymentPanel({ saleId, remaining }: { saleId: number; remaining: number
         />
         <span className="text-muted-foreground">{labels.units.kyat}</span>
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        {(["CASH", "BANK_TRANSFER"] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => setMethod(m)}
-            className={
-              "rounded-xl border py-2.5 text-base font-semibold transition " +
-              (method === m
-                ? "border-2 border-emerald-500 bg-emerald-50 text-emerald-700"
-                : "border-border bg-card text-muted-foreground")
-            }
-          >
-            {m === "CASH"
-              ? `💵 ${labels.paymentReceipt.methodCash}`
-              : `🏦 ${labels.paymentReceipt.methodBank}`}
-          </button>
-        ))}
-      </div>
+      <PayMethodPicker total={toNum(amount)} value={pay} onChange={setPay} />
       {error && <p className="text-sm text-destructive">{error}</p>}
       <div className="flex gap-2">
         <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-xl border py-3">

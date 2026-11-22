@@ -12,6 +12,7 @@ import {
   Min,
   ValidateNested,
 } from "class-validator";
+import { PaymentBank } from "../../common/payment-parts";
 
 export enum CreatePaymentMethod {
   CASH = "CASH",
@@ -95,6 +96,18 @@ export class CreateSaleDto {
   @IsOptional()
   @IsEnum(CreatePaymentMethod)
   paymentMethod?: CreatePaymentMethod;
+
+  /** Split tender: this much of the amount was paid by bank transfer, the rest
+   *  in cash. Recorded as two payments. When set, the method field is ignored. */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  bankAmount?: number;
+
+  /** Which bank the bank-transfer part came through (ignored for cash). */
+  @IsOptional()
+  @IsEnum(PaymentBank)
+  bank?: PaymentBank;
 
   /** Inherits from customer.defaultKind if not provided. */
   @IsOptional()

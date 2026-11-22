@@ -3,6 +3,7 @@ import { Prisma } from "@lgy/db";
 import { PrismaService } from "../prisma/prisma.service";
 import { CustomersService } from "../customers/customers.service";
 import { assertDateNotClosed } from "../common/backdate";
+import { paymentParts } from "../common/payment-parts";
 import { CreateCustomerPaymentDto } from "./dto/customer-payment.dto";
 
 function statusFor(grandTotal: number, paidAmount: number): "UNPAID" | "PARTIAL" | "PAID" {
@@ -19,6 +20,10 @@ export interface PaymentResult {
   saleId: number | null;
   amount: number;
   method: string;
+  /** Bank-transfer portion of `amount` (0 for all-cash, = amount for all-bank). */
+  bankAmount: number;
+  /** Which bank the bank-transfer part came through, if recorded. */
+  bank: string | null;
   paymentDate: Date;
   notes: string | null;
   customerName: string;
@@ -36,23 +41,38 @@ export class CustomerPaymentsService {
     const customer = await this.prisma.customer.findUnique({ where: { id: dto.customerId } });
     if (!customer) throw new NotFoundException(`Customer ${dto.customerId} not found`);
     await assertDateNotClosed(this.prisma, dto.paymentDate ? new Date(dto.paymentDate) : null);
-    const payment = await this.prisma.customerPayment.create({
-      data: {
-        customerId: dto.customerId,
-        amount: dto.amount,
-        method: dto.method ?? "CASH",
-        paymentDate: dto.paymentDate ? new Date(dto.paymentDate) : new Date(),
-        notes: dto.notes,
-        createdById,
-      },
-    });
+    // One row per tender — two when the payment is split cash + bank. A batch
+    // transaction keeps the pair atomic in a single round-trip.
+    const parts = paymentParts(dto.amount, dto.method, dto.bankAmount, dto.bank);
+    const paymentDate = dto.paymentDate ? new Date(dto.paymentDate) : new Date();
+    const created = await this.prisma.$transaction(
+      parts.map((part) =>
+        this.prisma.customerPayment.create({
+          data: {
+            customerId: dto.customerId,
+            amount: part.amount,
+            method: part.method,
+            bank: part.bank,
+            paymentDate,
+            notes: dto.notes,
+            createdById,
+          },
+        }),
+      ),
+    );
+    const payment = created[0];
+    const bankAmount = parts
+      .filter((part) => part.method === "BANK_TRANSFER")
+      .reduce((s, part) => s + part.amount, 0);
     const balanceAfter = await this.customers.getBalance(dto.customerId);
     return {
       id: payment.id,
       customerId: payment.customerId,
       saleId: payment.saleId,
-      amount: payment.amount,
+      amount: dto.amount,
       method: payment.method,
+      bankAmount,
+      bank: parts.find((part) => part.method === "BANK_TRANSFER")?.bank ?? null,
       paymentDate: payment.paymentDate,
       notes: payment.notes,
       customerName: customer.name,
@@ -82,6 +102,7 @@ export class CustomerPaymentsService {
           id: true,
           amount: true,
           method: true,
+          bank: true,
           paymentDate: true,
           saleId: true,
           customerId: true,
@@ -95,6 +116,7 @@ export class CustomerPaymentsService {
         id: p.id,
         amount: p.amount,
         method: p.method,
+        bank: p.bank,
         paymentDate: p.paymentDate,
         saleId: p.saleId,
         customerId: p.customerId,

@@ -387,6 +387,7 @@ export interface SalePaymentRow {
   amount: number;
   paymentDate: string;
   method: string;
+  bank: string | null;
   notes: string | null;
 }
 
@@ -483,6 +484,9 @@ export interface PaymentResult {
   saleId: number | null;
   amount: number;
   method: "CASH" | "BANK_TRANSFER" | "MOBILE_MONEY" | "OTHER";
+  /** Bank-transfer portion of `amount` (0 = all cash; less than amount = split). */
+  bankAmount: number;
+  bank: string | null;
   paymentDate: string;
   notes: string | null;
   customerName: string;
@@ -494,6 +498,7 @@ export interface ReceivedPaymentRow {
   id: number;
   amount: number;
   method: "CASH" | "BANK_TRANSFER";
+  bank: string | null;
   paymentDate: string;
   saleId: number | null;
   customerId: number | null;

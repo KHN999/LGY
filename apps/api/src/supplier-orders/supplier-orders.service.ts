@@ -270,4 +270,41 @@ export class SupplierOrdersService {
       return tx.supplierOrderReceipt.findUnique({ where: { id: receiptId } });
     });
   }
+
+  /**
+   * Delete a roll order at any stage (e.g. entered by mistake). Reverses
+   * everything it recorded — voids each receipt and its RECEIPT stock event, and
+   * voids the order's payments — then marks the order CANCELLED so it drops off
+   * the list. Soft: every row stays for the audit trail.
+   */
+  async remove(orderId: number, userId: number) {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.supplierOrder.findUnique({
+        where: { id: orderId },
+        include: { receipts: { where: { voidedAt: null } } },
+      });
+      if (!order) throw new NotFoundException(`SupplierOrder ${orderId} not found`);
+      if (order.status === "CANCELLED") throw new ConflictException("Order is already deleted");
+
+      const voided = {
+        voidedAt: new Date(),
+        voidedById: userId,
+        voidReason: `Order #${orderId} deleted`,
+      };
+      if (order.receipts.length > 0) {
+        // Take back the stock these receipts added at WAREHOUSE.
+        await tx.inventoryEvent.updateMany({
+          where: { id: { in: order.receipts.map((r) => r.eventId) }, voidedAt: null },
+          data: voided,
+        });
+        await tx.supplierOrderReceipt.updateMany({
+          where: { orderId, voidedAt: null },
+          data: voided,
+        });
+      }
+      await tx.supplierPayment.updateMany({ where: { orderId, voidedAt: null }, data: voided });
+
+      return tx.supplierOrder.update({ where: { id: orderId }, data: { status: "CANCELLED" } });
+    });
+  }
 }

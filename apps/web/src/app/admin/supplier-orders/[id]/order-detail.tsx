@@ -14,7 +14,8 @@ interface Props {
 export function OrderDetail({ order }: Props) {
   const router = useRouter();
   const editable = order.status !== "RECEIVED" && order.status !== "CANCELLED";
-  const canCancel = order.status === "PENDING";
+  // Deletable at any stage — the API reverses its receipts and payments.
+  const canCancel = order.status !== "CANCELLED";
   // Paying is allowed after the goods arrive — most orders are paid on arrival.
   const canPay = order.status !== "CANCELLED";
   const received = order.receipts
@@ -121,7 +122,8 @@ export function OrderDetail({ order }: Props) {
     setError(null);
     setSubmitting(true);
     try {
-      await api.patch(`/supplier-orders/${order.id}`, { status: "CANCELLED" });
+      await api.post(`/supplier-orders/${order.id}/delete`, {});
+      router.push("/admin/supplier-orders");
       router.refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : labels.errors.unknown);
@@ -195,7 +197,7 @@ export function OrderDetail({ order }: Props) {
             type="button"
             variant="destructive"
             onClick={() => {
-              if (confirm("Cancel this order?")) cancelOrder();
+              if (confirm(labels.admin.order.deleteConfirm)) cancelOrder();
             }}
             disabled={submitting}
           >

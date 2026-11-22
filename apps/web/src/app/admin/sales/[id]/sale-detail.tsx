@@ -3,6 +3,8 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError, type SaleDetail } from "@/lib/api-client";
+import { DEFAULT_PAY, PayMethodPicker, payFields, payError, type PayChoice } from "@/components/staff/pay-method-picker";
+import { bankLabel } from "@/lib/banks";
 import { labels } from "@/lib/labels";
 import { formatKyat, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui";
@@ -35,6 +37,7 @@ export function SaleDetailActions({ sale }: { sale: SaleDetail }) {
                   <p className="font-medium">{formatKyat(p.amount)}</p>
                   <p className="text-xs text-muted-foreground">
                     {formatDate(p.paymentDate)} · {p.method}
+                    {p.bank ? ` · ${bankLabel(p.bank)}` : ""}
                   </p>
                 </div>
                 {!voided && (
@@ -91,15 +94,20 @@ function RecordPayment({
 }) {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState(String(remaining));
-  const [method, setMethod] = useState<"CASH" | "BANK_TRANSFER">("CASH");
+  const [pay, setPay] = useState<PayChoice>(DEFAULT_PAY);
   const [busy, setBusy] = useState(false);
 
   async function submit() {
     const amt = Math.max(0, Math.min(remaining, Math.round(Number(amount) || 0)));
     if (amt <= 0) return;
+    const payProblem = payError(amt, pay);
+    if (payProblem) {
+      onError(payProblem);
+      return;
+    }
     setBusy(true);
     try {
-      await api.post(`/sales/${saleId}/payments`, { amount: amt, method });
+      await api.post(`/sales/${saleId}/payments`, { amount: amt, ...payFields(amt, pay) });
       setOpen(false);
       onDone();
     } catch (e) {
@@ -134,25 +142,11 @@ function RecordPayment({
           className="w-32 rounded-lg border bg-background px-3 py-2 text-right text-lg tabular-nums outline-none focus:ring-2 focus:ring-ring"
         />
       </label>
-      <div className="grid grid-cols-2 gap-2">
-        {(["CASH", "BANK_TRANSFER"] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => setMethod(m)}
-            className={
-              "rounded-xl border py-2 text-sm font-semibold transition " +
-              (method === m
-                ? "border-2 border-emerald-500 bg-emerald-50 text-emerald-700"
-                : "border-border bg-card text-muted-foreground")
-            }
-          >
-            {m === "CASH"
-              ? `💵 ${labels.paymentReceipt.methodCash}`
-              : `🏦 ${labels.paymentReceipt.methodBank}`}
-          </button>
-        ))}
-      </div>
+      <PayMethodPicker
+        total={Math.max(0, Math.min(remaining, Math.round(Number(amount) || 0)))}
+        value={pay}
+        onChange={setPay}
+      />
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={() => setOpen(false)}>
           {labels.common.cancel}
