@@ -733,11 +733,15 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
               {labels.sell.asCredit}
             </button>
           </div>
-          {paid > 0 && (
-            <div className="mt-3">
-              <PayMethodPicker total={paid} value={pay} onChange={setPay} />
-            </div>
-          )}
+          {/* Always offered (as for walk-ins): cash, bank or a cash+bank split.
+              It only takes effect once an amount is entered above. */}
+          <div className="mt-4">
+            <p className="mb-2 text-sm text-muted-foreground">{labels.sell.paymentMethod}</p>
+            <PayMethodPicker total={paid} value={pay} onChange={setPay} />
+            {paid <= 0 && (
+              <p className="mt-2 text-sm text-muted-foreground">{labels.sell.paymentMethodHint}</p>
+            )}
+          </div>
           <div className="mt-3 flex items-center justify-between text-base">
             <span className="text-muted-foreground">{labels.sell.remaining}</span>
             <span className={remaining > 0 ? "font-semibold text-rose-600" : ""}>

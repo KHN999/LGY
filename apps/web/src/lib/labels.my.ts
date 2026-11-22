@@ -167,6 +167,7 @@ export const my: DeepPartial<Labels> = {
     addAnother: "နောက်တစ်ခုထပ်ထည့်",
     review: "စစ်ဆေးမယ်",
     paidNow: "ယခုရရှိငွေ",
+    paymentMethodHint: "ယခုရရှိငွေ ထည့်မှ ငွေပေးနည်းက သက်ရောက်ပါမယ်။ အကြွေးနဲ့ဆို ရွေးစရာ မလိုပါ။",
     paymentMethod: "ငွေပေးနည်း",
     note: "မှတ်ချက်",
     notePlaceholder: "ဥပမာ — မနက်ဖြန်မှလာယူမည်၊ အိမ်အရောက်ပို့…",

@@ -165,6 +165,7 @@ export const en = {
     addAnother: "Add another",
     review: "Review",
     paidNow: "Paid now",
+    paymentMethodHint: "Applies once an amount is entered above. Not needed for a credit sale.",
     paymentMethod: "Payment method",
     note: "Note",
     notePlaceholder: "e.g. collect tomorrow, deliver to…",
