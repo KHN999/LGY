@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { TAGS, WHO, flow, gaps, groups, page, rules, undoHead, undoTable, type Card } from "./content.my";
+import { useEffect, useMemo, useState } from "react";
+import { TAGS, WHO, gaps, groups, page, rules, undoHead, undoTable, visual, type Card } from "./content.my";
+import { CashFormula, EffectMatrix, FxChips, GoodsMap } from "./diagrams";
 
 const WHO_STYLE: Record<Card["who"], string> = {
   staff: "bg-emerald-100 text-emerald-900",
@@ -18,6 +19,14 @@ function haystack(c: Card): string {
 
 export function ExplainView() {
   const [q, setQ] = useState("");
+  // A link from the map or the matrix (#card-id) opens that card.
+  const [opened, setOpened] = useState("");
+  useEffect(() => {
+    const sync = () => setOpened(window.location.hash.slice(1));
+    sync();
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, []);
   const needle = q.trim().toLowerCase();
   const indexed = useMemo(
     () => groups.map((g) => ({ ...g, cards: g.cards.map((c) => ({ card: c, text: haystack(c) })) })),
@@ -28,73 +37,40 @@ export function ExplainView() {
     .filter((g) => g.cards.length > 0);
 
   return (
-    <div className="flex flex-col gap-10">
-      {/* Big picture */}
-      <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-bold">{flow.title}</h2>
-        <div>
-          <h3 className="mb-2 text-sm font-semibold text-muted-foreground">{flow.goods.title}</h3>
-          <ol className="flex flex-wrap items-stretch gap-2">
-            {flow.goods.steps.map((s, i) => (
-              <li key={s.name} className="flex items-center gap-2">
-                <div className="rounded-xl border bg-card px-3 py-2">
-                  <p className="font-semibold">{s.name}</p>
-                  <p className="text-xs text-muted-foreground">{s.note}</p>
-                </div>
-                {i < flow.goods.steps.length - 1 && <span aria-hidden className="text-muted-foreground">→</span>}
-              </li>
-            ))}
-          </ol>
-        </div>
-        <div>
-          <h3 className="mb-2 text-sm font-semibold text-muted-foreground">{flow.money.title}</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-emerald-950">
-              <p className="font-semibold">＋ {flow.money.inLabel}</p>
-              <ul className="mt-1 list-disc pl-5 text-sm leading-relaxed">
-                {flow.money.in.map((x) => (
-                  <li key={x}>{x}</li>
-                ))}
-              </ul>
-            </div>
-            <div className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-rose-950">
-              <p className="font-semibold">－ {flow.money.outLabel}</p>
-              <ul className="mt-1 list-disc pl-5 text-sm leading-relaxed">
-                {flow.money.out.map((x) => (
-                  <li key={x}>{x}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{flow.money.note}</p>
-        </div>
-      </section>
+    <div className="flex min-w-0 flex-col gap-10 [&>*]:min-w-0">
+      {/* Pictures first: where goods go, how cash adds up, what each action moves */}
+      <GoodsMap />
+      <CashFormula />
+      <EffectMatrix />
 
-      {/* Rules */}
+      {/* Rules — one line each; open one for the detail */}
       <section className="flex flex-col gap-3">
-        {rules.map((r) => (
-          <details key={r.title} className="rounded-2xl border bg-card p-4" open>
-            <summary className="cursor-pointer text-base font-bold">{r.title}</summary>
-            <ul className="mt-2 list-disc space-y-1.5 pl-5 leading-relaxed">
-              {r.body.map((b) => (
-                <li key={b}>{b}</li>
-              ))}
-            </ul>
-          </details>
-        ))}
+        <h2 className="text-xl font-bold">{visual.rulesTitle}</h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {rules.map((r) => (
+            <details key={r.title} className="group rounded-2xl border bg-card p-4 open:sm:col-span-2">
+              <summary className="flex cursor-pointer list-none items-start gap-3">
+                <span aria-hidden className="text-2xl leading-none">{r.icon}</span>
+                <span>
+                  <span className="block font-bold">{r.title}</span>
+                  <span className="block text-sm leading-relaxed text-muted-foreground">{r.gist}</span>
+                </span>
+                <span aria-hidden className="ml-auto text-muted-foreground transition group-open:rotate-180">▾</span>
+              </summary>
+              <ul className="mt-3 list-disc space-y-1.5 pl-5 leading-relaxed">
+                {r.body.map((b) => (
+                  <li key={b}>{b}</li>
+                ))}
+              </ul>
+            </details>
+          ))}
+        </div>
       </section>
 
       {/* Legend + search + contents */}
       <section className="flex flex-col gap-3">
-        <h2 className="text-xl font-bold">{page.legend}</h2>
-        <p className="text-sm text-muted-foreground">{page.legendNote}</p>
-        <ul className="flex flex-wrap gap-2 text-sm">
-          {Object.entries(TAGS).map(([k, v]) => (
-            <li key={k} className="rounded-full border bg-card px-3 py-1">
-              {v.icon} {v.label}
-            </li>
-          ))}
-        </ul>
+        <h2 className="text-xl font-bold">{visual.detailsTitle}</h2>
+        <p className="text-sm text-muted-foreground">{visual.tapToOpen}</p>
         <input
           id="explain-search"
           type="search"
@@ -136,12 +112,23 @@ export function ExplainView() {
             {g.intro && <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{g.intro}</p>}
           </div>
           {g.cards.map(({ card: c }) => (
-            <article key={c.id} id={c.id} className="scroll-mt-4 rounded-2xl border bg-card p-4 sm:p-5">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <h3 className="text-lg font-bold">{c.title}</h3>
-                <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${WHO_STYLE[c.who]}`}>{WHO[c.who]}</span>
-              </div>
-              <p className="mt-0.5 text-sm text-muted-foreground">{c.where}</p>
+            <details
+              key={c.id}
+              id={c.id}
+              open={needle || opened === c.id ? true : undefined}
+              className="group scroll-mt-4 rounded-2xl border bg-card p-4 sm:p-5"
+            >
+              <summary className="flex cursor-pointer list-none flex-col gap-2">
+                <span className="flex flex-wrap items-start justify-between gap-2">
+                  <span className="text-lg font-bold">{c.title}</span>
+                  <span className="flex items-center gap-2">
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${WHO_STYLE[c.who]}`}>{WHO[c.who]}</span>
+                    <span aria-hidden className="text-muted-foreground transition group-open:rotate-180">▾</span>
+                  </span>
+                </span>
+                <FxChips id={c.id} />
+                <span className="text-sm text-muted-foreground">{c.where}</span>
+              </summary>
 
               <h4 className="mt-4 text-sm font-semibold text-muted-foreground">{page.h.does}</h4>
               <ul className="mt-1 list-disc space-y-1 pl-5 leading-relaxed">
@@ -179,7 +166,7 @@ export function ExplainView() {
                   </ul>
                 </div>
               )}
-            </article>
+            </details>
           ))}
         </section>
       ))}
