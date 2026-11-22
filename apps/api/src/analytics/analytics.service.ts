@@ -269,6 +269,8 @@ export class AnalyticsService {
     // two records). Their invoices are fetched so the page can lay out what
     // happened, in order.
     const nameKey = (s: string) => s.normalize("NFC").trim().toLowerCase();
+    /** Name reduced to letters and digits, for loose matching. */
+    const bare = (s: string) => nameKey(s).replace(/[^\p{L}\p{M}\p{N}]/gu, "");
     const goneDebtors = gone
       .filter((c) => c.balance > 0)
       .sort((a, b) => b.balance - a.balance)
@@ -355,7 +357,37 @@ export class AnalyticsService {
           id: c.id, name: c.name, balance: c.balance, lastSale: c.lastSale, lastPayment: c.lastPayment,
           daysSincePayment: c.daysSincePayment,
         })),
-        inCredit: { count: inCredit.length, amount: -inCredit.reduce((s, c) => s + c.balance, 0) },
+        inCredit: {
+          count: inCredit.length,
+          amount: -inCredit.reduce((s, c) => s + c.balance, 0),
+          // Who has paid more than they bought, with the likeliest reason.
+          list: inCredit
+            .sort((a, b) => a.balance - b.balance)
+            .slice(0, 12)
+            .map((c) => ({
+              id: c.id,
+              name: c.name,
+              orders: c.orders,
+              bought: c.revenue - c.returned + c.refunded,
+              paid: c.paid,
+              credit: -c.balance,
+              lastPayment: c.lastPayment,
+              reason:
+                c.orders === 0
+                  ? ("NO_SALES" as const) // money taken with no invoice on this record
+                  : Math.round(c.paid) === Math.round(c.revenue * 2)
+                    ? ("PAID_TWICE" as const) // exactly double: the same payment entered twice
+                    : ("OVERPAID" as const),
+              // another record (active or deleted) carries the same name
+              sameName: custs.some((o) => {
+                if (o.id === c.id) return false;
+                const a = bare(o.name);
+                const b = bare(c.name);
+                // identical, or one name sits inside the other ("Trust Oo" / "TRUST OO COMPANY")
+                return a === b || (Math.min(a.length, b.length) >= 5 && (a.includes(b) || b.includes(a)));
+              }),
+            })),
+        },
         // Debt that left the lists because the customer was deleted.
         deleted: {
           customers: gone.length,

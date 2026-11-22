@@ -394,7 +394,33 @@ export function Report({ o }: { o: AnalyticsOverview }) {
         />
         </Fold>
         {o.receivables.inCredit.count > 0 && (
-          <Note tone="warn">{t.recv.inCredit(o.receivables.inCredit.count, formatKyat(o.receivables.inCredit.amount))}</Note>
+          <div className={`flex flex-col gap-3 rounded-2xl border p-4 ${TONE.warn}`}>
+            <div>
+              <h3 className="text-base font-bold">{t.credit.title}</h3>
+              <p className="mt-1 text-sm leading-relaxed">
+                {t.recv.inCredit(o.receivables.inCredit.count, formatKyat(o.receivables.inCredit.amount))} {t.credit.intro}
+              </p>
+            </div>
+            <ul className="flex flex-col gap-2">
+              {o.receivables.inCredit.list.map((x) => (
+                <li key={x.id} className="rounded-xl border bg-white p-3 text-sm">
+                  <p className="flex flex-wrap items-baseline justify-between gap-x-3">
+                    <Link href={`/admin/customers/${x.id}`} className="font-bold underline decoration-dotted">{x.name}</Link>
+                    <span className="whitespace-nowrap text-base font-bold tabular-nums">
+                      {t.credit.over} {formatKyat(x.credit)}
+                    </span>
+                  </p>
+                  <p className="mt-0.5 tabular-nums opacity-90">
+                    {t.credit.bought} {formatKyat(x.bought)} ({num(x.orders)}) · {t.credit.paid} {formatKyat(x.paid)}
+                    {x.lastPayment ? ` · ${formatDate(x.lastPayment)}` : ""}
+                  </p>
+                  <p className="mt-1 leading-relaxed">{t.credit.reason[x.reason]}</p>
+                  {x.sameName && <p className="mt-1 leading-relaxed">⚠ {t.credit.sameName}</p>}
+                </li>
+              ))}
+            </ul>
+            <p className="text-sm font-semibold leading-relaxed">{t.credit.fix}</p>
+          </div>
         )}
         <DeletedCases list={o.receivables.deleted.list} />
       </Section>

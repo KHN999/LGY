@@ -763,7 +763,13 @@ export interface AnalyticsOverview {
       id: number; name: string; balance: number; lastSale: string | null; lastPayment: string | null;
       daysSincePayment: number | null;
     }[];
-    inCredit: { count: number; amount: number };
+    inCredit: {
+      count: number; amount: number;
+      list: {
+        id: number; name: string; orders: number; bought: number; paid: number; credit: number;
+        lastPayment: string | null; reason: "NO_SALES" | "PAID_TWICE" | "OVERPAID"; sameName: boolean;
+      }[];
+    };
     deleted: {
       customers: number; revenue: number; unpaidCount: number; unpaid: number;
       list: {
