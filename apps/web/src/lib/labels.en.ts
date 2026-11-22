@@ -220,6 +220,10 @@ export const en = {
     historyTitle: "Money received",
     historyEmpty: "No payments received",
     filterDebt: "Debt payments",
+    byChannel: "By payment method",
+    bankNotRecorded: "Bank not recorded",
+    times: "payments",
+    channelHint: "Tap one to list only the money received that way.",
     filterOnSale: "On a sale",
   },
 

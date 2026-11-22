@@ -83,17 +83,34 @@ export class CustomerPaymentsService {
   /** Recent received payments (all customers) for the "money received" history.
    *  Optional Yangon-day range. `linked`: "account" = debt collection not tied to
    *  a sale (paying off previous sales), "sale" = paid at a sale. Excludes voided. */
-  async recent(opts: { limit?: number; from?: string; to?: string; linked?: "sale" | "account" }) {
-    const { limit = 50, from, to, linked } = opts;
+  async recent(opts: {
+    limit?: number;
+    from?: string;
+    to?: string;
+    linked?: "sale" | "account";
+    channel?: string;
+  }) {
+    const { limit = 50, from, to, linked, channel } = opts;
     // Shared filter for the displayed page AND the totals, so the total reflects
     // the WHOLE range — not just the capped rows shown (that under-reported it).
-    const where: Prisma.CustomerPaymentWhereInput = {
+    const base: Prisma.CustomerPaymentWhereInput = {
       voidedAt: null,
       ...(from && to ? { paymentDate: { gte: new Date(from), lte: new Date(to) } } : {}),
       ...(linked === "account" ? { saleId: null } : {}),
       ...(linked === "sale" ? { saleId: { not: null } } : {}),
     };
-    const [rows, agg] = await Promise.all([
+    // One way of paying: cash, a named bank, or a transfer with no bank recorded.
+    const where: Prisma.CustomerPaymentWhereInput = {
+      ...base,
+      ...(channel === "CASH"
+        ? { method: "CASH" }
+        : channel === "NOBANK"
+          ? { method: "BANK_TRANSFER", bank: null }
+          : channel
+            ? { method: "BANK_TRANSFER", bank: channel }
+            : {}),
+    };
+    const [rows, agg, groups] = await Promise.all([
       this.prisma.customerPayment.findMany({
         where,
         orderBy: { paymentDate: "desc" },
@@ -110,7 +127,26 @@ export class CustomerPaymentsService {
         },
       }),
       this.prisma.customerPayment.aggregate({ where, _sum: { amount: true }, _count: true }),
+      // Breakdown by how the money came in. Uses the range/linked filter but NOT
+      // the channel, so every channel stays visible while one is selected.
+      this.prisma.customerPayment.groupBy({
+        by: ["method", "bank"],
+        where: base,
+        _sum: { amount: true },
+        _count: true,
+      }),
     ]);
+    const breakdown = groups
+      .map((g) => ({
+        // Same codes the `channel` filter accepts.
+        channel:
+          g.method === "CASH" ? "CASH" : g.method === "BANK_TRANSFER" ? (g.bank ?? "NOBANK") : g.method,
+        method: g.method as string,
+        bank: g.bank,
+        count: g._count,
+        total: g._sum.amount ?? 0,
+      }))
+      .sort((a, b) => b.total - a.total);
     return {
       rows: rows.map((p) => ({
         id: p.id,
@@ -124,6 +160,7 @@ export class CustomerPaymentsService {
       })),
       total: agg._sum.amount ?? 0,
       count: agg._count,
+      breakdown,
     };
   }
 

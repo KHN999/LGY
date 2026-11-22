@@ -27,26 +27,25 @@ export function HBars({ rows, color = SERIES[0], max }: { rows: BarRow[]; color?
         <li
           key={i}
           title={r.tip ?? `${typeof r.label === "string" ? r.label : ""} ${r.display}`.trim()}
-          className="grid grid-cols-[minmax(0,10rem)_1fr] items-center gap-x-3 sm:grid-cols-[minmax(0,14rem)_1fr]"
+          className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_auto]"
         >
           <span className="min-w-0 text-sm leading-snug">
             <span className="block truncate font-medium">{r.label}</span>
             {r.note && <span className="block truncate text-xs text-muted-foreground">{r.note}</span>}
           </span>
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="h-4 min-w-0 flex-1">
-              <span
-                className="block h-full rounded-r"
-                style={{
-                  width: `${Math.max((Math.abs(r.value) / top) * 100, r.value ? 0.8 : 0)}%`,
-                  background: r.color ?? (r.flag ? CRITICAL : color),
-                }}
-              />
-            </span>
-            <span className="shrink-0 whitespace-nowrap text-sm tabular-nums">
-              {r.display}
-              {r.flag && <span className="ml-1.5 font-semibold" style={{ color: CRITICAL }}>⚠ {r.flag}</span>}
-            </span>
+          {/* phone: value sits beside the label and the bar gets the full row below */}
+          <span className="order-3 col-span-2 h-4 min-w-0 sm:order-none sm:col-span-1">
+            <span
+              className="block h-full rounded-r"
+              style={{
+                width: `${Math.max((Math.abs(r.value) / top) * 100, r.value ? 0.8 : 0)}%`,
+                background: r.color ?? (r.flag ? CRITICAL : color),
+              }}
+            />
+          </span>
+          <span className="whitespace-nowrap text-right text-sm tabular-nums">
+            {r.display}
+            {r.flag && <span className="ml-1.5 font-semibold" style={{ color: CRITICAL }}>⚠ {r.flag}</span>}
           </span>
         </li>
       ))}
@@ -79,7 +78,7 @@ export function Segments({ parts }: { parts: Part[] }) {
       </div>
       <ul className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
         {shown.map((p) => (
-          <li key={p.label} className="flex items-baseline gap-2">
+          <li key={p.label} className="flex min-w-0 items-baseline gap-2">
             <span aria-hidden className="mt-1 inline-block h-3 w-3 shrink-0 rounded-sm" style={{ background: p.color }} />
             <span className="min-w-0 flex-1">{p.label}</span>
             <span className="whitespace-nowrap tabular-nums text-muted-foreground">

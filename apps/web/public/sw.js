@@ -56,6 +56,16 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return; // same-origin only
   if (url.pathname.startsWith("/api/auth")) return; // don't cache auth/session
+  // Leave the router's background prefetches alone. The app cancels them all the
+  // time (e.g. tapping a "← back" link while its prefetch is still in flight);
+  // handled here, each cancelled one surfaced as a fake "504 (offline)".
+  if (
+    req.headers.get("next-router-prefetch") ||
+    req.headers.get("next-router-segment-prefetch") ||
+    req.headers.get("purpose") === "prefetch"
+  ) {
+    return;
+  }
 
   event.respondWith(
     (async () => {
@@ -84,6 +94,10 @@ self.addEventListener("fetch", (event) => {
         if (cached) return cached;
         return await network;
       } catch {
+        // The page itself cancelled this request (it navigated away, or a screen
+        // closed mid-load). That is not "offline": fail it quietly as a normal
+        // cancelled request instead of answering with a made-up 504.
+        if (req.signal && req.signal.aborted) return Response.error();
         const cached = await caches.match(req);
         if (cached) return cached;
         if (req.mode === "navigate") {

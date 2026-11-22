@@ -17,7 +17,7 @@ export default async function DataAnalysisPage() {
   const shopLabel = shopState?.shop === "playground" ? t.shopTest : t.shopMain;
 
   return (
-    <main className="mx-auto flex max-w-5xl flex-col gap-8 p-4 pb-16 sm:p-6">
+    <main className="mx-auto flex max-w-5xl flex-col gap-8 p-3 pb-16 sm:p-6 [&>*]:min-w-0">
       <header className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
           <Link href="/admin" className="rounded-lg border px-3 py-1.5">← {t.back}</Link>

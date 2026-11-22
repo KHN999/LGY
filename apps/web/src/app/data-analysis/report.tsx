@@ -15,6 +15,8 @@ const TONE: Record<Tone, string> = {
 };
 const ICON: Record<Tone, string> = { bad: "⛔", warn: "⚠️", info: "ℹ️", good: "✅" };
 const num = (v: number) => Math.round(v).toLocaleString("en-US");
+/** "2026-06" → "06/26": short enough for a phone-width axis. */
+const shortMonth = (ym: string) => `${ym.slice(5)}/${ym.slice(2, 4)}`;
 const sum = <T,>(rows: T[], f: (r: T) => number) => rows.reduce((s, r) => s + f(r), 0);
 
 /** Turn the figures into plain-language findings, most important first. */
@@ -143,7 +145,7 @@ export function Report({ o }: { o: AnalyticsOverview }) {
       <Section title={t.findings} note={t.findingsNote}>
         <ul className="flex flex-col gap-2">
           {top.map((x, i) => (
-            <li key={i} className={`flex gap-3 rounded-xl border px-4 py-3 leading-relaxed ${TONE[x.tone]}`}>
+            <li key={i} className={`flex gap-2.5 rounded-xl border px-3 py-3 leading-relaxed sm:gap-3 sm:px-4 ${TONE[x.tone]}`}>
               <span aria-hidden className="shrink-0">{ICON[x.tone]}</span>
               <span>{x.text}</span>
             </li>
@@ -153,7 +155,7 @@ export function Report({ o }: { o: AnalyticsOverview }) {
           <Fold label={t.moreFindings(rest.length)}>
             <ul className="flex flex-col gap-2">
               {rest.map((x, i) => (
-                <li key={i} className={`flex gap-3 rounded-xl border px-4 py-3 leading-relaxed ${TONE[x.tone]}`}>
+                <li key={i} className={`flex gap-2.5 rounded-xl border px-3 py-3 leading-relaxed sm:gap-3 sm:px-4 ${TONE[x.tone]}`}>
                   <span aria-hidden className="shrink-0">{ICON[x.tone]}</span>
                   <span>{x.text}</span>
                 </li>
@@ -166,7 +168,7 @@ export function Report({ o }: { o: AnalyticsOverview }) {
 
       <Section title={t.s.monthly} note={t.s.monthlyNote}>
         <TwoBars
-          data={o.monthly.map((m) => ({ label: m.month, a: m.revenue, b: m.collected }))}
+          data={o.monthly.map((m) => ({ label: shortMonth(m.month), a: m.revenue, b: m.collected }))}
           aName={c.revenue}
           bName={c.collected}
           unitNote="သိန်း"
@@ -174,7 +176,7 @@ export function Report({ o }: { o: AnalyticsOverview }) {
         <h3 className="mt-2 text-sm font-semibold">{t.v.cashBank}</h3>
         <TwoBars
           stacked
-          data={o.monthly.map((m) => ({ label: m.month, a: m.cash, b: m.bank }))}
+          data={o.monthly.map((m) => ({ label: shortMonth(m.month), a: m.cash, b: m.bank }))}
           aName={c.cash}
           bName={c.bank}
           unitNote="သိန်း"
@@ -551,7 +553,7 @@ export function Report({ o }: { o: AnalyticsOverview }) {
 
 function Section({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-3">
+    <section className="flex min-w-0 flex-col gap-3">
       <div>
         <h2 className="text-lg font-bold">{title}</h2>
         {note && <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{note}</p>}
@@ -563,9 +565,9 @@ function Section({ title, note, children }: { title: string; note?: string; chil
 
 function Kpi({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-2xl border bg-card p-4">
+    <div className="min-w-0 rounded-2xl border bg-card p-3 sm:p-4">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-lg font-bold tabular-nums">{value}</p>
+      <p className="mt-1 text-base font-bold tabular-nums sm:text-lg">{value}</p>
       {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
     </div>
   );
@@ -575,9 +577,9 @@ function Pairs({ rows }: { rows: [string, string][] }) {
   return (
     <dl className="grid grid-cols-1 gap-x-8 gap-y-1.5 text-sm sm:grid-cols-2">
       {rows.map(([k, v]) => (
-        <div key={k} className="flex items-baseline justify-between gap-3 border-b py-1">
-          <dt className="text-muted-foreground">{k}</dt>
-          <dd className="font-semibold tabular-nums">{v}</dd>
+        <div key={k} className="flex flex-wrap items-baseline justify-between gap-x-3 border-b py-1">
+          <dt className="min-w-0 text-muted-foreground">{k}</dt>
+          <dd className="ml-auto whitespace-nowrap font-semibold tabular-nums">{v}</dd>
         </div>
       ))}
     </dl>

@@ -222,6 +222,10 @@ export const my: DeepPartial<Labels> = {
     historyTitle: "ရရှိငွေ မှတ်တမ်း",
     historyEmpty: "လက်ခံငွေ မရှိသေးပါ",
     filterDebt: "ကြွေးဆပ်ငွေ",
+    byChannel: "ငွေပေးနည်းအလိုက်",
+    bankNotRecorded: "ဘဏ် မမှတ်ထား",
+    times: "ကြိမ်",
+    channelHint: "တစ်ခုကို နှိပ်ရင် အဲဒီနည်းနဲ့ ရတဲ့ငွေတွေပဲ အောက်မှာ ပြပါမယ်။",
     filterOnSale: "အရောင်းမှ",
   },
 

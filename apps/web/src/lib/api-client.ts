@@ -520,6 +520,17 @@ export interface PaymentHistory {
   rows: ReceivedPaymentRow[];
   total: number;
   count: number;
+  /** Count and total per way of paying over the range (ignores the channel filter). */
+  breakdown: PaymentChannelTotal[];
+}
+
+export interface PaymentChannelTotal {
+  /** CASH, a bank code, NOBANK (transfer with no bank recorded), or another method. */
+  channel: string;
+  method: string;
+  bank: string | null;
+  count: number;
+  total: number;
 }
 
 export interface DailyClosePreview {

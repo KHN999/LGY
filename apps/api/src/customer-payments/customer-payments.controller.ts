@@ -21,6 +21,9 @@ import {
   VoidCustomerPaymentDto,
 } from "./dto/customer-payment.dto";
 
+const PAYMENT_CHANNELS = ["CASH", "KPAY", "CB", "KBZ", "AYA", "MAB", "UNKNOWN", "NOBANK"] as const;
+export type PaymentChannel = (typeof PAYMENT_CHANNELS)[number];
+
 class HistoryQueryDto {
   @IsOptional()
   @Type(() => Number)
@@ -41,6 +44,12 @@ class HistoryQueryDto {
   @IsOptional()
   @IsIn(["sale", "account"])
   linked?: "sale" | "account";
+
+  /** Narrow the rows to one way of paying: CASH, a bank code (KPAY, CB, KBZ,
+   *  AYA, MAB, UNKNOWN) or NOBANK = a bank transfer with no bank recorded. */
+  @IsOptional()
+  @IsIn(PAYMENT_CHANNELS)
+  channel?: PaymentChannel;
 }
 
 @Controller("customer-payments")
@@ -64,6 +73,7 @@ export class CustomerPaymentsController {
       from: q.fromDate,
       to: q.toDate,
       linked: q.linked,
+      channel: q.channel,
     });
   }
 
