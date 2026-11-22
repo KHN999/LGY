@@ -88,8 +88,10 @@ export default async function AuditDetailPage({ params }: { params: Promise<{ id
         <span className={"rounded px-2 py-0.5 text-xs font-semibold " + (row.ok ? "bg-emerald-100 text-emerald-900" : "bg-rose-100 text-rose-900")}>
           {row.ok ? "OK" : "Failed"}
         </span>
-        {row.shop === "playground" && (
-          <span className="rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-900">Test</span>
+        {row.shop !== "main" && (
+          <span className="rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-900">
+            {row.shop === "playground" ? "Test" : row.shop}
+          </span>
         )}
       </div>
       <p className="-mt-2 text-sm text-muted-foreground">

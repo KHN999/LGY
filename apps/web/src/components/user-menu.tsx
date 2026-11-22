@@ -3,13 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { labels } from "@/lib/labels";
-import type { ShopId } from "@/lib/api-client";
+import type { ShopId, ShopInfo } from "@/lib/api-client";
 import { ShopSwitcher } from "@/components/shop/shop-switcher";
 
 interface Props {
   user: { displayName: string; username: string; roles: string[] };
   /** When set, the menu shows a Main/Test shop toggle (used by the staff home). */
   shop?: ShopId;
+  /** Every shop, for the chooser. */
+  shops?: ShopInfo[];
   /** Where to land after switching shop (e.g. "/staff"). */
   shopHome?: string;
 }
@@ -25,7 +27,7 @@ const ROLE_LABEL: Record<string, string> = {
  * popover; logging out requires a second tap on a confirmation button. Two
  * deliberate taps ≠ accidental brush of the header.
  */
-export function UserMenu({ user, shop, shopHome }: Props) {
+export function UserMenu({ user, shop, shops, shopHome }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -111,7 +113,7 @@ export function UserMenu({ user, shop, shopHome }: Props) {
 
           {shop && (
             <div className="border-b py-3">
-              <ShopSwitcher current={shop} home={shopHome} />
+              <ShopSwitcher current={shop} shops={shops} home={shopHome} />
             </div>
           )}
 

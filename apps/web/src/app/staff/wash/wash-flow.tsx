@@ -182,7 +182,7 @@ export function WashFlow({
                 disabled={submitting}
                 className="w-full rounded-2xl bg-emerald-600 py-4 text-lg font-bold text-white shadow active:scale-[0.98] disabled:opacity-50"
               >
-                🧼 {submitting ? labels.common.saving : labels.common.save}
+                ✨ {submitting ? labels.common.saving : labels.common.save}
               </button>
             </div>
           </div>

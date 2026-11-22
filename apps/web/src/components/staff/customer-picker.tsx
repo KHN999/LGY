@@ -15,10 +15,13 @@ interface Props {
 
 // Stale-while-revalidate cache so the picker works offline (and opens instantly).
 // Refreshed in the background whenever online, mirroring ItemTypeGrid.
-const CUSTOMERS_LS = "lgy.customers";
+// Cached per shop: each shop has its own customers, and an id from one shop
+// means a different person in another. The layouts tag the page with the shop.
+const customersLS = () =>
+  `lgy.customers.${(typeof document !== "undefined" && document.querySelector<HTMLElement>("[data-shop]")?.dataset.shop) || "main"}`;
 function readCustomerCache(): Customer[] {
   try {
-    const v = typeof localStorage !== "undefined" ? localStorage.getItem(CUSTOMERS_LS) : null;
+    const v = typeof localStorage !== "undefined" ? localStorage.getItem(customersLS()) : null;
     return v ? (JSON.parse(v) as Customer[]) : [];
   } catch {
     return [];
@@ -26,7 +29,7 @@ function readCustomerCache(): Customer[] {
 }
 function writeCustomerCache(list: Customer[]) {
   try {
-    if (typeof localStorage !== "undefined") localStorage.setItem(CUSTOMERS_LS, JSON.stringify(list));
+    if (typeof localStorage !== "undefined") localStorage.setItem(customersLS(), JSON.stringify(list));
   } catch {
     /* quota / private mode — ignore */
   }

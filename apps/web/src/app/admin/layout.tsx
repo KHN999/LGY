@@ -17,9 +17,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const shop = shopState?.shop ?? "main";
 
   return (
-    <div className="min-h-screen bg-background">
-      <ShopBanner shop={shop} home="/admin" />
-      <AdminShell user={user} currentShop={shop}>
+    <div className="min-h-screen bg-background" data-shop={shop}>
+      <ShopBanner shop={shop} shops={shopState?.shops} home="/admin" />
+      <AdminShell user={user} currentShop={shop} shops={shopState?.shops}>
         {children}
       </AdminShell>
     </div>

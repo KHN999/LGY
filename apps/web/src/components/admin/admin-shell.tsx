@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { labels } from "@/lib/labels";
-import type { ShopId } from "@/lib/api-client";
+import type { ShopId, ShopInfo } from "@/lib/api-client";
 import { UserMenu } from "@/components/user-menu";
 import { ShopSwitcher } from "@/components/shop/shop-switcher";
 import { AppSwitchButton } from "@/components/app-switch-button";
@@ -59,6 +59,7 @@ const GROUPS: { title: string; items: NavItem[] }[] = [
       { href: "/admin/audit", label: labels.admin.audit, icon: "📋" },
       { href: "/admin/export", label: labels.admin.export, icon: "⬇️" },
       { href: "/admin/settings", label: labels.admin.settings, icon: "⚙️" },
+      { href: "/admin/shops", label: labels.shop.manage, icon: "🏬" },
       { href: "/data-analysis", label: labels.admin.dataAnalysis, icon: "📈" },
       { href: "/explain", label: labels.admin.explain, icon: "📖" },
     ],
@@ -99,10 +100,12 @@ function NavLink({
 function SidebarContent({
   user,
   currentShop,
+  shops,
   onNavigate,
 }: {
   user: { displayName: string; username: string; roles: string[] };
   currentShop: ShopId;
+  shops?: ShopInfo[];
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
@@ -141,7 +144,7 @@ function SidebarContent({
           roles={user.roles}
           className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium hover:bg-accent"
         />
-        <ShopSwitcher current={currentShop} />
+        <ShopSwitcher current={currentShop} shops={shops} />
         <div className="hidden lg:block">
           <UserMenu user={user} />
         </div>
@@ -153,10 +156,12 @@ function SidebarContent({
 export function AdminShell({
   user,
   currentShop,
+  shops,
   children,
 }: {
   user: { displayName: string; username: string; roles: string[] };
   currentShop: ShopId;
+  shops?: ShopInfo[];
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -179,7 +184,7 @@ export function AdminShell({
     <div className="lg:flex">
       {/* Desktop sidebar */}
       <aside className="sticky top-0 hidden h-svh w-64 shrink-0 border-r bg-card lg:block">
-        <SidebarContent user={user} currentShop={currentShop} />
+        <SidebarContent user={user} currentShop={currentShop} shops={shops} />
       </aside>
 
       {/* Content column */}
@@ -212,7 +217,7 @@ export function AdminShell({
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
           <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85%] flex-col overflow-y-auto bg-card shadow-xl">
-            <SidebarContent user={user} currentShop={currentShop} onNavigate={() => setOpen(false)} />
+            <SidebarContent user={user} currentShop={currentShop} shops={shops} onNavigate={() => setOpen(false)} />
           </aside>
         </div>
       )}

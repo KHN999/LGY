@@ -98,6 +98,8 @@ deploy the API first, point the web at it, then backfill `WEB_ORIGIN`.)
 
 ## Future changes
 - Code: push to `main`; Railway + Vercel redeploy.
-- New DB migration: rerun `migrate deploy` **and** `setup:shop playground` so both
-  schemas get it.
+- New DB migration: run `pnpm --filter @lgy/db migrate:all` (with the production
+  `DATABASE_URL`) **before** pushing code that needs it. It runs `migrate deploy`
+  on `public`, `playground` and every shop created from Admin → Shops. Never run
+  `setup:shop` against a schema that holds real data — it re-seeds.
 - Switch UI language: `NEXT_PUBLIC_LOCALE` (`my` Burmese default, `en` English).

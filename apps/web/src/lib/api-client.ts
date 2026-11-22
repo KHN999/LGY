@@ -60,10 +60,17 @@ export type PartyStatus = "ACTIVE" | "INACTIVE";
 export type Location = "WAREHOUSE" | "SHOP" | "IN_TRANSIT";
 
 /** Isolated data spaces: the real shop vs the test/training sandbox. */
-export type ShopId = "main" | "playground";
+/** A shop key from the registry: "main", "playground", or "shop_N". */
+export type ShopId = string;
+export interface ShopInfo {
+  key: ShopId;
+  name: string;
+  /** Practice space — shows the loud test banner. */
+  sandbox: boolean;
+}
 export interface ShopState {
   shop: ShopId;
-  shops: ShopId[];
+  shops: ShopInfo[];
 }
 
 export interface Page<T> {

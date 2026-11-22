@@ -19,8 +19,8 @@ export default async function StaffLayout({ children }: { children: React.ReactN
   // No app-bar on staff screens — each flow has its own Back, and the cash-register
   // pages need the full height. The account/logout menu lives on the staff home.
   return (
-    <div className="min-h-screen bg-background">
-      <ShopBanner shop={shopState?.shop ?? "main"} home="/staff" />
+    <div className="min-h-screen bg-background" data-shop={shopState?.shop ?? "main"}>
+      <ShopBanner shop={shopState?.shop ?? "main"} shops={shopState?.shops} home="/staff" />
       <OfflineBanner />
       <StaffDateProvider>{children}</StaffDateProvider>
     </div>

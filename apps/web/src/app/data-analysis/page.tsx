@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser, hasRole, serverFetch } from "@/lib/auth-server";
 import type { AnalyticsOverview, ShopState } from "@/lib/api-client";
 import { formatDate, formatDateTime } from "@/lib/utils";
+import { shopName } from "@/components/shop/shop-name";
 import { Report } from "./report";
 import { t } from "./text.my";
 
@@ -14,7 +15,7 @@ export default async function DataAnalysisPage() {
   if (!hasRole(user, "admin")) redirect("/staff");
 
   const o = await serverFetch<AnalyticsOverview>("/api/analytics/overview");
-  const shopLabel = shopState?.shop === "playground" ? t.shopTest : t.shopMain;
+  const shopLabel = shopName(shopState?.shop ?? "main", shopState?.shops);
 
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-8 p-3 pb-16 sm:p-6 [&>*]:min-w-0">

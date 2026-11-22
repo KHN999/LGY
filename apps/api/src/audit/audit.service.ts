@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, type AuditLog } from "@lgy/db";
 import { PrismaService } from "../prisma/prisma.service";
-import type { ShopId } from "../prisma/shop-context";
+import { isShopId, type ShopId } from "../prisma/shop-context";
 import type { PageResult } from "../common/pagination.dto";
 
 /** Human-facing detail resolved live from the entity an audit row refers to, in
@@ -119,7 +119,7 @@ export class AuditService {
     const row = await this.prisma.main.auditLog.findUnique({ where: { id } });
     if (!row) return null;
 
-    const shop: ShopId = row.shop === "playground" ? "playground" : "main";
+    const shop: ShopId = isShopId(row.shop) ? row.shop : "main";
     const db = this.prisma.clientForShop(shop);
     const payload = (row.payload && typeof row.payload === "object" ? row.payload : {}) as Record<
       string,

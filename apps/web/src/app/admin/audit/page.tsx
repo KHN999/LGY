@@ -97,9 +97,9 @@ export default async function AuditPage({
                 <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-medium leading-snug">{r.summary ?? `${r.method} ${r.path}`}</p>
-                  {r.shop === "playground" && (
+                  {r.shop !== "main" && (
                     <span className="rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-900">
-                      {labels.audit.shopTest}
+                      {r.shop === "playground" ? labels.audit.shopTest : r.shop}
                     </span>
                   )}
                 </div>

@@ -749,6 +749,19 @@ model ShopSetting {
 }
 
 // ─── Audit log (system-wide accountability) ──────────────────────
+// Registry of shops. Each shop is an isolated data space in its own Postgres
+// schema. Only the copy of this table in `public` is used (it exists in every
+// schema because all schemas share one migration history).
+model Shop {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique // cookie value + audit tag: main | playground | shop_3 …
+  name        String // shown in the switcher and banner
+  schema      String   @unique // Postgres schema holding this shop's data
+  sandbox     Boolean  @default(false) // practice space — shows the loud test banner
+  createdAt   DateTime @default(now())
+  createdById Int?
+}
+
 // One row per mutating HTTP request (POST/PATCH/PUT/DELETE) from staff or admin,
 // written non-blocking via the MAIN client so it lives in one place (public
 // schema), tagged with the originating shop. Read-only in the admin app. No FK to

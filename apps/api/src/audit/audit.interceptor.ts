@@ -10,7 +10,7 @@ import { catchError, tap } from "rxjs/operators";
 import { Prisma, type PrismaClient } from "@lgy/db";
 import type { Request, Response } from "express";
 import { PrismaService } from "../prisma/prisma.service";
-import { SHOP_COOKIE, type ShopId } from "../prisma/shop-context";
+import { getShop, isShopId, SHOP_COOKIE, type ShopId } from "../prisma/shop-context";
 import type { AuthenticatedUser } from "../auth/jwt-payload";
 
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -102,7 +102,7 @@ function summarize(method: string, path: string, params: Record<string, string>,
     return "Auth action";
   }
   if (entity === "shop" && method === "POST") {
-    return `Switched to ${b.shop === "playground" ? "Test" : "Main"} shop`;
+    return `Switched to ${getShop(String(b.shop))?.name ?? String(b.shop)} shop`;
   }
   if (sub === "void" || sub === "cancel") return `Deleted ${noun.toLowerCase()} #${id}`;
   if (entity === "sales" && sub === "lines") {
@@ -252,7 +252,8 @@ export class AuditInterceptor implements NestInterceptor {
 
     const start = Date.now();
     const path = (req.originalUrl || req.url || "").split("?")[0];
-    const shop = req.cookies?.[SHOP_COOKIE] === "playground" ? "playground" : "main";
+    const cookieShop = req.cookies?.[SHOP_COOKIE];
+    const shop = isShopId(cookieShop) ? cookieShop : "main";
     const fwd = req.headers["x-forwarded-for"];
     const ip =
       (Array.isArray(fwd) ? fwd[0] : fwd)?.split(",")[0]?.trim() ||
@@ -360,7 +361,7 @@ export class AuditInterceptor implements NestInterceptor {
     // Void/cancel actions carry no useful body — let the plain summary ("Deleted
     // <noun> #id") stand instead of mis-reading the empty body as a create.
     if (sub === "void" || sub === "cancel") return null;
-    const shopId: ShopId = shop === "playground" ? "playground" : "main";
+    const shopId: ShopId = isShopId(shop) ? shop : "main";
     const db = this.prisma.clientForShop(shopId);
     const items = Array.isArray(body.items) ? (body.items as Array<Record<string, unknown>>) : [];
     const itemNames = async (): Promise<Map<number, string>> => {
