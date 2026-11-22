@@ -13,7 +13,7 @@ export interface WeekRow { week: Date; orders: number; revenue: number }
 export interface ItemRow { itemTypeId: number; labelMy: string; qty: number; revenue: number; qty30: number; costPrice: number | null }
 export interface ManualRow { lines: number; revenue: number }
 export interface CustRow {
-  id: number; name: string; deleted: boolean; orders: number; revenue: number; paid: number; returned: number; refunded: number;
+  id: number; name: string; deleted: boolean; deletedAt: Date | null; lateOrders: number; lateRevenue: number; orders: number; revenue: number; paid: number; returned: number; refunded: number;
   firstSale: Date | null; lastSale: Date | null; lastPayment: Date | null;
 }
 export interface MixRow { method: string; bank: string | null; count: number; total: number }
@@ -96,8 +96,16 @@ export class AnalyticsService {
           ), re AS (
             SELECT "customerId" AS id, SUM("returnTotal")::float8 AS returned, SUM("refundAmount")::float8 AS refunded
             FROM "SaleReturn" WHERE "voidedAt" IS NULL AND "customerId" IS NOT NULL GROUP BY 1
+          ), late AS (
+            -- invoices entered AFTER the customer was deleted (the API allows it)
+            SELECT s."customerId" AS id, COUNT(*)::int AS "lateOrders", SUM(s."grandTotal")::float8 AS "lateRevenue"
+            FROM "Sale" s JOIN "Customer" d ON d.id = s."customerId"
+            WHERE s."voidedAt" IS NULL AND d."deletedAt" IS NOT NULL AND s."createdAt" > d."deletedAt"
+            GROUP BY 1
           )
-          SELECT c.id, c.name, (c."deletedAt" IS NOT NULL) AS deleted,
+          SELECT c.id, c.name, (c."deletedAt" IS NOT NULL) AS deleted, c."deletedAt",
+                 COALESCE(late."lateOrders", 0)::int AS "lateOrders",
+                 COALESCE(late."lateRevenue", 0)::float8 AS "lateRevenue",
                  COALESCE(sa.orders, 0)::int AS orders,
                  COALESCE(sa.revenue, 0)::float8 AS revenue,
                  COALESCE(pa.paid, 0)::float8 AS paid,
@@ -107,7 +115,8 @@ export class AnalyticsService {
           FROM "Customer" c
           LEFT JOIN sa ON sa.id = c.id
           LEFT JOIN pa ON pa.id = c.id
-          LEFT JOIN re ON re.id = c.id`),
+          LEFT JOIN re ON re.id = c.id
+          LEFT JOIN late ON late.id = c.id`),
         db.$queryRaw<MixRow[]>(Prisma.sql`
           SELECT method::text AS method, bank, COUNT(*)::int AS count, COALESCE(SUM(amount), 0)::float8 AS total
           FROM "CustomerPayment" WHERE "voidedAt" IS NULL
@@ -330,6 +339,36 @@ export class AnalyticsService {
           revenue: gone.reduce((s, c) => s + c.revenue, 0),
           unpaidCount: gone.filter((c) => c.balance > 0).length,
           unpaid: gone.filter((c) => c.balance > 0).reduce((s, c) => s + c.balance, 0),
+          // Who they are, and whether an active customer with the same name
+          // exists — the usual sign of one order entered under two records.
+          list: gone
+            .filter((c) => c.balance > 0)
+            .sort((a, b) => b.balance - a.balance)
+            .slice(0, 5)
+            .map((c) => {
+              const key = c.name.normalize("NFC").trim().toLowerCase();
+              const twin = withBalance.find((l) => l.name.normalize("NFC").trim().toLowerCase() === key);
+              return {
+                id: c.id,
+                name: c.name,
+                deletedAt: c.deletedAt,
+                revenue: c.revenue,
+                paid: c.paid,
+                unpaid: c.balance,
+                lateOrders: c.lateOrders,
+                lateRevenue: c.lateRevenue,
+                twin: twin
+                  ? {
+                      id: twin.id,
+                      revenue: twin.revenue,
+                      paid: twin.paid,
+                      balance: twin.balance,
+                      // their invoices add up to exactly what the deleted record still "owes"
+                      matchesUnpaid: Math.round(twin.revenue) === Math.round(c.balance),
+                    }
+                  : null,
+              };
+            }),
         },
       },
       payments: { mix },

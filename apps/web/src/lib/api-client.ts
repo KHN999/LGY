@@ -761,7 +761,14 @@ export interface AnalyticsOverview {
       daysSincePayment: number | null;
     }[];
     inCredit: { count: number; amount: number };
-    deleted: { customers: number; revenue: number; unpaidCount: number; unpaid: number };
+    deleted: {
+      customers: number; revenue: number; unpaidCount: number; unpaid: number;
+      list: {
+        id: number; name: string; deletedAt: string | null; revenue: number; paid: number; unpaid: number;
+        lateOrders: number; lateRevenue: number;
+        twin: { id: number; revenue: number; paid: number; balance: number; matchesUnpaid: boolean } | null;
+      }[];
+    };
   };
   payments: { mix: { method: string; bank: string | null; count: number; total: number }[] };
   payables: {
