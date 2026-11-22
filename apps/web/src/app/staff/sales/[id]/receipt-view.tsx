@@ -14,6 +14,7 @@ import { Receipt, type ReceiptData } from "@/components/staff/receipt";
 import { AddOnFlow } from "./add-on-flow";
 import { DEFAULT_PAY, PayMethodPicker, payFields, payError, type PayChoice } from "@/components/staff/pay-method-picker";
 import { bankLabel } from "@/lib/banks";
+import { ShareImageButton } from "@/components/staff/share-image-button";
 import { labels } from "@/lib/labels";
 import { formatKyat, formatDate } from "@/lib/utils";
 
@@ -30,6 +31,7 @@ export function ReceiptView({
 }) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  const receiptRef = useRef<HTMLDivElement>(null);
   const [returning, setReturning] = useState(false);
   const [adding, setAdding] = useState(false);
   const [voidingId, setVoidingId] = useState<number | null>(null);
@@ -123,8 +125,18 @@ export function ReceiptView({
       )}
 
       <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-        <Receipt data={data} shop={shop} />
+        <div ref={receiptRef}>
+          <Receipt data={data} shop={shop} />
+        </div>
       </div>
+
+      {/* Re-keyed on anything that changes the receipt, so the shared picture is current. */}
+      <ShareImageButton
+        key={`${sale.grandTotal}-${sale.paidAmount}-${returns.length}-${sale.voidedAt ?? ""}`}
+        targetRef={receiptRef}
+        fileName={`receipt-${sale.id}.png`}
+        title={labels.share.receiptTitle(sale.id)}
+      />
 
       {voided && (
         <p className="rounded-lg bg-muted p-3 text-center text-sm text-muted-foreground">

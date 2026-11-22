@@ -127,6 +127,7 @@ export function Receipt({ data, shop }: { data: ReceiptData; shop?: ShopSettings
     data.paidBank ?? (data.method === "BANK_TRANSFER" ? data.paid : 0),
   );
   const paidCash = data.paid - paidBank;
+  const split = paidBank > 0 && paidCash > 0;
   const bankName = data.paidBankName
     ? `${labels.paymentReceipt.methodBank} · ${data.paidBankName}`
     : labels.paymentReceipt.methodBank;
@@ -238,19 +239,32 @@ export function Receipt({ data, shop }: { data: ReceiptData; shop?: ShopSettings
               <span>{formatKyat(netTotal)}</span>
             </div>
           )}
-          <div className="flex justify-between">
+          <div className="flex justify-between gap-3">
             <span>
               {labels.receipt.paid}
-              {paidBank > 0 && paidCash > 0
-                ? ` (${labels.paymentReceipt.methodCash} ${formatKyat(paidCash)} + ${bankName} ${formatKyat(paidBank)})`
+              {split
+                ? ""
                 : paidBank > 0
                   ? ` (${bankName})`
                   : data.paid > 0
                     ? ` (${labels.paymentReceipt.methodCash})`
                     : ""}
             </span>
-            <span>{formatKyat(data.paid)}</span>
+            <span className="whitespace-nowrap">{formatKyat(data.paid)}</span>
           </div>
+          {/* Split tender: one short line per part, so nothing wraps awkwardly. */}
+          {split && (
+            <div className="space-y-0.5 pl-3 text-xs text-neutral-700">
+              <div className="flex justify-between gap-3">
+                <span>{labels.paymentReceipt.methodCash}</span>
+                <span className="whitespace-nowrap">{formatKyat(paidCash)}</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span>{bankName}</span>
+                <span className="whitespace-nowrap">{formatKyat(paidBank)}</span>
+              </div>
+            </div>
+          )}
           {refundedTotal > 0 && (
             <div className="flex justify-between text-neutral-600">
               <span>{labels.receipt.refunded}</span>

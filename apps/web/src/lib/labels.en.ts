@@ -407,6 +407,14 @@ export const en = {
     all: "All",
   },
 
+  share: {
+    button: "Share (Viber, Messenger, Line…)",
+    preparing: "Preparing image…",
+    tapAgain: "The image is ready. Tap once more.",
+    saved: "This device can't share directly, so the image was downloaded instead.",
+    failed: "Couldn't prepare the image. Please try again.",
+    receiptTitle: (id: number) => `Receipt #${id}`,
+  },
   customerStatement: {
     title: "Customer statement",
     button: "Print statement",

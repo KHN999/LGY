@@ -406,6 +406,14 @@ export const my: DeepPartial<Labels> = {
     all: "အားလုံး",
   },
 
+  share: {
+    button: "မျှဝေမယ် (Viber၊ Messenger၊ Line…)",
+    preparing: "ပုံ ပြင်ဆင်နေသည်…",
+    tapAgain: "ပုံ အဆင်သင့်ဖြစ်ပါပြီ။ နောက်တစ်ခါ နှိပ်ပါ။",
+    saved: "ဒီစက်က တိုက်ရိုက်မျှဝေလို့ မရလို့ ပုံကို ဒေါင်းလုဒ်လုပ်ပေးထားပါတယ်။",
+    failed: "ပုံ ပြင်ဆင်လို့ မရပါ။ နောက်တစ်ခါ ကြိုးစားကြည့်ပါ။",
+    receiptTitle: (id: number) => `ဘောက်ချာ #${id}`,
+  },
   customerStatement: {
     title: "ဖောက်သည် စာရင်းရှင်းတမ်း",
     button: "စာရင်းရှင်းတမ်း ပုံနှိပ်",
