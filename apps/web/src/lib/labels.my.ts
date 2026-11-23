@@ -332,6 +332,8 @@ export const my: DeepPartial<Labels> = {
   },
 
   expenses: {
+    newCategory: "အမည်အသစ် ရိုက်ထည့်မယ်",
+    newCategoryPlaceholder: "ကုန်ကျစရိတ် အမည် ရိုက်ပါ",
     payMethod: "ပေးချေပုံ",
     payBank: "ဘယ်ဘဏ်",
     bankAny: "မမှတ်ထား",

@@ -2,8 +2,16 @@ import { IsEnum, IsIn, IsInt, IsOptional, IsString, MaxLength, Min } from "class
 import { PaymentBank } from "../../common/payment-parts";
 
 export class CreateExpenseDto {
+  /** An existing category. Either this or categoryName is required. */
+  @IsOptional()
   @IsInt()
-  categoryId!: number;
+  categoryId?: number;
+
+  /** A category typed by hand: reused if one with this name exists, else created. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  categoryName?: string;
 
   @IsInt()
   @Min(1)

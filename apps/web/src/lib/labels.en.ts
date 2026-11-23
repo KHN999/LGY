@@ -333,6 +333,8 @@ export const en = {
   },
 
   expenses: {
+    newCategory: "New name…",
+    newCategoryPlaceholder: "Type the expense name",
     payMethod: "Paid by",
     payBank: "Which bank",
     bankAny: "Not recorded",

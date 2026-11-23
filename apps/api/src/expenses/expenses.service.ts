@@ -39,11 +39,34 @@ export class ExpensesService {
   }
 
   async create(dto: CreateExpenseDto, userId: number) {
-    const cat = await this.prisma.expenseCategory.findUnique({ where: { id: dto.categoryId } });
-    if (!cat) throw new BadRequestException(`Category ${dto.categoryId} not found`);
+    const name = dto.categoryName?.trim();
+    let categoryId: number;
+    if (name) {
+      // A hand-typed name: reuse the category if it already exists (so the same
+      // name typed twice stays one category), otherwise add it to the list.
+      const existing = await this.prisma.expenseCategory.findFirst({
+        where: { labelMy: { equals: name, mode: "insensitive" } },
+      });
+      if (existing) {
+        if (!existing.isActive) {
+          await this.prisma.expenseCategory.update({ where: { id: existing.id }, data: { isActive: true } });
+        }
+        categoryId = existing.id;
+      } else {
+        const created = await this.prisma.expenseCategory.create({
+          data: { key: `custom_${Date.now().toString(36)}`, labelMy: name },
+        });
+        categoryId = created.id;
+      }
+    } else {
+      if (!dto.categoryId) throw new BadRequestException("Choose a category or type a name");
+      const cat = await this.prisma.expenseCategory.findUnique({ where: { id: dto.categoryId } });
+      if (!cat) throw new BadRequestException(`Category ${dto.categoryId} not found`);
+      categoryId = cat.id;
+    }
     return this.prisma.expense.create({
       data: {
-        categoryId: dto.categoryId,
+        categoryId,
         amount: dto.amount,
         method: dto.method ?? "CASH",
         bank: dto.method === "BANK_TRANSFER" ? (dto.bank ?? null) : null,

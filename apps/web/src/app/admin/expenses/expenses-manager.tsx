@@ -168,7 +168,9 @@ function AddExpenseForm({
   onError: (m: string) => void;
   onDone: () => void;
 }) {
+  // 0 = "type a new name" (also the only choice when there are no categories yet).
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? 0);
+  const [newCategory, setNewCategory] = useState("");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(todayISO());
   const [recipientType, setRecipientType] = useState<RecipientType>("none");
@@ -183,14 +185,15 @@ function AddExpenseForm({
   async function submit(e: FormEvent) {
     e.preventDefault();
     const amt = Math.max(0, Number(amount) || 0);
-    if (!categoryId || amt <= 0) {
+    const customName = categoryId === 0 ? newCategory.trim() : "";
+    if ((categoryId === 0 && !customName) || amt <= 0) {
       onError(labels.errors.required);
       return;
     }
     setBusy(true);
     try {
       await api.post("/expenses", {
-        categoryId,
+        ...(customName ? { categoryName: customName } : { categoryId }),
         amount: amt,
         method,
         bank: method === "BANK_TRANSFER" && bank ? bank : undefined,
@@ -224,7 +227,19 @@ function AddExpenseForm({
                   {c.labelMy}
                 </option>
               ))}
+              <option value={0}>➕ {labels.expenses.newCategory}</option>
             </select>
+            {categoryId === 0 && (
+              <input
+                type="text"
+                autoFocus
+                maxLength={80}
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                placeholder={labels.expenses.newCategoryPlaceholder}
+                className={inputClass + " mt-2"}
+              />
+            )}
           </Field>
           <Field label={labels.expenses.amount}>
             <input
