@@ -8,6 +8,7 @@ import type { ShopId, ShopInfo } from "@/lib/api-client";
 import { UserMenu } from "@/components/user-menu";
 import { ShopSwitcher } from "@/components/shop/shop-switcher";
 import { AppSwitchButton } from "@/components/app-switch-button";
+import { LinkPending } from "@/components/link-pending";
 
 interface NavItem {
   href: string;
@@ -100,6 +101,7 @@ function NavLink({
         {item.icon}
       </span>
       <span className="truncate">{item.label}</span>
+      <LinkPending />
     </Link>
   );
 }

@@ -49,6 +49,7 @@ export default async function CustomerDuplicatesPage() {
               </Card>
             ))}
           </section>
+          <p className="text-sm text-muted-foreground">ℹ️ {L.nothingSaved}</p>
           <DuplicateGroups groups={groups} />
         </>
       )}

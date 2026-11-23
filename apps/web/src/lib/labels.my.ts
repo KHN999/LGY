@@ -471,6 +471,9 @@ export const my: DeepPartial<Labels> = {
   },
 
   dup: {
+    chooseKeep: "ထားမယ့် မှတ်တမ်း တစ်ခုကို ရွေးပါ။",
+    reset: "မူလအတိုင်း ပြန်ထားမယ်",
+    nothingSaved: "«ပေါင်းမယ်» ခလုတ် မနှိပ်မချင်း ဘာမှ မသိမ်းပါ။",
     navShort: "ထပ်နေသူများ",
     statGroups: "စစ်ရမယ့် အုပ်စု",
     statExtra: "ဖယ်ရမယ့် အပို မှတ်တမ်း",

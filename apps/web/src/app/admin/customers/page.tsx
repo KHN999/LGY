@@ -92,8 +92,11 @@ export default async function CustomersPage({
         <ul className="flex flex-col divide-y rounded-2xl border bg-card">
           {rows.map((c) => (
             <li key={c.id}>
+              {/* No background prefetch: with hundreds of rows it floods the
+                  connection and delays the tap that actually matters. */}
               <Link
                 href={`/admin/customers/${c.id}`}
+                prefetch={false}
                 className="flex items-center justify-between gap-3 p-4 hover:bg-accent"
               >
                 <div className="min-w-0 flex-1">

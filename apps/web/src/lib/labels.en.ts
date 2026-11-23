@@ -472,6 +472,9 @@ export const en = {
   },
 
   dup: {
+    chooseKeep: "Choose which record to keep.",
+    reset: "Reset choices",
+    nothingSaved: "Nothing is saved until you press Merge.",
     navShort: "Duplicates",
     statGroups: "Groups to review",
     statExtra: "Extra records to remove",

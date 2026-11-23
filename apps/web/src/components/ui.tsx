@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LinkPending } from "@/components/link-pending";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 function cx(...parts: (string | false | null | undefined)[]) {
@@ -66,6 +67,7 @@ export function PageHeader({
       {backHref && (
         <Link href={backHref} className={buttonClass("outline", "sm", "self-start")}>
           ← {backLabel}
+          <LinkPending />
         </Link>
       )}
       <div className="flex flex-wrap items-end justify-between gap-3">
