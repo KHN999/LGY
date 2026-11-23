@@ -154,7 +154,7 @@ export default async function AdminMoneyPage({
     );
   }
 
-  const { totals, opening, closing, days } = data;
+  const { totals, closing, days } = data;
   const maxFlow = Math.max(1, ...days.map((d) => Math.max(d.in, d.out)));
   const moved = days.filter((d) => d.in > 0 || d.out > 0);
   const best = moved.reduce<(typeof days)[number] | null>((m, d) => (!m || d.in > m.in ? d : m), null);
@@ -177,10 +177,8 @@ export default async function AdminMoneyPage({
       <PageHeader title={L.title} subtitle={L.subtitle} />
       <MoneyRange from={data.from} to={data.to} active={active} firstDay={data.firstDay} />
 
-      {/* opening + in − out = closing */}
-      <section className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1.15fr] xl:items-stretch">
-        <Step label={L.opening} hint={L.openingHint(dmy(data.from))} value={formatKyat(opening.total)} />
-        <span className="hidden self-center text-2xl font-bold text-muted-foreground xl:block">+</span>
+      {/* in − out = balance, for the selected period only */}
+      <section className="grid grid-cols-1 gap-2 sm:grid-cols-3 xl:grid-cols-[1fr_auto_1fr_auto_1.15fr] xl:items-stretch">
         <Step label={L.moneyIn} value={formatKyat(totals.in)} color={IN_COLOR}>
           <SplitBar cash={totals.inCash} bank={totals.inBank} color={IN_COLOR} />
         </Step>
@@ -189,10 +187,7 @@ export default async function AdminMoneyPage({
           <SplitBar cash={totals.outCash} bank={totals.outBank} color={OUT_COLOR} />
         </Step>
         <span className="hidden self-center text-2xl font-bold text-muted-foreground xl:block">=</span>
-        <Step label={L.closing} hint={L.closingHint(dmy(data.to))} value={formatKyat(closing.total)} strong>
-          <span className="text-sm tabular-nums">
-            {L.net} {signed(totals.net)} {totals.net > 0 ? "▲" : totals.net < 0 ? "▼" : ""}
-          </span>
+        <Step label={L.closing} hint={L.closingHint(dmy(data.from), dmy(data.to))} value={formatKyat(closing.total)} strong>
         </Step>
       </section>
 

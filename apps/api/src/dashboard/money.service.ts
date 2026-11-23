@@ -224,7 +224,9 @@ export class MoneyService {
     totals.net = totals.in - totals.out;
 
     const days = [...dayMap.values()];
-    const run = { ...opening };
+    // The balance counts only the selected period: it starts at 0 on `from`,
+    // with nothing carried over from earlier days.
+    const run: MoneySplit = { total: 0, cash: 0, bank: 0 };
     for (const d of days) {
       d.opening = run.total;
       d.net = d.in - d.out;
