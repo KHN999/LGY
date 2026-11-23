@@ -285,6 +285,13 @@ export interface SimilarCustomer extends Customer {
   lastSaleAt: string | null;
   salesCount: number;
 }
+/** One merge action that can still be undone (GET /customers/merges). */
+export interface CustomerMergeBatch {
+  batchId: string;
+  createdAt: string;
+  survivor: { id: number; name: string };
+  sources: { id: number; name: string; sales: number; payments: number }[];
+}
 export interface DuplicateGroup {
   exact: boolean;
   confidence: number;

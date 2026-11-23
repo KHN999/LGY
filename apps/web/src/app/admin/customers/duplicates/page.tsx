@@ -1,16 +1,21 @@
 import { serverFetch } from "@/lib/auth-server";
 import { labels } from "@/lib/labels";
 import { formatKyat } from "@/lib/utils";
-import type { DuplicateGroup } from "@/lib/api-client";
+import type { CustomerMergeBatch, DuplicateGroup } from "@/lib/api-client";
 import { PageHeader, EmptyState, Card } from "@/components/ui";
 import { DuplicateGroups } from "./duplicate-groups";
+import { RecentMerges } from "./recent-merges";
 
 export const dynamic = "force-dynamic";
 
 const L = labels.dup;
 
 export default async function CustomerDuplicatesPage() {
-  const data = await serverFetch<{ groups: DuplicateGroup[] }>("/api/customers/duplicates");
+  const [data, mergesData] = await Promise.all([
+    serverFetch<{ groups: DuplicateGroup[] }>("/api/customers/duplicates"),
+    serverFetch<CustomerMergeBatch[]>("/api/customers/merges"),
+  ]);
+  const merges = mergesData ?? [];
   const groups = data?.groups ?? [];
   const records = groups.reduce((s, g) => s + g.members.length, 0);
   const exact = groups.filter((g) => g.exact).length;
@@ -67,6 +72,7 @@ export default async function CustomerDuplicatesPage() {
           <DuplicateGroups groups={groups} />
         </>
       )}
+      <RecentMerges merges={merges} />
     </div>
   );
 }

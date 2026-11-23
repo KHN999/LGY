@@ -472,6 +472,10 @@ export const en = {
   },
 
   dup: {
+    recentTitle: "Recent merges",
+    recentHint: "Merged by mistake? Undo puts the records back with their own sales, payments and debt.",
+    undo: "Undo",
+    undoConfirm: "Undo this merge? The merged records come back as separate customers.",
     keptTarget: "Stays — the merged ones go into this",
     keptApart: "Stays as a separate customer",
     legendKeep: "this record stays in your customer list.",
@@ -513,7 +517,7 @@ export const en = {
     notSame: "Not the same person",
     after: "After merging",
     debt: "debt",
-    confirm: "Merging cannot be undone. Continue?",
+    confirm: "Merge these records? You can undo it afterwards from the list at the bottom of this page.",
     done: "Merged",
   },
 

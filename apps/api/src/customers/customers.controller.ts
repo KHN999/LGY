@@ -72,6 +72,22 @@ export class CustomersController {
     return this.customers.dismissDuplicates(dto.ids);
   }
 
+  /** Recent merges that can still be undone (admin). */
+  @Get("merges")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  merges() {
+    return this.customers.recentMerges();
+  }
+
+  /** Undo one merge: moved sales/payments go back, the merged records return. */
+  @Post("merges/:batchId/undo")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  undoMerge(@Param("batchId") batchId: string) {
+    return this.customers.undoMerge(batchId);
+  }
+
   @Get(":id")
   getOne(@Param("id", ParseIntPipe) id: number) {
     return this.customers.getOne(id);

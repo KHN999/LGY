@@ -459,13 +459,38 @@ export class CustomersService {
     }
     const sources = await this.prisma.customer.findMany({
       where: { id: { in: ids }, deletedAt: null },
-      select: { id: true, name: true, contact: true, notes: true },
+      select: { id: true, name: true, contact: true, notes: true, status: true },
     });
     if (sources.length === 0) throw new BadRequestException("No valid customers to merge");
     const sourceIds = sources.map((s) => s.id);
 
     await this.prisma.$transaction(async (tx) => {
       const where = { customerId: { in: sourceIds } };
+      // Note exactly what is about to move, so the merge can be undone.
+      const pick = { where, select: { id: true, customerId: true } } as const;
+      const [movedSales, movedPayments, movedReturns] = await Promise.all([
+        tx.sale.findMany(pick),
+        tx.customerPayment.findMany(pick),
+        tx.saleReturn.findMany(pick),
+      ]);
+      const idsOf = (rows: { id: number; customerId: number | null }[], sourceId: number) =>
+        rows.filter((x) => x.customerId === sourceId).map((x) => x.id);
+      const contactFrom = !survivor.contact ? sources.find((x) => x.contact?.trim())?.id : undefined;
+      const notesFrom = !survivor.notes ? sources.find((x) => x.notes?.trim())?.id : undefined;
+      const batchId = `${survivorId}-${Date.now().toString(36)}`;
+      await tx.customerMerge.createMany({
+        data: sources.map((src) => ({
+          batchId,
+          survivorId,
+          sourceId: src.id,
+          sourceStatus: src.status,
+          saleIds: idsOf(movedSales, src.id),
+          paymentIds: idsOf(movedPayments, src.id),
+          returnIds: idsOf(movedReturns, src.id),
+          filledContact: contactFrom === src.id,
+          filledNotes: notesFrom === src.id,
+        })),
+      });
       await tx.sale.updateMany({ where, data: { customerId: survivorId } });
       await tx.customerPayment.updateMany({ where, data: { customerId: survivorId } });
       await tx.saleReturn.updateMany({ where, data: { customerId: survivorId } });
@@ -492,6 +517,93 @@ export class CustomersService {
 
     const updated = await this.getOne(survivorId);
     return { ...updated, mergedCount: sources.length, mergedNames: sources.map((s) => s.name) };
+  }
+
+  /** Recent merges that can still be undone, newest first. */
+  async recentMerges(): Promise<
+    {
+      batchId: string;
+      createdAt: Date;
+      survivor: { id: number; name: string };
+      sources: { id: number; name: string; sales: number; payments: number }[];
+    }[]
+  > {
+    const rows = await this.prisma.customerMerge.findMany({
+      where: { undoneAt: null },
+      orderBy: { id: "desc" },
+      take: 200,
+    });
+    const ids = [...new Set(rows.flatMap((x) => [x.survivorId, x.sourceId]))];
+    const names = new Map(
+      (await this.prisma.customer.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })).map(
+        (c) => [c.id, c.name] as const,
+      ),
+    );
+    const batches = new Map<string, Awaited<ReturnType<CustomersService["recentMerges"]>>[number]>();
+    for (const x of rows) {
+      let b = batches.get(x.batchId);
+      if (!b) {
+        b = {
+          batchId: x.batchId,
+          createdAt: x.createdAt,
+          survivor: { id: x.survivorId, name: names.get(x.survivorId) ?? `#${x.survivorId}` },
+          sources: [],
+        };
+        batches.set(x.batchId, b);
+      }
+      b.sources.push({
+        id: x.sourceId,
+        name: names.get(x.sourceId) ?? `#${x.sourceId}`,
+        sales: x.saleIds.length,
+        payments: x.paymentIds.length,
+      });
+    }
+    return [...batches.values()].slice(0, 30);
+  }
+
+  /**
+   * Undo one merge: every sale / payment / return it moved goes back to the
+   * record it came from, and those records return to the customer list. Sales
+   * made for the kept customer AFTER the merge stay with the kept customer.
+   */
+  async undoMerge(batchId: string): Promise<{ restored: string[] }> {
+    const rows = await this.prisma.customerMerge.findMany({ where: { batchId, undoneAt: null } });
+    if (rows.length === 0) throw new NotFoundException("This merge was not found or is already undone");
+    const survivorId = rows[0]!.survivorId;
+    const survivor = await this.prisma.customer.findUnique({ where: { id: survivorId } });
+    if (!survivor) throw new NotFoundException(`Customer ${survivorId} not found`);
+    if (survivor.deletedAt) {
+      throw new BadRequestException(
+        "The kept customer has since been merged or deleted — undo that later change first",
+      );
+    }
+    const sources = await this.prisma.customer.findMany({
+      where: { id: { in: rows.map((x) => x.sourceId) } },
+      select: { id: true, name: true, contact: true, notes: true },
+    });
+    const sourceOf = new Map(sources.map((c) => [c.id, c]));
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const x of rows) {
+        // Only rows still sitting on the kept customer are moved back.
+        const back = (ids: number[]) => ({ where: { id: { in: ids }, customerId: survivorId }, data: { customerId: x.sourceId } });
+        if (x.saleIds.length) await tx.sale.updateMany(back(x.saleIds));
+        if (x.paymentIds.length) await tx.customerPayment.updateMany(back(x.paymentIds));
+        if (x.returnIds.length) await tx.saleReturn.updateMany(back(x.returnIds));
+        await tx.customer.update({
+          where: { id: x.sourceId },
+          data: { deletedAt: null, status: x.sourceStatus === "INACTIVE" ? "INACTIVE" : "ACTIVE" },
+        });
+        // Take back a phone number / note the kept record borrowed, if unchanged.
+        const src = sourceOf.get(x.sourceId);
+        const clear: { contact?: null; notes?: null } = {};
+        if (x.filledContact && src?.contact && survivor.contact === src.contact) clear.contact = null;
+        if (x.filledNotes && src?.notes && survivor.notes === src.notes) clear.notes = null;
+        if (Object.keys(clear).length) await tx.customer.update({ where: { id: survivorId }, data: clear });
+      }
+      await tx.customerMerge.updateMany({ where: { batchId }, data: { undoneAt: new Date() } });
+    });
+    return { restored: sources.map((c) => c.name) };
   }
 
   async getBalance(

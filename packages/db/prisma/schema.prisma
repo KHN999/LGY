@@ -99,6 +99,28 @@ model CustomerPairDismissal {
   @@id([aId, bId])
 }
 
+/// What one customer merge moved, so it can be undone: one row per record that
+/// was folded into `survivorId`. Rows from the same merge share a batchId.
+model CustomerMerge {
+  id            Int       @id @default(autoincrement())
+  batchId       String
+  survivorId    Int
+  sourceId      Int
+  /// The source's status before it was retired.
+  sourceStatus  String    @default("ACTIVE")
+  saleIds       Int[]     @default([])
+  paymentIds    Int[]     @default([])
+  returnIds     Int[]     @default([])
+  /// The survivor's empty contact / notes were filled from this source.
+  filledContact Boolean   @default(false)
+  filledNotes   Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  undoneAt      DateTime?
+
+  @@index([batchId])
+  @@index([createdAt])
+}
+
 model Supplier {
   id        Int         @id @default(autoincrement())
   name      String
