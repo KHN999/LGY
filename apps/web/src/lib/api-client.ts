@@ -286,6 +286,8 @@ export interface SimilarCustomer extends Customer {
   salesCount: number;
 }
 export interface DuplicateGroup {
+  exact: boolean;
+  confidence: number;
   suggestedKeepId: number;
   members: {
     id: number;

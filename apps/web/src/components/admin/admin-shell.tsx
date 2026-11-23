@@ -23,6 +23,7 @@ const GROUPS: { title: string; items: NavItem[] }[] = [
     title: labels.admin.navGroups.people,
     items: [
       { href: "/admin/customers", label: labels.admin.customers, icon: "👤" },
+      { href: "/admin/customers/duplicates", label: labels.dup.navShort, icon: "🔀" },
       { href: "/admin/suppliers", label: labels.admin.suppliers, icon: "🏭" },
       { href: "/admin/tailors", label: labels.admin.tailors, icon: "🧵" },
       { href: "/admin/drivers", label: labels.admin.drivers, icon: "🚚" },
@@ -67,8 +68,13 @@ const GROUPS: { title: string; items: NavItem[] }[] = [
   },
 ];
 
+const ALL_ITEMS = GROUPS.flatMap((g) => g.items);
+
 function isActive(pathname: string, item: NavItem) {
-  return item.exact ? pathname === item.href : pathname.startsWith(item.href);
+  if (item.exact) return pathname === item.href;
+  if (!pathname.startsWith(item.href)) return false;
+  // A more specific entry (e.g. customers/duplicates under customers) wins.
+  return !ALL_ITEMS.some((o) => o.href.length > item.href.length && pathname.startsWith(o.href));
 }
 
 function NavLink({

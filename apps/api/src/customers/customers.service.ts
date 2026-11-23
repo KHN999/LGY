@@ -342,6 +342,10 @@ export class CustomersService {
    */
   async duplicates(): Promise<{
     groups: {
+      /** Every member has the same name once spacing/marks are ignored. */
+      exact: boolean;
+      /** 0..100: how alike the weakest-linked member is to the rest. */
+      confidence: number;
       suggestedKeepId: number;
       members: {
         id: number;
@@ -401,9 +405,30 @@ export class CustomersService {
       });
       // Keep the record that has been used the most; oldest wins a tie.
       const keep = [...members].sort((x, y) => y.salesCount - x.salesCount || x.id - y.id)[0]!;
-      return { suggestedKeepId: keep.id, members };
+      const exact = g.every((i) => prepared[i]!.key === prepared[g[0]!]!.key);
+      // Each member's best link to another member; the group is as sure as its weakest.
+      const weakest = Math.min(
+        ...g.map((i) =>
+          Math.max(
+            ...g
+              .filter((j) => j !== i)
+              .map((j) =>
+                digits[i]!.length >= 7 && digits[i] === digits[j]
+                  ? 1
+                  : nameSimilarity(prepared[i]!, prepared[j]!, weights),
+              ),
+          ),
+        ),
+      );
+      return { exact, confidence: Math.round(weakest * 100), suggestedKeepId: keep.id, members };
     });
-    groups.sort((x, y) => y.members.length - x.members.length || x.members[0]!.name.localeCompare(y.members[0]!.name));
+    // Surest first, so the easy merges are at the top.
+    groups.sort(
+      (x, y) =>
+        y.confidence - x.confidence ||
+        y.members.length - x.members.length ||
+        x.members[0]!.name.localeCompare(y.members[0]!.name),
+    );
     return { groups };
   }
 
