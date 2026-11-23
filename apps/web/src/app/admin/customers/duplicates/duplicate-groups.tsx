@@ -11,8 +11,10 @@ import { Button, Card, EmptyState } from "@/components/ui";
 const L = labels.dup;
 type Tab = "all" | "exact" | "similar";
 type Member = DuplicateGroup["members"][number];
-/** What happens to one record: it stays, it is folded into the kept one, or it is left alone. */
-type State = "keep" | "merge" | "left";
+/** What happens to one record. "keep" = it stays and the merged ones go into it;
+ *  "apart" = it also stays, as its own separate customer (a second record the
+ *  admin chose to keep); "merge" = it is folded into the "keep" record. */
+type State = "keep" | "apart" | "merge";
 
 export function DuplicateGroups({ groups }: { groups: DuplicateGroup[] }) {
   const [tab, setTab] = useState<Tab>("all");
@@ -59,19 +61,24 @@ function MemberTile({
   m,
   state,
   maxSales,
+  target,
   onSet,
 }: {
   m: Member;
   state: State;
   maxSales: number;
-  onSet: (s: State) => void;
+  /** Name of the record the merged ones go into ("" if none chosen yet). */
+  target: string;
+  /** true = this record stays, false = it is merged away. */
+  onSet: (stays: boolean) => void;
 }) {
+  const stays = state !== "merge";
   const tone =
     state === "keep"
       ? "border-2 border-emerald-500 bg-emerald-50"
-      : state === "merge"
-        ? "border-2 border-dashed border-amber-400 bg-amber-50/60"
-        : "border opacity-55";
+      : state === "apart"
+        ? "border-2 border-emerald-300 bg-card"
+        : "border-2 border-dashed border-amber-400 bg-amber-50/60";
   return (
     <div className={"flex min-w-0 flex-col gap-2 rounded-2xl p-3 " + tone}>
       <span
@@ -79,12 +86,12 @@ function MemberTile({
           "self-start rounded-full px-2 py-0.5 text-xs font-semibold " +
           (state === "keep"
             ? "bg-emerald-600 text-white"
-            : state === "merge"
-              ? "bg-amber-200 text-amber-900"
-              : "bg-muted text-muted-foreground")
+            : state === "apart"
+              ? "bg-emerald-100 text-emerald-800"
+              : "bg-amber-200 text-amber-900")
         }
       >
-        {state === "keep" ? `✓ ${L.kept}` : state === "merge" ? `→ ${L.willMerge}` : L.leftOut}
+        {state === "keep" ? `✓ ${L.keptTarget}` : state === "apart" ? `✓ ${L.keptApart}` : `→ ${L.willMerge(target)}`}
       </span>
       <Link href={`/admin/customers/${m.id}`} className="break-words text-lg font-bold leading-snug hover:underline">
         {m.name}
@@ -112,28 +119,30 @@ function MemberTile({
       <p className={"text-sm tabular-nums " + (m.balance > 0 ? "font-semibold text-rose-600" : "text-muted-foreground")}>
         {L.debt}: {formatKyat(m.balance)}
       </p>
-      {/* The same three choices on every record; the current one is filled in. */}
-      <div className="mt-auto grid grid-cols-3 gap-1 pt-1">
-        {(
-          [
-            { key: "keep", label: `✓ ${L.keep}`, on: "bg-emerald-600 text-white border-emerald-600" },
-            { key: "merge", label: `→ ${L.mergeIn}`, on: "bg-amber-400 text-amber-950 border-amber-400" },
-            { key: "left", label: L.leave, on: "bg-foreground text-background border-foreground" },
-          ] as const
-        ).map((o) => (
-          <button
-            key={o.key}
-            type="button"
-            onClick={() => onSet(o.key)}
-            aria-pressed={state === o.key}
-            className={
-              "rounded-lg border px-1 py-2 text-xs font-semibold " +
-              (state === o.key ? o.on : "bg-card hover:bg-accent")
-            }
-          >
-            {o.label}
-          </button>
-        ))}
+      {/* Two choices on every record: it stays, or it is merged away. */}
+      <div className="mt-auto grid grid-cols-2 gap-1 pt-1">
+        <button
+          type="button"
+          onClick={() => onSet(true)}
+          aria-pressed={stays}
+          className={
+            "rounded-lg border px-1 py-2 text-sm font-semibold " +
+            (stays ? "border-emerald-600 bg-emerald-600 text-white" : "bg-card hover:bg-accent")
+          }
+        >
+          ✓ {L.keep}
+        </button>
+        <button
+          type="button"
+          onClick={() => onSet(false)}
+          aria-pressed={!stays}
+          className={
+            "rounded-lg border px-1 py-2 text-sm font-semibold " +
+            (!stays ? "border-amber-400 bg-amber-400 text-amber-950" : "bg-card hover:bg-accent")
+          }
+        >
+          → {L.mergeIn}
+        </button>
       </div>
     </div>
   );
@@ -141,30 +150,23 @@ function MemberTile({
 
 function GroupCard({ group }: { group: DuplicateGroup }) {
   const router = useRouter();
-  const [keepId, setKeepId] = useState<number | null>(group.suggestedKeepId);
-  // Everyone except the kept record is merged in unless left out.
-  const [left, setLeft] = useState<number[]>([]);
+  // Records that stay. Everything else is merged into the most-used one of them.
+  const [kept, setKept] = useState<number[]>([group.suggestedKeepId]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const keep = group.members.find((m) => m.id === keepId) ?? null;
-  const sources = keep ? group.members.filter((m) => m.id !== keepId && !left.includes(m.id)) : [];
+  const keep =
+    group.members
+      .filter((m) => kept.includes(m.id))
+      .sort((x, y) => y.salesCount - x.salesCount || x.id - y.id)[0] ?? null;
+  const keepId = keep?.id ?? null;
+  const sources = keep ? group.members.filter((m) => !kept.includes(m.id)) : [];
   const merged = keep ? [keep, ...sources] : [];
-  const changed = keepId !== group.suggestedKeepId || left.length > 0;
-  const stateOf = (id: number): State => (id === keepId ? "keep" : left.includes(id) ? "left" : "merge");
-  function setState(id: number, next: State) {
-    if (next === "keep") {
-      setKeepId(id); // the previously kept record becomes "merge in"
-      setLeft((p) => p.filter((x) => x !== id));
-    } else {
-      if (id === keepId) setKeepId(null);
-      setLeft((p) => (next === "left" ? [...p.filter((x) => x !== id), id] : p.filter((x) => x !== id)));
-    }
-  }
-  const reset = () => {
-    setKeepId(group.suggestedKeepId);
-    setLeft([]);
-  };
+  const changed = kept.length !== 1 || kept[0] !== group.suggestedKeepId;
+  const stateOf = (id: number): State => (id === keepId ? "keep" : kept.includes(id) ? "apart" : "merge");
+  const setStays = (id: number, stays: boolean) =>
+    setKept((p) => (stays ? [...p.filter((x) => x !== id), id] : p.filter((x) => x !== id)));
+  const reset = () => setKept([group.suggestedKeepId]);
   const debtAfter = merged.reduce((s, m) => s + m.balance, 0);
   const salesAfter = merged.reduce((s, m) => s + m.salesCount, 0);
   const maxSales = Math.max(1, ...group.members.map((m) => m.salesCount));
@@ -210,7 +212,8 @@ function GroupCard({ group }: { group: DuplicateGroup }) {
             m={m}
             maxSales={maxSales}
             state={stateOf(m.id)}
-            onSet={(next) => setState(m.id, next)}
+            target={keep?.name ?? ""}
+            onSet={(stays) => setStays(m.id, stays)}
           />
         ))}
       </div>

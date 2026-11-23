@@ -49,7 +49,21 @@ export default async function CustomerDuplicatesPage() {
               </Card>
             ))}
           </section>
-          <p className="text-sm text-muted-foreground">ℹ️ {L.nothingSaved}</p>
+          <Card className="flex flex-col gap-2 p-3 text-sm">
+            <p>
+              <span className="mr-2 rounded-lg bg-emerald-600 px-2 py-1 text-xs font-semibold text-white">
+                ✓ {L.keep}
+              </span>
+              {L.legendKeep}
+            </p>
+            <p>
+              <span className="mr-2 rounded-lg bg-amber-400 px-2 py-1 text-xs font-semibold text-amber-950">
+                → {L.mergeIn}
+              </span>
+              {L.legendMerge}
+            </p>
+            <p className="text-muted-foreground">ℹ️ {L.nothingSaved}</p>
+          </Card>
           <DuplicateGroups groups={groups} />
         </>
       )}
