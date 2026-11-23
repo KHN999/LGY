@@ -407,6 +407,14 @@ export const en = {
   },
 
   moneyBook: {
+    viewCash: "Cash only",
+    viewAll: "Cash + bank",
+    cashIn: "Cash in",
+    cashOut: "Cash out",
+    cashBalance: "Cash that should be in hand",
+    bankLeftOut: (v: string) => `bank ${v} not counted`,
+    bankDirect: "Went straight into the bank (not counted here)",
+    cashNote: "Cash only: cash received from customers, minus cash paid out (expenses, refunds, and supplier or tailor payments made in cash). Bank transfers are left out because they go straight into the account.",
     nav: "Money summary",
     title: "Money summary",
     subtitle: "Money received and paid out in the selected days, day by day, and what is left of it.",

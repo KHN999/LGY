@@ -18,15 +18,18 @@ export function MoneyRange({
   to,
   active,
   firstDay,
+  view,
 }: {
   from: string;
   to: string;
   active: string;
   firstDay: string | null;
+  /** "all" = cash + bank; anything else = cash only (the default). */
+  view: string;
 }) {
   const router = useRouter();
   const go = (range: string, f: string, t: string) =>
-    router.push(`/admin/money?range=${range}&from=${f}&to=${t}`);
+    router.push(`/admin/money?range=${range}&from=${f}&to=${t}${view === "all" ? "&view=all" : ""}`);
 
   function preset(p: Preset) {
     const now = new Date();

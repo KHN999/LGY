@@ -377,6 +377,10 @@ export interface MoneyOverview {
     expense: number;
     refund: number;
     net: number;
+    inSaleCash: number;
+    inDebtCash: number;
+    supplierCash: number;
+    tailorCash: number;
   };
   channels: { channel: string; total: number; count: number }[];
   expenseCategories: { name: string; value: number }[];

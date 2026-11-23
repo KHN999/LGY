@@ -52,6 +52,11 @@ export interface MoneyOverview {
     expense: number;
     refund: number;
     net: number;
+    /** Cash-only parts, for checking the cash that passed through staff hands. */
+    inSaleCash: number;
+    inDebtCash: number;
+    supplierCash: number;
+    tailorCash: number;
   };
   /** Money received in range, by where it landed (CASH | bank code | NOBANK). */
   channels: { channel: string; total: number; count: number }[];
@@ -166,6 +171,10 @@ export class MoneyService {
       expense: 0,
       refund: 0,
       net: 0,
+      inSaleCash: 0,
+      inDebtCash: 0,
+      supplierCash: 0,
+      tailorCash: 0,
     };
     const channelMap = new Map<string, { total: number; count: number }>();
 
@@ -193,8 +202,13 @@ export class MoneyService {
           day.inBank += amount;
           totals.inBank += amount;
         }
-        if (r.kind === "IN_SALE") totals.inSale += amount;
-        else totals.inDebt += amount;
+        if (r.kind === "IN_SALE") {
+          totals.inSale += amount;
+          if (isCash) totals.inSaleCash += amount;
+        } else {
+          totals.inDebt += amount;
+          if (isCash) totals.inDebtCash += amount;
+        }
         const c = channelMap.get(r.channel) ?? { total: 0, count: 0 };
         c.total += amount;
         c.count += r.n;
@@ -219,6 +233,8 @@ export class MoneyService {
                 : "refund";
         day[key] += amount;
         totals[key] += amount;
+        if (isCash && r.kind === "SUPPLIER") totals.supplierCash += amount;
+        if (isCash && r.kind === "TAILOR") totals.tailorCash += amount;
       }
     }
     totals.net = totals.in - totals.out;

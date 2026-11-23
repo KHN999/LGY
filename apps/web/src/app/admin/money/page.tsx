@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { serverFetch } from "@/lib/auth-server";
 import { bankLabel } from "@/lib/banks";
 import { labels } from "@/lib/labels";
@@ -131,7 +132,7 @@ function FlowCell({ label, value, max, color }: { label: string; value: number; 
 export default async function AdminMoneyPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string; range?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; range?: string; view?: string }>;
 }) {
   const sp = await searchParams;
   // Default: the last 30 days (Yangon), so the first paint already shows a trend.
@@ -141,6 +142,10 @@ export default async function AdminMoneyPage({
   const from = hasRange ? sp.from! : defFrom;
   const to = hasRange ? sp.to! : today;
   const active = hasRange ? (sp.range ?? "custom") : "30";
+  // Cash only by default: bank money lands straight in the account, so the
+  // number to check against staff hands is cash in minus cash out.
+  const view = sp.view === "all" ? "all" : "cash";
+  const cashOnly = view === "cash";
 
   const data = await serverFetch<MoneyOverview>(`/api/dashboard/money?from=${from}&to=${to}`);
 
@@ -148,13 +153,22 @@ export default async function AdminMoneyPage({
     return (
       <div className="flex flex-col gap-4">
         <PageHeader title={L.title} subtitle={L.subtitle} />
-        <MoneyRange from={from} to={to} active={active} firstDay={null} />
+        <MoneyRange from={from} to={to} active={active} firstDay={null} view={view} />
         <EmptyState>{labels.common.noData}</EmptyState>
       </div>
     );
   }
 
-  const { totals, closing, days } = data;
+  const { totals } = data;
+  // One shape for both views, so everything below reads the same fields.
+  const days = data.days.map((d) =>
+    cashOnly
+      ? { date: d.date, in: d.inCash, out: d.outCash, net: d.inCash - d.outCash, closing: d.closingCash }
+      : { date: d.date, in: d.in, out: d.out, net: d.net, closing: d.closing },
+  );
+  const sumIn = cashOnly ? totals.inCash : totals.in;
+  const sumOut = cashOnly ? totals.outCash : totals.out;
+  const balance = cashOnly ? data.closing.cash : data.closing.total;
   const maxFlow = Math.max(1, ...days.map((d) => Math.max(d.in, d.out)));
   const moved = days.filter((d) => d.in > 0 || d.out > 0);
   const best = moved.reduce<(typeof days)[number] | null>((m, d) => (!m || d.in > m.in ? d : m), null);
@@ -163,32 +177,75 @@ export default async function AdminMoneyPage({
   const daysDown = days.filter((d) => d.net < 0).length;
 
   const outRows = [
-    { label: `🏭 ${L.supplier}`, value: totals.supplier },
-    { label: `🧵 ${L.tailor}`, value: totals.tailor },
+    { label: `🏭 ${L.supplier}`, value: cashOnly ? totals.supplierCash : totals.supplier },
+    { label: `🧵 ${L.tailor}`, value: cashOnly ? totals.tailorCash : totals.tailor },
     // Expenses broken out by category, so the biggest costs are visible by name.
     ...(data.expenseCategories.length > 0
       ? data.expenseCategories.map((c) => ({ label: `💸 ${c.name}`, value: c.value }))
       : [{ label: `💸 ${L.expense}`, value: totals.expense }]),
     { label: `↩️ ${L.refund}`, value: totals.refund },
   ].sort((a, b) => b.value - a.value);
+  const bankChannels = data.channels.filter((c) => c.channel !== "CASH");
+  const inRows = cashOnly
+    ? [
+        { label: `🧾 ${L.fromSales}`, value: totals.inSaleCash },
+        { label: `📒 ${L.fromDebt}`, value: totals.inDebtCash },
+      ]
+    : data.channels.map((c) => ({
+        label: channelName(c.channel),
+        value: c.total,
+        note: `${c.count.toLocaleString("en-US")} ${L.times}`,
+      }));
+  const viewHref = (v: "cash" | "all") =>
+    `/admin/money?range=${active}&from=${data.from}&to=${data.to}${v === "all" ? "&view=all" : ""}`;
 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader title={L.title} subtitle={L.subtitle} />
-      <MoneyRange from={data.from} to={data.to} active={active} firstDay={data.firstDay} />
+      <MoneyRange from={data.from} to={data.to} active={active} firstDay={data.firstDay} view={view} />
+
+      <nav className="flex flex-wrap gap-2">
+        {(["cash", "all"] as const).map((v) => (
+          <Link
+            key={v}
+            href={viewHref(v)}
+            aria-current={view === v ? "true" : undefined}
+            className={
+              "rounded-lg px-3 py-1.5 text-sm font-semibold " +
+              (view === v ? "bg-primary text-primary-foreground" : "border bg-card hover:bg-accent")
+            }
+          >
+            {v === "cash" ? `💵 ${L.viewCash}` : `💵+🏦 ${L.viewAll}`}
+          </Link>
+        ))}
+      </nav>
 
       {/* in − out = balance, for the selected period only */}
       <section className="grid grid-cols-1 gap-2 sm:grid-cols-3 xl:grid-cols-[1fr_auto_1fr_auto_1.15fr] xl:items-stretch">
-        <Step label={L.moneyIn} value={formatKyat(totals.in)} color={IN_COLOR}>
-          <SplitBar cash={totals.inCash} bank={totals.inBank} color={IN_COLOR} />
+        <Step
+          label={cashOnly ? L.cashIn : L.moneyIn}
+          value={formatKyat(sumIn)}
+          color={IN_COLOR}
+          hint={cashOnly ? L.bankLeftOut(formatKyat(totals.inBank)) : undefined}
+        >
+          {!cashOnly && <SplitBar cash={totals.inCash} bank={totals.inBank} color={IN_COLOR} />}
         </Step>
         <span className="hidden self-center text-2xl font-bold text-muted-foreground xl:block">−</span>
-        <Step label={L.moneyOut} value={formatKyat(totals.out)} color={OUT_COLOR}>
-          <SplitBar cash={totals.outCash} bank={totals.outBank} color={OUT_COLOR} />
+        <Step
+          label={cashOnly ? L.cashOut : L.moneyOut}
+          value={formatKyat(sumOut)}
+          color={OUT_COLOR}
+          hint={cashOnly ? L.bankLeftOut(formatKyat(totals.outBank)) : undefined}
+        >
+          {!cashOnly && <SplitBar cash={totals.outCash} bank={totals.outBank} color={OUT_COLOR} />}
         </Step>
         <span className="hidden self-center text-2xl font-bold text-muted-foreground xl:block">=</span>
-        <Step label={L.closing} hint={L.closingHint(dmy(data.from), dmy(data.to))} value={formatKyat(closing.total)} strong>
-        </Step>
+        <Step
+          label={cashOnly ? L.cashBalance : L.closing}
+          hint={L.closingHint(dmy(data.from), dmy(data.to))}
+          value={formatKyat(balance)}
+          strong
+        />
       </section>
 
       {/* quick facts */}
@@ -233,15 +290,21 @@ export default async function AdminMoneyPage({
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card className="min-w-0 p-4">
           <h2 className="mb-3 font-semibold">{L.whereFrom}</h2>
-          <ShareBars
-            color={IN_COLOR}
-            rows={data.channels.map((c) => ({
-              label: channelName(c.channel),
-              value: c.total,
-              note: `${c.count.toLocaleString("en-US")} ${L.times}`,
-            }))}
-          />
-          {totals.in > 0 && (
+          <ShareBars color={IN_COLOR} rows={inRows} />
+          {cashOnly && bankChannels.length > 0 && (
+            <div className="mt-4 border-t pt-3">
+              <p className="mb-2 text-xs text-muted-foreground">{L.bankDirect}</p>
+              <ul className="flex flex-col gap-1 text-sm">
+                {bankChannels.map((c) => (
+                  <li key={c.channel} className="flex justify-between gap-3">
+                    <span className="min-w-0 truncate">{channelName(c.channel)}</span>
+                    <span className="shrink-0 tabular-nums">{formatKyat(c.total)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {!cashOnly && totals.in > 0 && (
             <div className="mt-4 grid grid-cols-2 gap-2 border-t pt-3 text-sm">
               <div>
                 <p className="text-xs text-muted-foreground">{L.fromSales}</p>
@@ -266,9 +329,9 @@ export default async function AdminMoneyPage({
         <div className="rounded-2xl border bg-card">
           <div className="hidden grid-cols-[6.5rem_1fr_1fr_10rem] gap-3 border-b px-4 py-2 text-xs text-muted-foreground sm:grid">
             <span>{L.date}</span>
-            <span>{L.moneyIn}</span>
-            <span>{L.moneyOut}</span>
-            <span className="text-right">{L.closing}</span>
+            <span>{cashOnly ? L.cashIn : L.moneyIn}</span>
+            <span>{cashOnly ? L.cashOut : L.moneyOut}</span>
+            <span className="text-right">{cashOnly ? L.cashBalance : L.closing}</span>
           </div>
           <ul className="divide-y">
             {[...days].reverse().map((d) => (
@@ -283,8 +346,8 @@ export default async function AdminMoneyPage({
                     {d.net === 0 ? L.noMovement : `${d.net > 0 ? "▲" : "▼"} ${signed(d.net)}`}
                   </span>
                 </div>
-                <FlowCell label={L.moneyIn} value={d.in} max={maxFlow} color={IN_COLOR} />
-                <FlowCell label={L.moneyOut} value={d.out} max={maxFlow} color={OUT_COLOR} />
+                <FlowCell label={cashOnly ? L.cashIn : L.moneyIn} value={d.in} max={maxFlow} color={IN_COLOR} />
+                <FlowCell label={cashOnly ? L.cashOut : L.moneyOut} value={d.out} max={maxFlow} color={OUT_COLOR} />
               </li>
             ))}
           </ul>
@@ -294,7 +357,7 @@ export default async function AdminMoneyPage({
       <Card className="p-4">
         <h2 className="mb-2 font-semibold">{L.noteTitle}</h2>
         <ul className="flex list-disc flex-col gap-1.5 pl-5 text-sm text-muted-foreground">
-          {L.notes.map((n) => (
+          {[...(cashOnly ? [L.cashNote] : []), ...L.notes].map((n) => (
             <li key={n}>{n}</li>
           ))}
         </ul>
