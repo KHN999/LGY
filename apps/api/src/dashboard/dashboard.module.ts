@@ -6,10 +6,11 @@ import { SuppliersModule } from "../suppliers/suppliers.module";
 import { SupplierOrdersModule } from "../supplier-orders/supplier-orders.module";
 import { DashboardController } from "./dashboard.controller";
 import { DashboardService } from "./dashboard.service";
+import { MoneyService } from "./money.service";
 
 @Module({
   imports: [DailyCloseModule, InventoryModule, CustomersModule, SuppliersModule, SupplierOrdersModule],
   controllers: [DashboardController],
-  providers: [DashboardService],
+  providers: [DashboardService, MoneyService],
 })
 export class DashboardModule {}

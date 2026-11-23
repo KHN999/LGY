@@ -333,6 +333,56 @@ export interface RollOrdersSummary {
   dueNow: number;
 }
 
+export interface MoneySplit {
+  total: number;
+  cash: number;
+  bank: number;
+}
+export interface MoneyDay {
+  date: string;
+  opening: number;
+  in: number;
+  inCash: number;
+  inBank: number;
+  out: number;
+  outCash: number;
+  outBank: number;
+  supplier: number;
+  tailor: number;
+  expense: number;
+  refund: number;
+  net: number;
+  closing: number;
+  closingCash: number;
+  closingBank: number;
+}
+/** Day-by-day money book with a running balance (GET /dashboard/money). */
+export interface MoneyOverview {
+  from: string;
+  to: string;
+  firstDay: string | null;
+  opening: MoneySplit;
+  closing: MoneySplit;
+  totals: {
+    in: number;
+    inCash: number;
+    inBank: number;
+    inSale: number;
+    inDebt: number;
+    out: number;
+    outCash: number;
+    outBank: number;
+    supplier: number;
+    tailor: number;
+    expense: number;
+    refund: number;
+    net: number;
+  };
+  channels: { channel: string; total: number; count: number }[];
+  expenseCategories: { name: string; value: number }[];
+  days: MoneyDay[];
+}
+
 /** One server-aggregated payload for the admin dashboard (replaces ~9 calls). */
 export interface DashboardSummary {
   counts: { itemTypes: number; customers: number; suppliers: number; tailors: number };
