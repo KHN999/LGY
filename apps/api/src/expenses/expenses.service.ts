@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { CreateExpenseDto } from "./dto/create-expense.dto";
+import { CreateExpenseDto, ExpenseMethodDto } from "./dto/create-expense.dto";
 
 @Injectable()
 export class ExpensesService {
@@ -45,6 +45,8 @@ export class ExpensesService {
       data: {
         categoryId: dto.categoryId,
         amount: dto.amount,
+        method: dto.method ?? "CASH",
+        bank: dto.method === "BANK_TRANSFER" ? (dto.bank ?? null) : null,
         expenseDate: dto.expenseDate ? new Date(dto.expenseDate) : undefined,
         paidTo: dto.paidTo,
         paidToEmployeeId: dto.paidToEmployeeId ?? null,
@@ -53,6 +55,19 @@ export class ExpensesService {
         createdById: userId,
       },
       include: { category: true },
+    });
+  }
+
+  /** Correct how an expense was paid (cash ↔ bank) without voiding it. */
+  async setMethod(id: number, dto: ExpenseMethodDto) {
+    const e = await this.prisma.expense.findUnique({ where: { id } });
+    if (!e || e.voidedAt) throw new NotFoundException(`Expense ${id} not found`);
+    return this.prisma.expense.update({
+      where: { id },
+      data: {
+        method: dto.method,
+        bank: dto.method === "BANK_TRANSFER" ? (dto.bank ?? null) : null,
+      },
     });
   }
 

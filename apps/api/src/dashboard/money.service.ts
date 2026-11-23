@@ -57,10 +57,12 @@ export interface MoneyOverview {
     inDebtCash: number;
     supplierCash: number;
     tailorCash: number;
+    expenseCash: number;
   };
   /** Money received in range, by where it landed (CASH | bank code | NOBANK). */
   channels: { channel: string; total: number; count: number }[];
-  expenseCategories: { name: string; value: number }[];
+  /** value = all methods; cash = the part paid in cash. */
+  expenseCategories: { name: string; value: number; cash: number }[];
   days: MoneyDay[];
 }
 
@@ -76,8 +78,7 @@ const MAX_DAYS = 366;
  *
  * In  = customer payments (at a sale, or against debt), every method.
  * Out = supplier payments + tailor payments + expenses + cash refunds.
- * Expenses and refunds carry no method, so they count as cash (same rule as the
- * daily close).
+ * Refunds carry no method, so they count as cash (same rule as the daily close).
  */
 @Injectable()
 export class MoneyService {
@@ -113,7 +114,8 @@ export class MoneyService {
                CASE WHEN method::text = 'CASH' THEN 'CASH' ELSE 'BANK' END, amount
         FROM "TailorPayment" WHERE "voidedAt" IS NULL
         UNION ALL
-        SELECT ("expenseDate" + interval '390 minutes')::date, 'EXPENSE', 'CASH', amount
+        SELECT ("expenseDate" + interval '390 minutes')::date, 'EXPENSE',
+               CASE WHEN method::text = 'CASH' THEN 'CASH' ELSE 'BANK' END, amount
         FROM "Expense" WHERE "voidedAt" IS NULL
         UNION ALL
         SELECT ("returnDate" + interval '390 minutes')::date, 'REFUND', 'CASH', "refundAmount"
@@ -175,6 +177,7 @@ export class MoneyService {
       inDebtCash: 0,
       supplierCash: 0,
       tailorCash: 0,
+      expenseCash: 0,
     };
     const channelMap = new Map<string, { total: number; count: number }>();
 
@@ -235,6 +238,7 @@ export class MoneyService {
         totals[key] += amount;
         if (isCash && r.kind === "SUPPLIER") totals.supplierCash += amount;
         if (isCash && r.kind === "TAILOR") totals.tailorCash += amount;
+        if (isCash && r.kind === "EXPENSE") totals.expenseCash += amount;
       }
     }
     totals.net = totals.in - totals.out;
@@ -255,7 +259,7 @@ export class MoneyService {
     }
 
     const cats = await this.prisma.expense.groupBy({
-      by: ["categoryId"],
+      by: ["categoryId", "method"],
       _sum: { amount: true },
       where: {
         voidedAt: null,
@@ -267,8 +271,16 @@ export class MoneyService {
         (c) => [c.id, c.labelMy] as const,
       ),
     );
-    const expenseCategories = cats
-      .map((c) => ({ name: catNames.get(c.categoryId) ?? "—", value: c._sum.amount ?? 0 }))
+    const catMap = new Map<number, { value: number; cash: number }>();
+    for (const c of cats) {
+      const v = catMap.get(c.categoryId) ?? { value: 0, cash: 0 };
+      const amount = c._sum.amount ?? 0;
+      v.value += amount;
+      if (c.method === "CASH") v.cash += amount;
+      catMap.set(c.categoryId, v);
+    }
+    const expenseCategories = [...catMap.entries()]
+      .map(([id, v]) => ({ name: catNames.get(id) ?? "—", ...v }))
       .filter((c) => c.value > 0)
       .sort((a, b) => b.value - a.value);
 

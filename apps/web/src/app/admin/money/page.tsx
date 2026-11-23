@@ -144,8 +144,9 @@ export default async function AdminMoneyPage({
   const active = hasRange ? (sp.range ?? "custom") : "30";
   // Cash only by default: bank money lands straight in the account, so the
   // number to check against staff hands is cash in minus cash out.
-  const view = sp.view === "all" ? "all" : "cash";
+  const view: "cash" | "bank" | "all" = sp.view === "all" ? "all" : sp.view === "bank" ? "bank" : "cash";
   const cashOnly = view === "cash";
+  const bankOnly = view === "bank";
 
   const data = await serverFetch<MoneyOverview>(`/api/dashboard/money?from=${from}&to=${to}`);
 
@@ -164,11 +165,17 @@ export default async function AdminMoneyPage({
   const days = data.days.map((d) =>
     cashOnly
       ? { date: d.date, in: d.inCash, out: d.outCash, net: d.inCash - d.outCash, closing: d.closingCash }
-      : { date: d.date, in: d.in, out: d.out, net: d.net, closing: d.closing },
+      : bankOnly
+        ? { date: d.date, in: d.inBank, out: d.outBank, net: d.inBank - d.outBank, closing: d.closingBank }
+        : { date: d.date, in: d.in, out: d.out, net: d.net, closing: d.closing },
   );
-  const sumIn = cashOnly ? totals.inCash : totals.in;
-  const sumOut = cashOnly ? totals.outCash : totals.out;
-  const balance = cashOnly ? data.closing.cash : data.closing.total;
+  const pick = (cash: number, all: number) => (cashOnly ? cash : bankOnly ? all - cash : all);
+  const sumIn = pick(totals.inCash, totals.in);
+  const sumOut = pick(totals.outCash, totals.out);
+  const balance = cashOnly ? data.closing.cash : bankOnly ? data.closing.bank : data.closing.total;
+  const inLabel = cashOnly ? L.cashIn : bankOnly ? L.bankIn : L.moneyIn;
+  const outLabel = cashOnly ? L.cashOut : bankOnly ? L.bankOut : L.moneyOut;
+  const balanceLabel = cashOnly ? L.cashBalance : bankOnly ? L.bankBalance : L.closing;
   const maxFlow = Math.max(1, ...days.map((d) => Math.max(d.in, d.out)));
   const moved = days.filter((d) => d.in > 0 || d.out > 0);
   const best = moved.reduce<(typeof days)[number] | null>((m, d) => (!m || d.in > m.in ? d : m), null);
@@ -177,13 +184,14 @@ export default async function AdminMoneyPage({
   const daysDown = days.filter((d) => d.net < 0).length;
 
   const outRows = [
-    { label: `🏭 ${L.supplier}`, value: cashOnly ? totals.supplierCash : totals.supplier },
-    { label: `🧵 ${L.tailor}`, value: cashOnly ? totals.tailorCash : totals.tailor },
+    { label: `🏭 ${L.supplier}`, value: pick(totals.supplierCash, totals.supplier) },
+    { label: `🧵 ${L.tailor}`, value: pick(totals.tailorCash, totals.tailor) },
     // Expenses broken out by category, so the biggest costs are visible by name.
     ...(data.expenseCategories.length > 0
-      ? data.expenseCategories.map((c) => ({ label: `💸 ${c.name}`, value: c.value }))
-      : [{ label: `💸 ${L.expense}`, value: totals.expense }]),
-    { label: `↩️ ${L.refund}`, value: totals.refund },
+      ? data.expenseCategories.map((c) => ({ label: `💸 ${c.name}`, value: pick(c.cash ?? c.value, c.value) }))
+      : [{ label: `💸 ${L.expense}`, value: pick(totals.expenseCash ?? totals.expense, totals.expense) }]),
+    // Refunds are always cash.
+    { label: `↩️ ${L.refund}`, value: pick(totals.refund, totals.refund) },
   ].sort((a, b) => b.value - a.value);
   const bankChannels = data.channels.filter((c) => c.channel !== "CASH");
   const inRows = cashOnly
@@ -191,13 +199,13 @@ export default async function AdminMoneyPage({
         { label: `🧾 ${L.fromSales}`, value: totals.inSaleCash },
         { label: `📒 ${L.fromDebt}`, value: totals.inDebtCash },
       ]
-    : data.channels.map((c) => ({
+    : (bankOnly ? bankChannels : data.channels).map((c) => ({
         label: channelName(c.channel),
         value: c.total,
         note: `${c.count.toLocaleString("en-US")} ${L.times}`,
       }));
-  const viewHref = (v: "cash" | "all") =>
-    `/admin/money?range=${active}&from=${data.from}&to=${data.to}${v === "all" ? "&view=all" : ""}`;
+  const viewHref = (v: "cash" | "bank" | "all") =>
+    `/admin/money?range=${active}&from=${data.from}&to=${data.to}${v === "cash" ? "" : `&view=${v}`}`;
 
   return (
     <div className="flex flex-col gap-5">
@@ -205,7 +213,7 @@ export default async function AdminMoneyPage({
       <MoneyRange from={data.from} to={data.to} active={active} firstDay={data.firstDay} view={view} />
 
       <nav className="flex flex-wrap gap-2">
-        {(["cash", "all"] as const).map((v) => (
+        {(["cash", "bank", "all"] as const).map((v) => (
           <Link
             key={v}
             href={viewHref(v)}
@@ -215,7 +223,7 @@ export default async function AdminMoneyPage({
               (view === v ? "bg-primary text-primary-foreground" : "border bg-card hover:bg-accent")
             }
           >
-            {v === "cash" ? `💵 ${L.viewCash}` : `💵+🏦 ${L.viewAll}`}
+            {v === "cash" ? `💵 ${L.viewCash}` : v === "bank" ? `🏦 ${L.viewBank}` : `💵+🏦 ${L.viewAll}`}
           </Link>
         ))}
       </nav>
@@ -223,25 +231,37 @@ export default async function AdminMoneyPage({
       {/* in − out = balance, for the selected period only */}
       <section className="grid grid-cols-1 gap-2 sm:grid-cols-3 xl:grid-cols-[1fr_auto_1fr_auto_1.15fr] xl:items-stretch">
         <Step
-          label={cashOnly ? L.cashIn : L.moneyIn}
+          label={inLabel}
           value={formatKyat(sumIn)}
           color={IN_COLOR}
-          hint={cashOnly ? L.bankLeftOut(formatKyat(totals.inBank)) : undefined}
+          hint={
+            cashOnly
+              ? L.bankLeftOut(formatKyat(totals.inBank))
+              : bankOnly
+                ? L.cashLeftOut(formatKyat(totals.inCash))
+                : undefined
+          }
         >
-          {!cashOnly && <SplitBar cash={totals.inCash} bank={totals.inBank} color={IN_COLOR} />}
+          {view === "all" && <SplitBar cash={totals.inCash} bank={totals.inBank} color={IN_COLOR} />}
         </Step>
         <span className="hidden self-center text-2xl font-bold text-muted-foreground xl:block">−</span>
         <Step
-          label={cashOnly ? L.cashOut : L.moneyOut}
+          label={outLabel}
           value={formatKyat(sumOut)}
           color={OUT_COLOR}
-          hint={cashOnly ? L.bankLeftOut(formatKyat(totals.outBank)) : undefined}
+          hint={
+            cashOnly
+              ? L.bankLeftOut(formatKyat(totals.outBank))
+              : bankOnly
+                ? L.cashLeftOut(formatKyat(totals.outCash))
+                : undefined
+          }
         >
-          {!cashOnly && <SplitBar cash={totals.outCash} bank={totals.outBank} color={OUT_COLOR} />}
+          {view === "all" && <SplitBar cash={totals.outCash} bank={totals.outBank} color={OUT_COLOR} />}
         </Step>
         <span className="hidden self-center text-2xl font-bold text-muted-foreground xl:block">=</span>
         <Step
-          label={cashOnly ? L.cashBalance : L.closing}
+          label={balanceLabel}
           hint={L.closingHint(dmy(data.from), dmy(data.to))}
           value={formatKyat(balance)}
           strong
@@ -304,7 +324,7 @@ export default async function AdminMoneyPage({
               </ul>
             </div>
           )}
-          {!cashOnly && totals.in > 0 && (
+          {view === "all" && totals.in > 0 && (
             <div className="mt-4 grid grid-cols-2 gap-2 border-t pt-3 text-sm">
               <div>
                 <p className="text-xs text-muted-foreground">{L.fromSales}</p>
@@ -329,9 +349,9 @@ export default async function AdminMoneyPage({
         <div className="rounded-2xl border bg-card">
           <div className="hidden grid-cols-[6.5rem_1fr_1fr_10rem] gap-3 border-b px-4 py-2 text-xs text-muted-foreground sm:grid">
             <span>{L.date}</span>
-            <span>{cashOnly ? L.cashIn : L.moneyIn}</span>
-            <span>{cashOnly ? L.cashOut : L.moneyOut}</span>
-            <span className="text-right">{cashOnly ? L.cashBalance : L.closing}</span>
+            <span>{inLabel}</span>
+            <span>{outLabel}</span>
+            <span className="text-right">{balanceLabel}</span>
           </div>
           <ul className="divide-y">
             {[...days].reverse().map((d) => (
@@ -346,8 +366,8 @@ export default async function AdminMoneyPage({
                     {d.net === 0 ? L.noMovement : `${d.net > 0 ? "▲" : "▼"} ${signed(d.net)}`}
                   </span>
                 </div>
-                <FlowCell label={cashOnly ? L.cashIn : L.moneyIn} value={d.in} max={maxFlow} color={IN_COLOR} />
-                <FlowCell label={cashOnly ? L.cashOut : L.moneyOut} value={d.out} max={maxFlow} color={OUT_COLOR} />
+                <FlowCell label={inLabel} value={d.in} max={maxFlow} color={IN_COLOR} />
+                <FlowCell label={outLabel} value={d.out} max={maxFlow} color={OUT_COLOR} />
               </li>
             ))}
           </ul>
@@ -357,7 +377,7 @@ export default async function AdminMoneyPage({
       <Card className="p-4">
         <h2 className="mb-2 font-semibold">{L.noteTitle}</h2>
         <ul className="flex list-disc flex-col gap-1.5 pl-5 text-sm text-muted-foreground">
-          {[...(cashOnly ? [L.cashNote] : []), ...L.notes].map((n) => (
+          {[...(cashOnly ? [L.cashNote] : bankOnly ? [L.bankNote] : []), ...L.notes].map((n) => (
             <li key={n}>{n}</li>
           ))}
         </ul>

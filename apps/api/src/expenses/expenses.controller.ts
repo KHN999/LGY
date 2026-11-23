@@ -5,7 +5,7 @@ import { Roles } from "../auth/decorators/roles.decorator";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import type { AuthenticatedUser } from "../auth/jwt-payload";
 import { ExpensesService } from "./expenses.service";
-import { CreateExpenseDto, VoidExpenseDto } from "./dto/create-expense.dto";
+import { CreateExpenseDto, ExpenseMethodDto, VoidExpenseDto } from "./dto/create-expense.dto";
 import { ListExpensesQueryDto } from "./dto/list-expenses.query.dto";
 
 @Controller("expenses")
@@ -28,6 +28,13 @@ export class ExpensesController {
   @Roles("admin")
   create(@Body() dto: CreateExpenseDto, @CurrentUser() user: AuthenticatedUser) {
     return this.service.create(dto, user.sub);
+  }
+
+  @Post(":id/method")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  setMethod(@Param("id", ParseIntPipe) id: number, @Body() dto: ExpenseMethodDto) {
+    return this.service.setMethod(id, dto);
   }
 
   @Post(":id/void")

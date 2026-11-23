@@ -283,6 +283,8 @@ export interface ExpenseRow {
   id: number;
   expenseDate: string;
   amount: number;
+  method?: "CASH" | "BANK_TRANSFER" | "MOBILE_MONEY" | "OTHER";
+  bank?: string | null;
   paidTo: string | null;
   notes: string | null;
   category: { id: number; key: string; labelMy: string };
@@ -381,9 +383,10 @@ export interface MoneyOverview {
     inDebtCash: number;
     supplierCash: number;
     tailorCash: number;
+    expenseCash: number;
   };
   channels: { channel: string; total: number; count: number }[];
-  expenseCategories: { name: string; value: number }[];
+  expenseCategories: { name: string; value: number; cash: number }[];
   days: MoneyDay[];
 }
 

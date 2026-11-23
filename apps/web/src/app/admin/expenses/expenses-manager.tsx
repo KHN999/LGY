@@ -14,6 +14,7 @@ import { labels } from "@/lib/labels";
 import { formatKyat, formatDate } from "@/lib/utils";
 import { Field, inputClass } from "@/components/admin/form-field";
 import { Button, Card, EmptyState } from "@/components/ui";
+import { BANKS, bankLabel, type BankCode } from "@/lib/banks";
 
 type RecipientType = "none" | "employee" | "driver" | "other";
 
@@ -94,6 +95,18 @@ function ExpenseRowItem({
 }) {
   const [busy, setBusy] = useState(false);
   const who = recipientText(expense);
+  const isBank = expense.method === "BANK_TRANSFER";
+  async function switchMethod() {
+    setBusy(true);
+    try {
+      await api.post(`/expenses/${expense.id}/method`, { method: isBank ? "CASH" : "BANK_TRANSFER" });
+      onDone();
+    } catch (err) {
+      onError(err instanceof ApiError ? err.message : labels.errors.unknown);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function voidIt() {
     setBusy(true);
     try {
@@ -113,12 +126,18 @@ function ExpenseRowItem({
           {who ? ` · ${who}` : ""}
         </p>
         <p className="text-xs text-muted-foreground">
-          {formatDate(expense.expenseDate)}
+          {formatDate(expense.expenseDate)} ·{" "}
+          {isBank
+            ? `🏦 ${labels.paymentReceipt.methodBank}${expense.bank ? ` · ${bankLabel(expense.bank)}` : ""}`
+            : `💵 ${labels.paymentReceipt.methodCash}`}
           {expense.notes ? ` · ${expense.notes}` : ""}
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-3">
         <span className="font-semibold tabular-nums text-rose-600">{formatKyat(expense.amount)}</span>
+        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={switchMethod}>
+          {isBank ? labels.expenses.switchToCash : labels.expenses.switchToBank}
+        </Button>
         <Button type="button" variant="outline" size="sm" disabled={busy} onClick={voidIt}>
           {labels.expenses.void}
         </Button>
@@ -157,6 +176,8 @@ function AddExpenseForm({
   const [driverId, setDriverId] = useState(drivers[0]?.id ?? 0);
   const [otherName, setOtherName] = useState("");
   const [notes, setNotes] = useState("");
+  const [method, setMethod] = useState<"CASH" | "BANK_TRANSFER">("CASH");
+  const [bank, setBank] = useState<BankCode | "">("");
   const [busy, setBusy] = useState(false);
 
   async function submit(e: FormEvent) {
@@ -171,6 +192,8 @@ function AddExpenseForm({
       await api.post("/expenses", {
         categoryId,
         amount: amt,
+        method,
+        bank: method === "BANK_TRANSFER" && bank ? bank : undefined,
         expenseDate: date || undefined,
         paidToEmployeeId: recipientType === "employee" ? employeeId : undefined,
         paidToDriverId: recipientType === "driver" ? driverId : undefined,
@@ -279,6 +302,35 @@ function AddExpenseForm({
             />
           </Field>
         )}
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={labels.expenses.payMethod}>
+            <select
+              value={method}
+              onChange={(e) => setMethod(e.target.value as "CASH" | "BANK_TRANSFER")}
+              className={inputClass}
+            >
+              <option value="CASH">💵 {labels.paymentReceipt.methodCash}</option>
+              <option value="BANK_TRANSFER">🏦 {labels.paymentReceipt.methodBank}</option>
+            </select>
+          </Field>
+          {method === "BANK_TRANSFER" && (
+            <Field label={labels.expenses.payBank}>
+              <select
+                value={bank}
+                onChange={(e) => setBank(e.target.value as BankCode | "")}
+                className={inputClass}
+              >
+                <option value="">{labels.expenses.bankAny}</option>
+                {BANKS.map((b) => (
+                  <option key={b} value={b}>
+                    {bankLabel(b)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
+        </div>
 
         <Field label={labels.expenses.notes}>
           <input

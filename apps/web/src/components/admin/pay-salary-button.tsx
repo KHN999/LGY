@@ -32,6 +32,7 @@ export function PaySalaryButton({
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState(defaultAmount != null ? String(defaultAmount) : "");
   const [date, setDate] = useState(todayISO());
+  const [method, setMethod] = useState<"CASH" | "BANK_TRANSFER">("CASH");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paid, setPaid] = useState<number | null>(null);
@@ -50,6 +51,7 @@ export function PaySalaryButton({
         categoryId,
         amount: amt,
         paidToEmployeeId: employeeId,
+        method,
         expenseDate: date,
       });
       setOpen(false);
@@ -113,6 +115,15 @@ export function PaySalaryButton({
         onChange={(e) => setDate(e.target.value)}
         className="rounded-lg border bg-background px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
       />
+      <select
+        value={method}
+        onChange={(e) => setMethod(e.target.value as "CASH" | "BANK_TRANSFER")}
+        aria-label={labels.expenses.payMethod}
+        className="rounded-lg border bg-background px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+      >
+        <option value="CASH">💵 {labels.paymentReceipt.methodCash}</option>
+        <option value="BANK_TRANSFER">🏦 {labels.paymentReceipt.methodBank}</option>
+      </select>
       <Button type="submit" size="sm" disabled={busy}>
         {busy ? labels.common.saving : labels.common.save}
       </Button>

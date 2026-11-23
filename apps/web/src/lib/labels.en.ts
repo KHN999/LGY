@@ -333,6 +333,11 @@ export const en = {
   },
 
   expenses: {
+    payMethod: "Paid by",
+    payBank: "Which bank",
+    bankAny: "Not recorded",
+    switchToBank: "→ Bank",
+    switchToCash: "→ Cash",
     title: "Expenses",
     add: "Add expense",
     category: "Category",
@@ -407,6 +412,12 @@ export const en = {
   },
 
   moneyBook: {
+    viewBank: "Bank only",
+    bankIn: "Bank in",
+    bankOut: "Bank out",
+    bankBalance: "Net into the bank",
+    cashLeftOut: (v: string) => `cash ${v} not counted`,
+    bankNote: "Bank only: transfers received from customers, minus what was paid out by bank (suppliers, tailors, and expenses marked as bank). Cash is left out.",
     viewCash: "Cash only",
     viewAll: "Cash + bank",
     cashIn: "Cash in",
@@ -414,7 +425,7 @@ export const en = {
     cashBalance: "Cash that should be in hand",
     bankLeftOut: (v: string) => `bank ${v} not counted`,
     bankDirect: "Went straight into the bank (not counted here)",
-    cashNote: "Cash only: cash received from customers, minus cash paid out (expenses, refunds, and supplier or tailor payments made in cash). Bank transfers are left out because they go straight into the account.",
+    cashNote: "Cash only: cash received from customers, minus cash paid out (cash expenses, refunds, and supplier or tailor payments made in cash). Bank transfers are left out because they go straight into the account.",
     nav: "Money summary",
     title: "Money summary",
     subtitle: "Money received and paid out in the selected days, day by day, and what is left of it.",
@@ -454,7 +465,7 @@ export const en = {
       "This is the book balance: money recorded in, minus money recorded out. It does not use the drawer count from the staff app's daily close.",
       "Money in = customer payments (at a sale or against debt). Money out = payments to suppliers and tailors, expenses (including salaries and delivery fees) and refunds.",
       "The balance counts only the days you selected: it starts at 0 on the first day of the range and nothing is carried over from before.",
-      "Expenses and refunds have no cash/bank choice, so they are counted as cash.",
+      "Expenses count as cash unless marked as bank on the expenses page. Refunds always count as cash.",
     ],
   },
 

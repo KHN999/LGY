@@ -24,12 +24,12 @@ export function MoneyRange({
   to: string;
   active: string;
   firstDay: string | null;
-  /** "all" = cash + bank; anything else = cash only (the default). */
+  /** "all" = cash + bank, "bank" = bank only; anything else = cash only (the default). */
   view: string;
 }) {
   const router = useRouter();
   const go = (range: string, f: string, t: string) =>
-    router.push(`/admin/money?range=${range}&from=${f}&to=${t}${view === "all" ? "&view=all" : ""}`);
+    router.push(`/admin/money?range=${range}&from=${f}&to=${t}${view === "all" || view === "bank" ? `&view=${view}` : ""}`);
 
   function preset(p: Preset) {
     const now = new Date();

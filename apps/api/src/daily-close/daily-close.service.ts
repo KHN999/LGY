@@ -106,6 +106,7 @@ export class DailyCloseService {
             SELECT SUM(e.amount)
             FROM "Expense" e, args
             WHERE e."voidedAt" IS NULL
+              AND e.method::text = 'CASH'
               AND e."expenseDate" >= args.day_start
               AND e."expenseDate" < args.day_end
           ),

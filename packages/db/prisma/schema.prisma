@@ -570,6 +570,10 @@ model Expense {
   categoryId       Int
   category         ExpenseCategory @relation(fields: [categoryId], references: [id])
   amount           Int
+  /// How it was paid. CASH comes out of the drawer; BANK_TRANSFER does not.
+  method           PaymentMethod   @default(CASH)
+  /// Which bank/wallet a BANK_TRANSFER went through (same codes as CustomerPayment.bank).
+  bank             String?
   paidTo           String?
   paidToEmployeeId Int?
   paidToEmployee   Employee?       @relation("ExpensePaidToEmployee", fields: [paidToEmployeeId], references: [id])
