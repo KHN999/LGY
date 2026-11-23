@@ -8,6 +8,7 @@ import {
   IsUrl,
   MaxLength,
   MinLength,
+  ArrayMinSize,
 } from "class-validator";
 import { PartialType } from "@nestjs/mapped-types";
 
@@ -58,4 +59,12 @@ export class MergeCustomersDto {
   @ArrayNotEmpty()
   @IsInt({ each: true })
   sourceIds!: number[];
+}
+
+/** Customers confirmed to be different people (not duplicates of each other). */
+export class DismissDuplicatesDto {
+  @IsArray()
+  @ArrayMinSize(2)
+  @IsInt({ each: true })
+  ids!: number[];
 }

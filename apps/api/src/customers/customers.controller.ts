@@ -15,7 +15,7 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { CustomersService } from "./customers.service";
-import { CreateCustomerDto, MergeCustomersDto, UpdateCustomerDto } from "./dto/customer.dto";
+import { CreateCustomerDto, DismissDuplicatesDto, MergeCustomersDto, UpdateCustomerDto } from "./dto/customer.dto";
 import { ImportContactDto, ImportCustomersDto } from "./dto/import-customers.dto";
 import { PaginationQueryDto } from "../common/pagination.dto";
 
@@ -54,6 +54,22 @@ export class CustomersController {
   @Get("similar")
   similar(@Query("name") name?: string, @Query("excludeId") excludeId?: string) {
     return this.customers.similar(name ?? "", excludeId ? Number(excludeId) : undefined);
+  }
+
+  /** Suspected duplicate customers, grouped (admin clean-up page). */
+  @Get("duplicates")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  duplicates() {
+    return this.customers.duplicates();
+  }
+
+  /** Mark a group as different people so it is not suggested again. */
+  @Post("duplicates/dismiss")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  dismissDuplicates(@Body() dto: DismissDuplicatesDto) {
+    return this.customers.dismissDuplicates(dto.ids);
   }
 
   @Get(":id")

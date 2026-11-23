@@ -5,7 +5,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import type { PageResult } from "../common/pagination.dto";
 import { CreateCustomerDto, UpdateCustomerDto } from "./dto/customer.dto";
 import { ImportCustomersDto } from "./dto/import-customers.dto";
-import { normalizeName, nameKey } from "../common/name";
+import { gramWeights, normalizeName, nameKey, nameSimilarity, prepareName, searchScore } from "../common/name";
 import { addDays, ymdToYangonStart } from "../common/yangon-time";
 
 export interface CustomerWithBalance {
@@ -46,27 +46,37 @@ export class CustomersService {
     const filters: Prisma.Sql[] = [Prisma.sql`c."deletedAt" IS NULL`];
     if (inactiveOnly) filters.push(Prisma.sql`c.status = 'INACTIVE'::"PartyStatus"`);
     else if (activeOnly) filters.push(Prisma.sql`c.status = 'ACTIVE'::"PartyStatus"`);
+    // With a search, results come back best match first instead of A→Z.
+    let rankedIds: number[] | null = null;
     if (search && search.trim()) {
-      // Match on a normalized name (NFC + lowercase + separators stripped) so a
-      // name typed in either Burmese byte-form still matches — the fix for staff
-      // not finding an existing customer and creating a duplicate. Also match on
-      // digits-only contact when the query looks like a phone number.
-      const key = nameKey(search);
-      const nameClauses: Prisma.Sql[] = [];
-      if (key) {
-        const q = `%${key.replace(/[%\\]/g, (m) => "\\" + m)}%`;
-        nameClauses.push(
-          Prisma.sql`regexp_replace(lower(normalize(c.name, NFC)), '[[:space:]._-]', '', 'g') LIKE ${q}`,
-        );
-      }
+      // Loose matching done here rather than in SQL: the typed text may sit
+      // anywhere in the name (a town or title written in front must not hide
+      // the person) and a slip of a character or two still matches — the fix
+      // for staff not finding an existing customer and creating a duplicate.
+      // Digits also match the phone number.
+      const q = prepareName(search);
       const digits = search.replace(/\D/g, "");
-      if (digits.length >= 3) {
-        nameClauses.push(
-          Prisma.sql`regexp_replace(COALESCE(c.contact, ''), '[^0-9]', '', 'g') LIKE ${`%${digits}%`}`,
-        );
-      }
-      if (nameClauses.length) filters.push(Prisma.sql`(${Prisma.join(nameClauses, " OR ")})`);
+      const all = await this.prisma.customer.findMany({
+        where: { deletedAt: null },
+        select: { id: true, name: true, contact: true },
+      });
+      rankedIds = all
+        .map((c) => {
+          let score = searchScore(q, prepareName(c.name));
+          if (digits.length >= 3 && (c.contact ?? "").replace(/\D/g, "").includes(digits)) {
+            score = Math.max(score, 0.97);
+          }
+          return { id: c.id, name: c.name, score };
+        })
+        .filter((c) => c.score >= 0.65)
+        .sort((x, y) => y.score - x.score || x.name.localeCompare(y.name))
+        .map((c) => c.id);
+      if (rankedIds.length === 0) return { data: [], page, limit, total: 0 };
+      filters.push(Prisma.sql`c.id = ANY(${rankedIds}::int[])`);
     }
+    const orderSql = rankedIds
+      ? Prisma.sql`ORDER BY array_position(${rankedIds}::int[], id) ASC`
+      : Prisma.sql`ORDER BY name ASC`;
     const whereSql = filters.length
       ? Prisma.sql`WHERE ${Prisma.join(filters, " AND ")}`
       : Prisma.empty;
@@ -82,7 +92,7 @@ export class CustomersService {
           filtered.*,
           COUNT(*) OVER()::int AS total
         FROM filtered
-        ORDER BY name ASC
+        ${orderSql}
         OFFSET ${(page - 1) * limit}
         LIMIT ${limit}
       ),
@@ -129,8 +139,14 @@ export class CustomersService {
       LEFT JOIN sales ON sales."customerId" = p.id
       LEFT JOIN payments ON payments."customerId" = p.id
       LEFT JOIN returns ON returns."customerId" = p.id
-      ORDER BY p.name ASC
     `);
+    // The outer query does not keep the page order — restore it here.
+    if (rankedIds) {
+      const pos = new Map(rankedIds.map((id, i) => [id, i]));
+      rows.sort((x, y) => (pos.get(Number(x.id)) ?? 0) - (pos.get(Number(y.id)) ?? 0));
+    } else {
+      rows.sort((x, y) => x.name.localeCompare(y.name));
+    }
 
     return {
       data: rows.map(({ total, ...r }) => r),
@@ -260,44 +276,150 @@ export class CustomersService {
     return { id: customer.id, name: customer.name, clearedDebt };
   }
 
+  /** Last sale date and number of sales per customer (non-voided). */
+  private async salesStats(ids: number[]): Promise<Map<number, { count: number; last: Date | null }>> {
+    const map = new Map<number, { count: number; last: Date | null }>();
+    if (ids.length === 0) return map;
+    const rows = await this.prisma.sale.groupBy({
+      by: ["customerId"],
+      where: { customerId: { in: ids }, voidedAt: null },
+      _count: { _all: true },
+      _max: { saleDate: true },
+    });
+    for (const r of rows) {
+      if (r.customerId != null) map.set(r.customerId, { count: r._count._all, last: r._max.saleDate });
+    }
+    return map;
+  }
+
   /**
-   * Find non-deleted customers whose name matches `name` after stripping case,
-   * spaces and punctuation — so "B-204", "B 204" and "B204" all collide. Used to
-   * warn at creation time and to suggest merge candidates. Empty for <2 chars.
+   * Existing customers that may be the same person as `name` — for the "did you
+   * mean…?" check when adding a customer and for merge suggestions. Loose match
+   * (see common/name): titles/towns in front, dropped tone marks and small
+   * typos still match. Best match first; empty for very short input.
    */
   async similar(
     name: string,
     excludeId?: number,
-  ): Promise<{ id: number; name: string; contact: string | null }[]> {
-    // NFC + lowercase + strip separators, so "B-204"/"B 204"/"B204" collapse to
-    // "b204" AND both Burmese byte-forms of a name collapse together — Burmese
-    // letters/digits are preserved (a "keep only a-z0-9" rule would erase them).
-    const norm = nameKey(name);
-    if (norm.length < 2) return [];
-    // Escape LIKE metacharacters that could survive normalization.
-    const like = `%${norm.replace(/[%\\]/g, (m) => "\\" + m)}%`;
-    const rows = await this.prisma.$queryRaw<
-      { id: number; name: string; contact: string | null }[]
-    >(Prisma.sql`
-      SELECT id, name, contact
-      FROM "Customer"
-      WHERE "deletedAt" IS NULL
-        AND regexp_replace(lower(normalize(name, NFC)), '[[:space:]._-]', '', 'g') LIKE ${like}
-        ${excludeId ? Prisma.sql`AND id <> ${excludeId}` : Prisma.empty}
-      ORDER BY name ASC
-      LIMIT 8
-    `);
-    return rows.map((r) => ({ id: Number(r.id), name: r.name, contact: r.contact }));
+  ): Promise<(CustomerWithBalance & { score: number; lastSaleAt: Date | null; salesCount: number })[]> {
+    const q = prepareName(name);
+    if (q.chars.length < 2) return [];
+    const all = await this.prisma.customer.findMany({ where: { deletedAt: null } });
+    const prepared = all.map((c) => prepareName(c.name));
+    const weights = gramWeights(prepared);
+    const hits = all
+      .map((c, i) => {
+        const n = prepared[i]!;
+        // Either reading counts: the typed text found inside an existing name,
+        // or the two names being alike overall.
+        return { c, score: Math.max(searchScore(q, n), nameSimilarity(q, n, weights)) };
+      })
+      .filter((h) => h.c.id !== excludeId)
+      .filter((h) => h.score >= 0.62)
+      .sort((x, y) => y.score - x.score || x.c.name.localeCompare(y.c.name))
+      .slice(0, 8);
+    const ids = hits.map((h) => h.c.id);
+    const [balances, stats] = await Promise.all([this.balancesFor(ids), this.salesStats(ids)]);
+    return hits.map(({ c, score }) => ({
+      id: c.id,
+      name: c.name,
+      contact: c.contact,
+      photoUrl: c.photoUrl,
+      defaultKind: c.defaultKind,
+      notes: c.notes,
+      status: c.status,
+      balance: balances.get(c.id) ?? 0,
+      score: Math.round(score * 100) / 100,
+      lastSaleAt: stats.get(c.id)?.last ?? null,
+      salesCount: stats.get(c.id)?.count ?? 0,
+    }));
   }
 
   /**
-   * Merge duplicate customers INTO `survivorId`: repoint every record they own
-   * (sales, payments, returns) onto the survivor, then soft-delete the emptied
-   * duplicates. Debt is NOT written off here (unlike softDelete) — their ledger
-   * moved to the survivor, so the survivor's balance recomputes to include it and
-   * the duplicates carry nothing. Returns the survivor (with fresh balance) plus
-   * merge metadata for the audit log.
+   * Groups of customers that look like the same person entered more than once,
+   * for the admin clean-up page. Pairs an admin already marked "not the same"
+   * are left out. Each group suggests keeping the record with the most sales.
    */
+  async duplicates(): Promise<{
+    groups: {
+      suggestedKeepId: number;
+      members: {
+        id: number;
+        name: string;
+        contact: string | null;
+        balance: number;
+        salesCount: number;
+        lastSaleAt: Date | null;
+        createdAt: Date;
+      }[];
+    }[];
+  }> {
+    const [all, dismissed] = await Promise.all([
+      this.prisma.customer.findMany({
+        where: { deletedAt: null },
+        select: { id: true, name: true, contact: true, createdAt: true },
+        orderBy: { id: "asc" },
+      }),
+      this.prisma.customerPairDismissal.findMany({ select: { aId: true, bId: true } }),
+    ]);
+    const skip = new Set(dismissed.map((d) => `${d.aId}:${d.bId}`));
+    const prepared = all.map((c) => prepareName(c.name));
+    const digits = all.map((c) => (c.contact ?? "").replace(/\D/g, ""));
+    const weights = gramWeights(prepared);
+
+    // Union-find over pairs that look alike (or share a phone number).
+    const parent = all.map((_, i) => i);
+    const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i]!)));
+    for (let i = 0; i < all.length; i++) {
+      for (let j = i + 1; j < all.length; j++) {
+        if (skip.has(`${all[i]!.id}:${all[j]!.id}`)) continue;
+        const samePhone = digits[i]!.length >= 7 && digits[i] === digits[j];
+        if (samePhone || nameSimilarity(prepared[i]!, prepared[j]!, weights) >= 0.8) parent[find(i)] = find(j);
+      }
+    }
+    const byRoot = new Map<number, number[]>();
+    all.forEach((_, i) => {
+      const root = find(i);
+      byRoot.set(root, [...(byRoot.get(root) ?? []), i]);
+    });
+    const clusters = [...byRoot.values()].filter((g) => g.length > 1);
+    const ids = clusters.flat().map((i) => all[i]!.id);
+    const [balances, stats] = await Promise.all([this.balancesFor(ids), this.salesStats(ids)]);
+
+    const groups = clusters.map((g) => {
+      const members = g.map((i) => {
+        const c = all[i]!;
+        return {
+          id: c.id,
+          name: c.name,
+          contact: c.contact,
+          balance: balances.get(c.id) ?? 0,
+          salesCount: stats.get(c.id)?.count ?? 0,
+          lastSaleAt: stats.get(c.id)?.last ?? null,
+          createdAt: c.createdAt,
+        };
+      });
+      // Keep the record that has been used the most; oldest wins a tie.
+      const keep = [...members].sort((x, y) => y.salesCount - x.salesCount || x.id - y.id)[0]!;
+      return { suggestedKeepId: keep.id, members };
+    });
+    groups.sort((x, y) => y.members.length - x.members.length || x.members[0]!.name.localeCompare(y.members[0]!.name));
+    return { groups };
+  }
+
+  /** Remember that these customers are different people, so they are not
+   *  suggested as duplicates of each other again. */
+  async dismissDuplicates(idsRaw: number[]): Promise<{ dismissed: number }> {
+    const ids = [...new Set(idsRaw)].sort((a, b) => a - b);
+    if (ids.length < 2) throw new BadRequestException("Pick at least two customers");
+    const pairs: { aId: number; bId: number }[] = [];
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) pairs.push({ aId: ids[i]!, bId: ids[j]! });
+    }
+    await this.prisma.customerPairDismissal.createMany({ data: pairs, skipDuplicates: true });
+    return { dismissed: pairs.length };
+  }
+
   async merge(
     survivorId: number,
     sourceIdsRaw: number[],

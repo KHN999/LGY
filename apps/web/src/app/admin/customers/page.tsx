@@ -52,6 +52,10 @@ export default async function CustomersPage({
 
       <ImportContacts />
 
+      <Link href="/admin/customers/duplicates" className={buttonClass("outline", "sm", "self-start")}>
+        🔀 {labels.dup.nav}
+      </Link>
+
       <div className="flex gap-3 text-sm">
         <Link
           href={search ? `/admin/customers?search=${encodeURIComponent(search)}` : "/admin/customers"}

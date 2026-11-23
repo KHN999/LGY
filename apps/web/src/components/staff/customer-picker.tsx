@@ -37,7 +37,15 @@ function writeCustomerCache(list: Customer[]) {
 
 // NFC + lowercase + strip separators — the offline fallback filter, mirroring
 // the server's nameKey so Burmese byte-form variants still match.
-const norm = (s: string) => s.normalize("NFC").toLowerCase().replace(/[\s._-]/g, "");
+const norm = (s: string) =>
+  s
+    .normalize("NFC")
+    .toLowerCase()
+    .replace(/[\s\u200b-\u200d\ufeff._,\-()\/'"·:;&+၊။]/g, "")
+    .replace(/ြ/g, "ျ")
+    .replace(/ဉ/g, "ဥ")
+    .replace(/၀/g, "ဝ")
+    .replace(/[့း]/g, "");
 
 export function CustomerPicker({ open, onClose, onPick, debtorsOnly }: Props) {
   const [browse, setBrowse] = useState<Customer[]>([]); // full list (cache / initial fetch)

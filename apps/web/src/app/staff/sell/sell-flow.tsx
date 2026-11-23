@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -11,11 +11,12 @@ import {
   type SaleKind,
   type ShopId,
   type ShopSettings,
+  type SimilarCustomer,
 } from "@/lib/api-client";
 import { DEFAULT_PAY, PayMethodPicker, bankPart, payFields, payError, type PayChoice } from "@/components/staff/pay-method-picker";
 import { bankLabel } from "@/lib/banks";
 import { labels } from "@/lib/labels";
-import { formatKyat } from "@/lib/utils";
+import { formatDate, formatKyat } from "@/lib/utils";
 import { speak } from "@/lib/speech";
 import { CustomerPicker } from "@/components/staff/customer-picker";
 import { ItemTypeGrid } from "@/components/staff/item-type-grid";
@@ -67,6 +68,27 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
   const [saveAsNew, setSaveAsNew] = useState(false); // create a new customer on submit
   const [newName, setNewName] = useState("");
   const [custMode, setCustMode] = useState<"choose" | "new">("choose");
+  // Existing customers that look like the name being typed — shown so staff
+  // pick the existing record instead of creating a duplicate.
+  const [similar, setSimilar] = useState<SimilarCustomer[]>([]);
+  useEffect(() => {
+    const q = newName.trim();
+    if (custMode !== "new" || q.length < 2) {
+      setSimilar([]);
+      return;
+    }
+    const ctrl = new AbortController();
+    const t = setTimeout(() => {
+      api
+        .get<SimilarCustomer[]>(`/customers/similar?name=${encodeURIComponent(q)}`, ctrl.signal)
+        .then(setSimilar)
+        .catch(() => setSimilar([])); // offline: no check, creating still works
+    }, 300);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [newName, custMode]);
   const [activeField, setActiveField] = useState<"qty" | "price">("qty");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   // The free/replacement note box only appears once the user tries to add a
@@ -341,6 +363,41 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
                 className="w-full rounded-xl border bg-background px-4 py-3 text-xl outline-none focus:ring-2 focus:ring-ring"
               />
             </label>
+            {similar.length > 0 && (
+              <div className="flex flex-col gap-2 rounded-2xl border-2 border-amber-400 bg-amber-50 p-3">
+                <p className="text-base font-semibold text-amber-900">{labels.dup.didYouMean}</p>
+                {similar.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      setCustomer(c);
+                      setKind(c.defaultKind);
+                      setWalkIn(false);
+                      setSaveAsNew(false);
+                      setNewName("");
+                      setCustMode("choose");
+                    }}
+                    className="flex items-center justify-between gap-3 rounded-xl border bg-card p-3 text-left active:scale-[0.99]"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-lg font-semibold">{c.name}</span>
+                      <span className="block truncate text-sm text-muted-foreground">
+                        {c.contact ? `${c.contact} · ` : ""}
+                        {c.lastSaleAt
+                          ? `${labels.dup.lastSale} ${formatDate(c.lastSaleAt)}`
+                          : labels.dup.noSales}
+                      </span>
+                    </span>
+                    {c.balance > 0 && (
+                      <span className="shrink-0 text-sm font-medium text-rose-600">
+                        {labels.domain.debt}: {formatKyat(c.balance)}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
             <button
               type="button"
               disabled={!newName.trim()}
@@ -351,9 +408,14 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
                 setKind("WHOLESALE");
                 setStep("items");
               }}
-              className="rounded-xl bg-emerald-600 py-4 text-lg font-semibold text-white shadow disabled:opacity-50 active:scale-[0.98]"
+              className={
+                "rounded-xl py-4 text-lg font-semibold disabled:opacity-50 active:scale-[0.98] " +
+                (similar.length > 0
+                  ? "border-2 border-emerald-600 text-emerald-700"
+                  : "bg-emerald-600 text-white shadow")
+              }
             >
-              {labels.sell.saveBuyer}
+              {similar.length > 0 ? labels.dup.reallyNew : labels.sell.saveBuyer}
             </button>
             <button
               type="button"

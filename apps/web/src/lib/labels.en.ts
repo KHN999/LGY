@@ -471,6 +471,28 @@ export const en = {
     ],
   },
 
+  dup: {
+    didYouMean: "Already in the list? Tap the right one:",
+    lastSale: "last sale",
+    noSales: "no sales yet",
+    sales: "sales",
+    reallyNew: "None of these — add as a new customer",
+    nav: "Find duplicates",
+    title: "Possible duplicate customers",
+    subtitle: "Names that look like the same customer entered more than once. Choose which record to keep; the others' sales, payments and returns move onto it.",
+    none: "No likely duplicates found.",
+    groups: (g: number, c: number) => `${g} groups · ${c} customer records`,
+    keep: "Keep",
+    mergeIn: "Merge in",
+    leave: "Leave out",
+    mergeBtn: (n: number) => `Merge ${n} into the kept one`,
+    notSame: "Not the same person",
+    after: "After merging",
+    debt: "debt",
+    confirm: "Merging cannot be undone. Continue?",
+    done: "Merged",
+  },
+
   filter: {
     today: "Today",
     week: "This week",

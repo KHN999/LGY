@@ -279,6 +279,25 @@ export interface ExpenseCategory {
   isActive: boolean;
 }
 
+/** An existing customer that may be the one being typed (GET /customers/similar). */
+export interface SimilarCustomer extends Customer {
+  score: number;
+  lastSaleAt: string | null;
+  salesCount: number;
+}
+export interface DuplicateGroup {
+  suggestedKeepId: number;
+  members: {
+    id: number;
+    name: string;
+    contact: string | null;
+    balance: number;
+    salesCount: number;
+    lastSaleAt: string | null;
+    createdAt: string;
+  }[];
+}
+
 export interface ExpenseRow {
   id: number;
   expenseDate: string;

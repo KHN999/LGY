@@ -89,6 +89,16 @@ model Customer {
   @@index([deletedAt])
 }
 
+/// A pair of customers an admin confirmed are different people (aId < bId), so
+/// the duplicate finder stops suggesting them.
+model CustomerPairDismissal {
+  aId       Int
+  bId       Int
+  createdAt DateTime @default(now())
+
+  @@id([aId, bId])
+}
+
 model Supplier {
   id        Int         @id @default(autoincrement())
   name      String
