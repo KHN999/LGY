@@ -1,7 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { TAGS, WHO, gaps, groups, page, rules, undoHead, undoTable, visual, type Card } from "./content.my";
+import {
+  TAGS,
+  WHO,
+  gaps,
+  groups,
+  page,
+  rules,
+  undoHead,
+  undoTable,
+  updates,
+  updatesHead,
+  visual,
+  type Card,
+} from "./content.my";
 import { CashFormula, EffectMatrix, FxChips, GoodsMap } from "./diagrams";
 
 const WHO_STYLE: Record<Card["who"], string> = {
@@ -38,6 +51,61 @@ export function ExplainView() {
 
   return (
     <div className="flex min-w-0 flex-col gap-10 [&>*]:min-w-0">
+      {/* Recent updates — newest first, the newest one already open */}
+      {updates.length > 0 && (
+        <section id="updates" className="flex scroll-mt-4 flex-col gap-3">
+          <div>
+            <h2 className="text-xl font-bold">🆕 {updatesHead.title}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{updatesHead.note}</p>
+          </div>
+          {updates.map((u, i) => (
+            <details
+              key={u.id}
+              id={u.id}
+              open={i === 0 || opened === u.id ? true : undefined}
+              className={
+                "group scroll-mt-4 rounded-2xl border bg-card p-4 sm:p-5 " + (i === 0 ? "border-2 border-primary" : "")
+              }
+            >
+              <summary className="flex cursor-pointer list-none items-start gap-3">
+                <span aria-hidden className="text-2xl leading-none">{u.icon}</span>
+                <span className="min-w-0">
+                  <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span className="tabular-nums">{u.date}</span>
+                    {i === 0 && (
+                      <span className="rounded-full bg-primary px-2 py-0.5 font-semibold text-primary-foreground">
+                        {updatesHead.newest}
+                      </span>
+                    )}
+                  </span>
+                  <span className="block text-lg font-bold">{u.title}</span>
+                  <span className="block text-sm leading-relaxed text-muted-foreground">{u.gist}</span>
+                </span>
+                <span aria-hidden className="ml-auto text-muted-foreground transition group-open:rotate-180">▾</span>
+              </summary>
+              <ul className="mt-4 list-disc space-y-1.5 pl-5 leading-relaxed">
+                {u.points.map((x) => (
+                  <li key={x}>{x}</li>
+                ))}
+              </ul>
+              {u.careful && u.careful.length > 0 && (
+                <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-amber-950">
+                  <h4 className="text-sm font-semibold">⚠ {page.h.careful}</h4>
+                  <ul className="mt-1 list-disc space-y-1 pl-5 leading-relaxed">
+                    {u.careful.map((x) => (
+                      <li key={x}>{x}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <a href={u.where.href} className="mt-4 inline-block rounded-lg border px-3 py-1.5 text-sm font-semibold">
+                {u.where.label} →
+              </a>
+            </details>
+          ))}
+        </section>
+      )}
+
       {/* Pictures first: where goods go, how cash adds up, what each action moves */}
       <GoodsMap />
       <CashFormula />
