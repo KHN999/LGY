@@ -85,6 +85,11 @@ export class CreateTailorPaymentDto {
   @IsIn(PAYMENT_METHODS)
   method?: PaymentMethodInput;
 
+  /** Which bank a non-cash payment went out of (ignored for cash). */
+  @IsOptional()
+  @IsIn(["KPAY", "CB", "KBZ", "AYA", "MAB", "UNKNOWN"])
+  bank?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(500)

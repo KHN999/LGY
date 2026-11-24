@@ -9,6 +9,8 @@ import {
   MinLength,
 } from "class-validator";
 
+import { PaymentBank } from "../../common/payment-parts";
+
 export enum PaymentMethodInput {
   CASH = "CASH",
   BANK_TRANSFER = "BANK_TRANSFER",
@@ -34,6 +36,11 @@ export class CreateSupplierPaymentDto {
   @IsOptional()
   @IsEnum(PaymentMethodInput)
   method?: PaymentMethodInput;
+
+  /** Which bank a non-cash payment went out of (ignored for cash). */
+  @IsOptional()
+  @IsEnum(PaymentBank)
+  bank?: PaymentBank;
 
   @IsOptional()
   @IsDateString()

@@ -39,6 +39,7 @@ export class SupplierPaymentsService {
         orderId: dto.orderId,
         amount: dto.amount,
         method: dto.method ?? "CASH",
+        bank: dto.method && dto.method !== "CASH" ? (dto.bank ?? null) : null,
         paymentDate: dto.paymentDate ? new Date(dto.paymentDate) : new Date(),
         notes: dto.notes,
         createdById,

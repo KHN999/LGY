@@ -121,6 +121,28 @@ model CustomerMerge {
   @@index([createdAt])
 }
 
+/// A manual bank movement. DEPOSIT / WITHDRAW move money; SET_BALANCE states
+/// "the account holds `amount` as of txnDate" and restarts that bank's balance.
+model BankTxn {
+  id          Int       @id @default(autoincrement())
+  /// Bank / wallet code (same codes as CustomerPayment.bank).
+  bank        String
+  /// DEPOSIT | WITHDRAW | SET_BALANCE
+  type        String
+  amount      Int
+  /// DEPOSIT: the money came out of shop cash. WITHDRAW: it went into shop cash.
+  /// False = outside money (owner's own money in, or taken out of the business).
+  cashSide    Boolean   @default(true)
+  txnDate     DateTime  @default(now())
+  notes       String?
+  createdById Int
+  createdAt   DateTime  @default(now())
+  voidedAt    DateTime?
+  voidedById  Int?
+
+  @@index([bank, txnDate])
+}
+
 model Supplier {
   id        Int         @id @default(autoincrement())
   name      String
@@ -437,6 +459,8 @@ model SupplierPayment {
   amount      Int
   paymentDate DateTime       @default(now())
   method      PaymentMethod  @default(CASH)
+  /// Which bank a non-cash payment went out of.
+  bank        String?
   notes       String?
   createdById Int
   createdBy   User           @relation("SuppPayCreatedBy", fields: [createdById], references: [id])
@@ -537,6 +561,8 @@ model TailorPayment {
   amount      Int
   paymentDate DateTime      @default(now())
   method      PaymentMethod @default(CASH)
+  /// Which bank a non-cash payment went out of.
+  bank        String?
   notes       String?
   createdById Int
   createdBy   User          @relation("TailorPayCreatedBy", fields: [createdById], references: [id])

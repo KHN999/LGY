@@ -58,6 +58,11 @@ export interface MoneyOverview {
     supplierCash: number;
     tailorCash: number;
     expenseCash: number;
+    /** Manual bank movements (BankTxn). "Cash" = to / from shop cash, "Ext" = outside money. */
+    depositCash: number;
+    depositExt: number;
+    withdrawCash: number;
+    withdrawExt: number;
   };
   /** Money received in range, by where it landed (CASH | bank code | NOBANK). */
   channels: { channel: string; total: number; count: number }[];
@@ -120,6 +125,11 @@ export class MoneyService {
         UNION ALL
         SELECT ("returnDate" + interval '390 minutes')::date, 'REFUND', 'CASH', "refundAmount"
         FROM "SaleReturn" WHERE "voidedAt" IS NULL AND "refundAmount" > 0
+        UNION ALL
+        SELECT ("txnDate" + interval '390 minutes')::date,
+               CASE WHEN type = 'DEPOSIT' THEN 'DEP' ELSE 'WD' END || CASE WHEN "cashSide" THEN '_CASH' ELSE '_EXT' END,
+               bank, amount
+        FROM "BankTxn" WHERE "voidedAt" IS NULL AND type IN ('DEPOSIT', 'WITHDRAW')
       ) m
       GROUP BY 1, 2, 3
       ORDER BY 1
@@ -178,12 +188,57 @@ export class MoneyService {
       supplierCash: 0,
       tailorCash: 0,
       expenseCash: 0,
+      depositCash: 0,
+      depositExt: 0,
+      withdrawCash: 0,
+      withdrawExt: 0,
     };
     const channelMap = new Map<string, { total: number; count: number }>();
 
     for (const r of rows) {
       if (r.day > to) continue;
       const amount = Number(r.amount) || 0;
+      // Manual bank movements. Between shop cash and the bank they are a
+      // transfer: one side goes down, the other up, and the combined total does
+      // not move. With outside money only the bank (and the total) changes.
+      if (r.kind.startsWith("DEP_") || r.kind.startsWith("WD_")) {
+        const dep = r.kind.startsWith("DEP_");
+        const viaCash = r.kind.endsWith("_CASH");
+        if (r.day < from) {
+          opening.bank += dep ? amount : -amount;
+          if (viaCash) opening.cash += dep ? -amount : amount;
+          else opening.total += dep ? amount : -amount;
+          continue;
+        }
+        const day = dayMap.get(r.day);
+        if (!day) continue;
+        if (dep) {
+          day.inBank += amount;
+          totals.inBank += amount;
+          if (viaCash) {
+            day.outCash += amount;
+            totals.outCash += amount;
+            totals.depositCash += amount;
+          } else {
+            day.in += amount;
+            totals.in += amount;
+            totals.depositExt += amount;
+          }
+        } else {
+          day.outBank += amount;
+          totals.outBank += amount;
+          if (viaCash) {
+            day.inCash += amount;
+            totals.inCash += amount;
+            totals.withdrawCash += amount;
+          } else {
+            day.out += amount;
+            totals.out += amount;
+            totals.withdrawExt += amount;
+          }
+        }
+        continue;
+      }
       const isIn = r.kind === "IN_SALE" || r.kind === "IN_DEBT";
       const isCash = r.channel === "CASH";
       const signed = isIn ? amount : -amount;

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError, type SupplierOrder } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
+import { BANKS, bankLabel } from "@/lib/banks";
 import { formatKyat, formatDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui";
 
@@ -51,6 +52,7 @@ export function OrderDetail({ order }: Props) {
   // Payment form state
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState<"CASH" | "BANK_TRANSFER" | "MOBILE_MONEY" | "OTHER">("CASH");
+  const [payBank, setPayBank] = useState("");
   const [payDate, setPayDate] = useState("");
 
   // Receipt form state
@@ -94,6 +96,7 @@ export function OrderDetail({ order }: Props) {
         orderId: order.id,
         amount: Number(payAmount),
         method: payMethod,
+        bank: payMethod !== "CASH" && payBank ? payBank : undefined,
         paymentDate: ymdToIso(payDate),
       });
       reset();
@@ -306,6 +309,18 @@ export function OrderDetail({ order }: Props) {
               <option value="OTHER">OTHER</option>
             </select>
           </Field>
+          {payMethod !== "CASH" && (
+            <Field label={labels.bankBook.payBank}>
+              <select value={payBank} onChange={(e) => setPayBank(e.target.value)} className={inp}>
+                <option value="">{labels.bankBook.payBankAny}</option>
+                {BANKS.filter((b) => b !== "UNKNOWN").map((b) => (
+                  <option key={b} value={b}>
+                    {bankLabel(b)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
           <Field label={labels.admin.order.paymentDate}>
             <input
               type="date"

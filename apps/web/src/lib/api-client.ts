@@ -412,10 +412,43 @@ export interface MoneyOverview {
     supplierCash: number;
     tailorCash: number;
     expenseCash: number;
+    depositCash: number;
+    depositExt: number;
+    withdrawCash: number;
+    withdrawExt: number;
   };
   channels: { channel: string; total: number; count: number }[];
   expenseCategories: { name: string; value: number; cash: number }[];
   days: MoneyDay[];
+}
+
+/** One bank account in the bank book (GET /bank). */
+export interface BankAccount {
+  bank: string;
+  balance: number;
+  setAt: string | null;
+  setAmount: number | null;
+  in: number;
+  out: number;
+}
+export interface BankRow {
+  key: string;
+  txnId: number | null;
+  bank: string;
+  kind: "CUSTOMER" | "SUPPLIER" | "TAILOR" | "EXPENSE" | "DEPOSIT" | "WITHDRAW" | "SET_BALANCE";
+  date: string;
+  signed: number;
+  amount: number;
+  cashSide: boolean | null;
+  who: string | null;
+  notes: string | null;
+  balanceAfter: number | null;
+}
+export interface BankOverview {
+  accounts: BankAccount[];
+  total: number;
+  unassigned: { in: number; out: number };
+  rows: BankRow[];
 }
 
 /** One server-aggregated payload for the admin dashboard (replaces ~9 calls). */

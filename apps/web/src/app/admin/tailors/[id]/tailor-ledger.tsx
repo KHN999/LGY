@@ -10,6 +10,7 @@ import {
   type TailorPaymentRow,
 } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
+import { BANKS, bankLabel } from "@/lib/banks";
 import { formatKyat, formatDate } from "@/lib/utils";
 import { Field, inputClass } from "@/components/admin/form-field";
 import { Button, Card } from "@/components/ui";
@@ -397,6 +398,7 @@ function PaymentForm({
 }) {
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("CASH");
+  const [bank, setBank] = useState("");
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -412,6 +414,7 @@ function PaymentForm({
       await api.post(`/tailors/${tailorId}/payments`, {
         amount: amt,
         method,
+        bank: method !== "CASH" && bank ? bank : undefined,
         notes: notes.trim() || undefined,
       });
       onClose();
@@ -444,6 +447,18 @@ function PaymentForm({
           ))}
         </select>
       </Field>
+      {method !== "CASH" && (
+        <Field label={labels.bankBook.payBank}>
+          <select value={bank} onChange={(e) => setBank(e.target.value)} className={inputClass}>
+            <option value="">{labels.bankBook.payBankAny}</option>
+            {BANKS.filter((b) => b !== "UNKNOWN").map((b) => (
+              <option key={b} value={b}>
+                {bankLabel(b)}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
       <Field label={labels.tailorLedger.note}>
         <input
           type="text"

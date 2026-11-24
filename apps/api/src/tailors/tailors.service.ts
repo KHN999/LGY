@@ -314,6 +314,7 @@ export class TailorsService {
         tailorId,
         amount: dto.amount,
         method: dto.method ?? "CASH",
+        bank: dto.method && dto.method !== "CASH" ? (dto.bank ?? null) : null,
         notes: dto.notes,
         createdById: userId,
       },

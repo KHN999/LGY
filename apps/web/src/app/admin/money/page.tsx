@@ -170,8 +170,22 @@ export default async function AdminMoneyPage({
         : { date: d.date, in: d.in, out: d.out, net: d.net, closing: d.closing },
   );
   const pick = (cash: number, all: number) => (cashOnly ? cash : bankOnly ? all - cash : all);
-  const sumIn = pick(totals.inCash, totals.in);
-  const sumOut = pick(totals.outCash, totals.out);
+  const sumIn = cashOnly ? totals.inCash : bankOnly ? totals.inBank : totals.in;
+  const sumOut = cashOnly ? totals.outCash : bankOnly ? totals.outBank : totals.out;
+  const B = labels.bankBook;
+  // Manual bank movements. Shop cash ↔ bank is a transfer, so it shows on the
+  // cash and bank views but not on the combined one; outside money shows on
+  // the bank and combined views.
+  const depositRow = cashOnly
+    ? { label: `🏛️ ${B.depositToBank}`, value: totals.depositCash }
+    : bankOnly
+      ? { label: `🏛️ ${B.withdrawFromBank}`, value: totals.withdrawCash + totals.withdrawExt }
+      : { label: `🏛️ ${B.outsideWithdraw}`, value: totals.withdrawExt };
+  const bankInRow = cashOnly
+    ? { label: `🏛️ ${B.withdrawFromBank}`, value: totals.withdrawCash }
+    : bankOnly
+      ? { label: `🏛️ ${B.bankDeposit}`, value: totals.depositCash + totals.depositExt }
+      : { label: `🏛️ ${B.outsideDeposit}`, value: totals.depositExt };
   const balance = cashOnly ? data.closing.cash : bankOnly ? data.closing.bank : data.closing.total;
   const inLabel = cashOnly ? L.cashIn : bankOnly ? L.bankIn : L.moneyIn;
   const outLabel = cashOnly ? L.cashOut : bankOnly ? L.bankOut : L.moneyOut;
@@ -192,18 +206,23 @@ export default async function AdminMoneyPage({
       : [{ label: `💸 ${L.expense}`, value: pick(totals.expenseCash ?? totals.expense, totals.expense) }]),
     // Refunds are always cash.
     { label: `↩️ ${L.refund}`, value: pick(totals.refund, totals.refund) },
+    depositRow,
   ].sort((a, b) => b.value - a.value);
   const bankChannels = data.channels.filter((c) => c.channel !== "CASH");
-  const inRows = cashOnly
+  const inRows: { label: string; value: number; note?: string }[] = cashOnly
     ? [
         { label: `🧾 ${L.fromSales}`, value: totals.inSaleCash },
         { label: `📒 ${L.fromDebt}`, value: totals.inDebtCash },
+        bankInRow,
       ]
-    : (bankOnly ? bankChannels : data.channels).map((c) => ({
-        label: channelName(c.channel),
-        value: c.total,
-        note: `${c.count.toLocaleString("en-US")} ${L.times}`,
-      }));
+    : [
+        ...(bankOnly ? bankChannels : data.channels).map((c) => ({
+          label: channelName(c.channel),
+          value: c.total,
+          note: `${c.count.toLocaleString("en-US")} ${L.times}`,
+        })),
+        bankInRow,
+      ];
   const viewHref = (v: "cash" | "bank" | "all") =>
     `/admin/money?range=${active}&from=${data.from}&to=${data.to}${v === "cash" ? "" : `&view=${v}`}`;
 
@@ -226,6 +245,13 @@ export default async function AdminMoneyPage({
             {v === "cash" ? `💵 ${L.viewCash}` : v === "bank" ? `🏦 ${L.viewBank}` : `💵+🏦 ${L.viewAll}`}
           </Link>
         ))}
+        <Link
+          href="/admin/bank"
+          prefetch={false}
+          className="ml-auto rounded-lg border bg-card px-3 py-1.5 text-sm hover:bg-accent"
+        >
+          🏛️ {labels.bankBook.openBook} →
+        </Link>
       </nav>
 
       {/* in − out = balance, for the selected period only */}
@@ -377,7 +403,7 @@ export default async function AdminMoneyPage({
       <Card className="p-4">
         <h2 className="mb-2 font-semibold">{L.noteTitle}</h2>
         <ul className="flex list-disc flex-col gap-1.5 pl-5 text-sm text-muted-foreground">
-          {[...(cashOnly ? [L.cashNote] : bankOnly ? [L.bankNote] : []), ...L.notes].map((n) => (
+          {[...(cashOnly ? [L.cashNote] : bankOnly ? [L.bankNote] : []), ...L.notes, B.noteDeposit].map((n) => (
             <li key={n}>{n}</li>
           ))}
         </ul>

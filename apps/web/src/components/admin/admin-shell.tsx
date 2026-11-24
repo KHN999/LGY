@@ -46,6 +46,7 @@ const GROUPS: { title: string; items: NavItem[] }[] = [
     title: labels.admin.navGroups.money,
     items: [
       { href: "/admin/money", label: labels.moneyBook.nav, icon: "🏦" },
+      { href: "/admin/bank", label: labels.bankBook.nav, icon: "🏛️" },
       { href: "/admin/sales", label: labels.admin.sales, icon: "🧾" },
       { href: "/admin/payments", label: labels.admin.payments, icon: "💵" },
       { href: "/admin/returns", label: labels.admin.returns, icon: "↩️" },
