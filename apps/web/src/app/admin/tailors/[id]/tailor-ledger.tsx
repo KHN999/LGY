@@ -16,12 +16,12 @@ import { Field, inputClass } from "@/components/admin/form-field";
 import { Button, Card } from "@/components/ui";
 
 const METHODS: { value: string; label: string }[] = [
-  { value: "CASH", label: labels.tailorLedger.methodCash },
-  { value: "BANK_TRANSFER", label: labels.tailorLedger.methodBank },
-  { value: "MOBILE_MONEY", label: labels.tailorLedger.methodMobile },
-  { value: "OTHER", label: labels.tailorLedger.methodOther },
+  { value: "CASH", label: `💵 ${labels.paymentReceipt.methodCash}` },
+  { value: "BANK_TRANSFER", label: `🏦 ${labels.paymentReceipt.methodBank}` },
 ];
-const methodLabel = (m: string) => METHODS.find((x) => x.value === m)?.label ?? m;
+// Older rows may carry MOBILE_MONEY / OTHER — both were non-cash, so show them as bank.
+const methodLabel = (m: string, bank?: string | null) =>
+  m === "CASH" ? METHODS[0]!.label : `${METHODS[1]!.label}${bank ? ` · ${bankLabel(bank)}` : ""}`;
 const fmtDate = (s: string) => formatDate(s);
 
 export function TailorLedger({ tailor }: { tailor: TailorDetail }) {
@@ -374,7 +374,7 @@ function PaymentRow({
       <div className="min-w-0">
         <p className="font-medium tabular-nums text-emerald-700">−{formatKyat(payment.amount)}</p>
         <p className="text-xs text-muted-foreground">
-          {fmtDate(payment.paymentDate)} · {methodLabel(payment.method)}
+          {fmtDate(payment.paymentDate)} · {methodLabel(payment.method, payment.bank)}
           {payment.notes ? ` · ${payment.notes}` : ""}
         </p>
       </div>
@@ -407,6 +407,10 @@ function PaymentForm({
     const amt = Math.max(0, Number(amount) || 0);
     if (amt <= 0) {
       onError(labels.errors.required);
+      return;
+    }
+    if (method !== "CASH" && !bank) {
+      onError(labels.paymentReceipt.bankRequired);
       return;
     }
     setBusy(true);
@@ -450,7 +454,7 @@ function PaymentForm({
       {method !== "CASH" && (
         <Field label={labels.bankBook.payBank}>
           <select value={bank} onChange={(e) => setBank(e.target.value)} className={inputClass}>
-            <option value="">{labels.bankBook.payBankAny}</option>
+            <option value="">{labels.paymentReceipt.bankChoose}</option>
             {BANKS.filter((b) => b !== "UNKNOWN").map((b) => (
               <option key={b} value={b}>
                 {bankLabel(b)}

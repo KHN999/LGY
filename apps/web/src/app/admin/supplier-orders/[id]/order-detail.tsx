@@ -303,16 +303,14 @@ export function OrderDetail({ order }: Props) {
               }
               className={inp}
             >
-              <option value="CASH">CASH</option>
-              <option value="BANK_TRANSFER">BANK_TRANSFER</option>
-              <option value="MOBILE_MONEY">MOBILE_MONEY</option>
-              <option value="OTHER">OTHER</option>
+              <option value="CASH">💵 {labels.paymentReceipt.methodCash}</option>
+              <option value="BANK_TRANSFER">🏦 {labels.paymentReceipt.methodBank}</option>
             </select>
           </Field>
           {payMethod !== "CASH" && (
             <Field label={labels.bankBook.payBank}>
               <select value={payBank} onChange={(e) => setPayBank(e.target.value)} className={inp}>
-                <option value="">{labels.bankBook.payBankAny}</option>
+                <option value="">{labels.paymentReceipt.bankChoose}</option>
                 {BANKS.filter((b) => b !== "UNKNOWN").map((b) => (
                   <option key={b} value={b}>
                     {bankLabel(b)}
@@ -333,7 +331,12 @@ export function OrderDetail({ order }: Props) {
             onCancel={reset}
             onSave={recordPayment}
             submitting={submitting}
-            disabled={!payAmount || Number(payAmount) <= 0 || Number(payAmount) > owed}
+            disabled={
+              !payAmount ||
+              Number(payAmount) <= 0 ||
+              Number(payAmount) > owed ||
+              (payMethod !== "CASH" && !payBank)
+            }
           />
         </Panel>
       )}
@@ -450,7 +453,10 @@ export function OrderDetail({ order }: Props) {
                   <div className="min-w-0">
                     <p className={`font-medium ${voided ? "line-through" : ""}`}>{formatKyat(p.amount)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {formatDateTime(p.paymentDate)} · {p.method}
+                      {formatDateTime(p.paymentDate)} ·{" "}
+                      {p.method === "CASH"
+                        ? `💵 ${labels.paymentReceipt.methodCash}`
+                        : `🏦 ${labels.paymentReceipt.methodBank}${p.bank ? ` · ${bankLabel(p.bank)}` : ""}`}
                       {voided && ` · ${labels.admin.order.cancelled}`}
                     </p>
                   </div>

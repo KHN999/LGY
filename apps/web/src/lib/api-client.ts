@@ -247,6 +247,7 @@ export interface TailorPaymentRow {
   id: number;
   amount: number;
   method: string;
+  bank?: string | null;
   notes: string | null;
   paymentDate: string;
   voidedAt: string | null;
@@ -718,6 +719,7 @@ export interface SupplierOrderPayment {
   amount: number;
   paymentDate: string;
   method: string;
+  bank?: string | null;
   notes: string | null;
   voidedAt: string | null;
 }
