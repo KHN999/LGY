@@ -28,6 +28,7 @@ import { ExpensesModule } from "./expenses/expenses.module";
 import { UsersModule } from "./users/users.module";
 import { DashboardModule } from "./dashboard/dashboard.module";
 import { BankModule } from "./bank/bank.module";
+import { TelegramModule } from "./telegram/telegram.module";
 import { AuditModule } from "./audit/audit.module";
 import { ExportModule } from "./export/export.module";
 import { AnalyticsModule } from "./analytics/analytics.module";
@@ -65,6 +66,7 @@ import { AnalyticsModule } from "./analytics/analytics.module";
     UsersModule,
     DashboardModule,
     BankModule,
+    TelegramModule,
     AuditModule,
     ExportModule,
     AnalyticsModule,

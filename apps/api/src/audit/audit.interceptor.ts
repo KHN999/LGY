@@ -12,6 +12,8 @@ import type { Request, Response } from "express";
 import { PrismaService } from "../prisma/prisma.service";
 import { getShop, isShopId, SHOP_COOKIE, type ShopId } from "../prisma/shop-context";
 import type { AuthenticatedUser } from "../auth/jwt-payload";
+import { TelegramService } from "../telegram/telegram.service";
+import { notifyText } from "../telegram/notify-text";
 
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 // Keys whose values must never be persisted (financial-safety + secrets).
@@ -248,7 +250,33 @@ type ReqWithUser = Request & {
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
   private readonly logger = new Logger("Audit");
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly telegram: TelegramService,
+  ) {}
+
+  /** Tell the Telegram group about a finished staff action. Fire-and-forget:
+   *  nothing here can slow down or fail the action itself. */
+  private notifyTelegram(info: {
+    entity: string | null;
+    sub: string | undefined;
+    method: string;
+    id: string | null;
+    body: Record<string, unknown>;
+    username: string | null;
+    shop: string;
+  }): void {
+    if (!this.telegram.enabled || !info.entity) return;
+    const shopId: ShopId = isShopId(info.shop) ? info.shop : "main";
+    void notifyText(
+      { ...info, entity: info.entity, shopName: getShop(shopId)?.name ?? shopId },
+      this.prisma.clientForShop(shopId),
+    )
+      .then((text) => {
+        if (text) this.telegram.notify(text);
+      })
+      .catch((e: unknown) => this.logger.error(`telegram text failed for ${info.method} ${info.entity}: ${String(e)}`));
+  }
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     if (context.getType() !== "http") return next.handle();
@@ -332,6 +360,15 @@ export class AuditInterceptor implements NestInterceptor {
             ? String((data as { id: number }).id)
             : undefined;
         write(res.statusCode ?? 200, true, null, summarizeFromResponse(data), respId);
+        this.notifyTelegram({
+          entity,
+          sub,
+          method: req.method,
+          id: respId ?? entityId,
+          body: bodyObj,
+          username: req.user?.username ?? null,
+          shop,
+        });
       }),
       catchError((err: unknown) => {
         const status =

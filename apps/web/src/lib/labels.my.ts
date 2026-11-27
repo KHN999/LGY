@@ -419,6 +419,27 @@ export const my: DeepPartial<Labels> = {
     methodOther: "အခြား",
   },
 
+  telegram: {
+    title: "Telegram bot အကြောင်းကြားစာ",
+    help: "တစ်ယောက်ယောက်က အရောင်း၊ ငွေလက်ခံ၊ ဆိုင်ပို့၊ အလိပ်ဖြတ်၊ အရည်အသွေးမြှင့် လုပ်တဲ့အခါ၊ ဒါမှမဟုတ် အဲဒါတွေကို ပြင်တာ၊ ပယ်ဖျက်တာ လုပ်တဲ့အခါ bot က Telegram group ထဲ စာတစ်စောင် ပို့ပါတယ်။ bot က ပို့ရုံပါပဲ — Telegram ကနေ LGY ထဲ ဘာမှ ပြင်လို့ မရပါ။",
+    token: "bot token",
+    chat: "Telegram group",
+    on: "ပို့နေပါတယ်",
+    off: "မပို့သေးပါ",
+    steps: [
+      "Telegram မှာ @BotFather ကို ဖွင့်ပြီး /newbot ပို့ပါ။ ညွှန်ကြားချက်အတိုင်း လုပ်ရင် bot token တစ်ခု ရပါမယ်။",
+      "Railway မှာ API service → Variables ကို ဖွင့်ပြီး TELEGRAM_BOT_TOKEN ဆိုတဲ့ နာမည်နဲ့ အဲဒီ token ကို ထည့်ပါ။ token ကို တခြားဘယ်နေရာမှ မကူးထည့်ပါနဲ့။",
+      "Telegram group တစ်ခု ဖွဲ့ပြီး bot ကို ထည့်ပါ။ group ထဲမှာ စာတစ်စောင် ပို့လိုက်ပါ။",
+      "ဒီစာမျက်နှာကို ပြန်လာပြီး «Telegram group ရှာမယ်» နှိပ်ပါ။ ကိုယ့် group ဘေးက နံပါတ်ကို ကူးယူပါ။",
+      "Railway မှာ TELEGRAM_CHAT_ID ဆိုတဲ့ နာမည်နဲ့ အဲဒီနံပါတ်ကို ထည့်ပါ။ API ပြန်စပြီးရင် «စမ်းသပ်စာ ပို့မယ်» နှိပ်ပါ။",
+    ],
+    findChats: "Telegram group ရှာမယ်",
+    sendTest: "စမ်းသပ်စာ ပို့မယ်",
+    noChats: "bot က ဘယ် group ကိုမှ မတွေ့သေးပါ။ bot ကို group ထဲ ထည့်ပြီး စာတစ်စောင် ပို့ပါ၊ ပြီးရင် ထပ်နှိပ်ပါ။",
+    testSent: "ပို့ပြီးပါပြီ — Telegram group မှာ ကြည့်ပါ။",
+    testFailed: "Telegram က လက်မခံပါ —",
+  },
+
   bankBook: {
     nav: "ဘဏ်စာရင်း",
     title: "ဘဏ်စာရင်း",

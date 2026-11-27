@@ -420,6 +420,27 @@ export const en = {
     methodOther: "Other",
   },
 
+  telegram: {
+    title: "Telegram bot notifications",
+    help: "When someone records a sale, takes money, sends goods to the shop, cuts rolls, upgrades quality, or edits or cancels one of those, the bot posts one message in your Telegram group. It only sends — nothing typed in Telegram can change LGY.",
+    token: "bot token",
+    chat: "Telegram group",
+    on: "sending",
+    off: "not sending yet",
+    steps: [
+      "In Telegram, open @BotFather, send /newbot and follow the steps. It gives you a bot token.",
+      "On Railway, open the API service → Variables and add TELEGRAM_BOT_TOKEN with that token. Do not paste the token anywhere else.",
+      "Create a Telegram group, add the bot to it, and send any message in the group.",
+      "Come back here and press «Find my Telegram group». Copy the number shown beside your group.",
+      "On Railway, add TELEGRAM_CHAT_ID with that number. After the API restarts, press «Send test message».",
+    ],
+    findChats: "Find my Telegram group",
+    sendTest: "Send test message",
+    noChats: "The bot has not seen any group yet. Add it to the group, send a message there, and try again.",
+    testSent: "Sent — check the Telegram group.",
+    testFailed: "Telegram refused the message:",
+  },
+
   bankBook: {
     nav: "Bank book",
     title: "Bank book",

@@ -3,6 +3,7 @@ import { labels } from "@/lib/labels";
 import type { ShopSettings } from "@/lib/api-client";
 import { PageHeader } from "@/components/ui";
 import { SettingsForm } from "./settings-form";
+import { TelegramCard } from "./telegram-card";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,7 @@ export default async function AdminSettingsPage() {
     <div className="flex flex-col gap-6">
       <PageHeader title={labels.settings.title} subtitle={labels.settings.help} />
       <SettingsForm initial={settings ?? FALLBACK} />
+      <TelegramCard />
     </div>
   );
 }
