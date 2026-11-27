@@ -104,13 +104,34 @@ export class SalesService {
     const goodsTotal = dto.items.reduce((s, i) => s + i.unitPrice * i.qty, 0);
     const discount = dto.discount ?? 0;
     const grandTotal = goodsTotal - discount;
-    const paidAmount = dto.paidAmount ?? 0;
+    // What the buyer handed over. Anything above this sale's total goes against
+    // the customer's older debt (existing customers only) — see below.
+    const tendered = dto.paidAmount ?? 0;
+    const paidAmount = Math.min(tendered, grandTotal);
+    const extra = tendered - paidAmount;
     assertExternalLines(dto.items);
     const externalTotal = externalSum(dto.items);
 
     if (discount < 0) throw new BadRequestException("Discount cannot be negative");
     if (discount > goodsTotal) throw new BadRequestException("Discount cannot exceed goods total");
-    if (paidAmount > grandTotal) throw new BadRequestException("Paid amount cannot exceed grand total");
+    if (extra > 0) {
+      if (dto.customerId === undefined) {
+        throw new BadRequestException("Paid amount cannot exceed grand total");
+      }
+      const [row] = await this.prisma.$queryRaw<{ balance: number }[]>(Prisma.sql`
+        SELECT (
+          COALESCE((SELECT SUM("grandTotal") FROM "Sale" WHERE "customerId" = ${dto.customerId} AND "voidedAt" IS NULL), 0)
+          - COALESCE((SELECT SUM(amount) FROM "CustomerPayment" WHERE "customerId" = ${dto.customerId} AND "voidedAt" IS NULL), 0)
+          - COALESCE((SELECT SUM("returnTotal" - "refundAmount") FROM "SaleReturn" WHERE "customerId" = ${dto.customerId} AND "voidedAt" IS NULL), 0)
+        )::int AS balance
+      `);
+      const oldDebt = Math.max(0, Number(row?.balance ?? 0));
+      if (extra > oldDebt) {
+        throw new BadRequestException(
+          `Paid amount exceeds this sale plus the customer's old debt (at most ${grandTotal + oldDebt})`,
+        );
+      }
+    }
     // Buyer resolves to one of: existing customer | newly-saved customer | one-time
     // (no account). A one-time sale has no account to carry debt, so it must be
     // paid in full — save the buyer to sell on credit.
@@ -143,7 +164,17 @@ export class SalesService {
     }));
     const status = statusFor(grandTotal, paidAmount);
     // One row per tender — two when the buyer splits cash + bank.
-    const payments = paymentParts(paidAmount, dto.paymentMethod, dto.bankAmount, dto.bank);
+    // The sale is filled first (cash before bank); whatever is left of each
+    // tender is recorded as a debt payment — same customer, no sale attached.
+    let toSale = paidAmount;
+    const payments = paymentParts(tendered, dto.paymentMethod, dto.bankAmount, dto.bank).flatMap((p) => {
+      const forSale = Math.min(p.amount, toSale);
+      toSale -= forSale;
+      return [
+        { ...p, amount: forSale, debt: false },
+        { ...p, amount: p.amount - forSale, debt: true },
+      ].filter((x) => x.amount > 0);
+    });
     // Stock policy (launch default): SHOP sales NEVER block — physical stock is
     // the source of truth and the ledger is corrected later. Set
     // SHOP_OVERSELL=block to enforce strict shop stock instead.
@@ -407,7 +438,7 @@ export class SalesService {
           )
           SELECT
             s."customerId",
-            s.id,
+            CASE WHEN COALESCE(p.debt, FALSE) THEN NULL ELSE s.id END,
             p.amount,
             p.method::"PaymentMethod",
             p.bank,
@@ -415,7 +446,7 @@ export class SalesService {
             a.created_by_id
           FROM args a
           CROSS JOIN inserted_sale s
-          CROSS JOIN LATERAL jsonb_to_recordset(a.payment_parts) AS p(method text, amount int, bank text)
+          CROSS JOIN LATERAL jsonb_to_recordset(a.payment_parts) AS p(method text, amount int, bank text, debt boolean)
           RETURNING id
         ),
         shortfalls AS (

@@ -98,6 +98,11 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
 
   const goodsTotal = cart.reduce((s, l) => s + l.qty * l.unitPrice, 0);
   const remaining = goodsTotal - paid;
+  // A customer who already owes can pay more than this sale — the extra comes
+  // off the old debt. Nobody can pay past sale + old debt.
+  const oldDebt = Math.max(0, customer?.balance ?? 0);
+  const maxPay = goodsTotal + oldDebt;
+  const debtPaid = Math.max(0, paid - goodsTotal);
 
   function startAddItem(type: ItemType, stock: number) {
     setDraft({ type, name: type.labelMy, stock, qty: 0, price: 0, note: "" });
@@ -247,8 +252,8 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
       setError(labels.sell.noItems);
       return;
     }
-    if (!walkIn && paid > goodsTotal) {
-      setError(labels.sell.cantPayMore);
+    if (!walkIn && paid > maxPay) {
+      setError(oldDebt > 0 ? labels.sell.cantPayMoreDebt(formatKyat(maxPay)) : labels.sell.cantPayMore);
       return;
     }
     setError(null);
@@ -278,6 +283,7 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
         // Cash/bank applies to any paid amount — walk-in included.
         paymentMethod: paidAmount > 0 ? tender.method : undefined,
         bankAmount: paidAmount > 0 ? tender.bankAmount : undefined,
+        bank: paidAmount > 0 ? tender.bank : undefined,
         notes: note.trim() || undefined,
         saleDate: backdateIso(),
       });
@@ -763,8 +769,9 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
       note: l.note,
     })),
     grandTotal: goodsTotal,
-    paid: walkIn ? goodsTotal : paid,
-    paidBank: bankPart(walkIn ? goodsTotal : paid, pay),
+    // The receipt is for this sale only; money above it is shown as debt paid.
+    paid: walkIn ? goodsTotal : Math.min(paid, goodsTotal),
+    paidBank: Math.min(bankPart(walkIn ? goodsTotal : paid, pay), walkIn ? goodsTotal : Math.min(paid, goodsTotal)),
     paidBankName: pay.mode !== "CASH" ? bankLabel(pay.bank) : undefined,
     notes: note.trim() || null,
   };
@@ -792,7 +799,7 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
               type="number"
               inputMode="numeric"
               min={0}
-              max={goodsTotal}
+              max={maxPay}
               value={paid || ""}
               onChange={(e) => setPaid(Math.max(0, Number(e.target.value) || 0))}
               placeholder="0"
@@ -804,8 +811,8 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
             {/* Dedupe: goodsTotal (or its half) can coincide with a fixed amount,
                 which would otherwise yield duplicate React keys. */}
             {[...new Set(
-              [goodsTotal, Math.round(goodsTotal / 2), 50000, 100000, 500000].filter(
-                (v) => v > 0 && v <= goodsTotal,
+              [goodsTotal, Math.round(goodsTotal / 2), 50000, 100000, 500000, maxPay].filter(
+                (v) => v > 0 && v <= maxPay,
               ),
             )].map((v) => (
               <button
@@ -834,12 +841,28 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
               <p className="mt-2 text-sm text-muted-foreground">{labels.sell.paymentMethodHint}</p>
             )}
           </div>
-          <div className="mt-3 flex items-center justify-between text-base">
-            <span className="text-muted-foreground">{labels.sell.remaining}</span>
-            <span className={remaining > 0 ? "font-semibold text-rose-600" : ""}>
-              {formatKyat(remaining)}
-            </span>
-          </div>
+          {debtPaid > 0 && paid <= maxPay ? (
+            <div className="mt-3 flex flex-col gap-1 rounded-xl bg-emerald-50 p-3 text-base text-emerald-950">
+              <div className="flex items-center justify-between">
+                <span>{labels.sell.debtPaidNow}</span>
+                <span className="font-semibold tabular-nums">{formatKyat(debtPaid)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span>{labels.sell.debtLeft}</span>
+                <span className="tabular-nums">{formatKyat(oldDebt - debtPaid)}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 flex items-center justify-between text-base">
+              <span className="text-muted-foreground">{labels.sell.remaining}</span>
+              <span className={remaining > 0 ? "font-semibold text-rose-600" : ""}>
+                {formatKyat(Math.max(0, remaining))}
+              </span>
+            </div>
+          )}
+          {oldDebt > 0 && debtPaid === 0 && (
+            <p className="mt-1 text-sm text-muted-foreground">{labels.sell.oldDebtHint(formatKyat(oldDebt))}</p>
+          )}
         </section>
       )}
 
