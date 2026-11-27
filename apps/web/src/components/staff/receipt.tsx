@@ -23,6 +23,7 @@ export interface ReceiptData {
   method?: "CASH" | "BANK_TRANSFER"; // how the paid portion was tendered
   paidBank?: number; // bank-transfer part of `paid`; overrides `method` (split tender)
   paidBankName?: string; // which bank(s) the transfer came through, already labelled
+  debtPaid?: number; // money above this sale's total, taken against older debt
   notes?: string | null; // optional per-sale note (e.g. "collect tomorrow")
   // ── Returns against this sale (omit/empty when none) ──────────────
   returnedLines?: ReceiptLine[]; // goods returned (positive qty; shown as −)
@@ -263,6 +264,12 @@ export function Receipt({ data, shop }: { data: ReceiptData; shop?: ShopSettings
                 <span>{bankName}</span>
                 <span className="whitespace-nowrap">{formatKyat(paidBank)}</span>
               </div>
+            </div>
+          )}
+          {(data.debtPaid ?? 0) > 0 && (
+            <div className="flex justify-between gap-3">
+              <span>{labels.receipt.debtPaid}</span>
+              <span className="whitespace-nowrap">{formatKyat(data.debtPaid ?? 0)}</span>
             </div>
           )}
           {refundedTotal > 0 && (

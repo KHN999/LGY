@@ -965,6 +965,7 @@ export const en = {
     thanks: "Thank you!",
     returned: "Returned",
     refunded: "Refunded",
+    debtPaid: "Paid toward old debt",
     netTotal: "Net total",
     credit: "Store credit",
     returnsHeading: "Returns",

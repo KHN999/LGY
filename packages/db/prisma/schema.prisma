@@ -428,6 +428,9 @@ model CustomerPayment {
   // Optional: pin to a specific sale. Null = general credit on the account.
   saleId      Int?
   sale        Sale?         @relation(fields: [saleId], references: [id])
+  /// Set on a DEBT payment (saleId null) that was taken together with this sale —
+  /// the part of the money above the sale's total. Shown on that sale's voucher.
+  viaSaleId   Int?
   amount      Int
   paymentDate DateTime      @default(now())
   method      PaymentMethod @default(CASH)
@@ -443,6 +446,7 @@ model CustomerPayment {
   voidedBy    User?         @relation("CustPayVoidedBy", fields: [voidedById], references: [id])
   voidReason  String?
 
+  @@index([viaSaleId])
   @@index([customerId, paymentDate])
   @@index([customerId, voidedAt])
   @@index([saleId])

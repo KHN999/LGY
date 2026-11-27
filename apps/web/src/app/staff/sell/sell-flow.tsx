@@ -773,6 +773,7 @@ export function SellFlow({ shop, shopId }: { shop?: ShopSettings; shopId: ShopId
     paid: walkIn ? goodsTotal : Math.min(paid, goodsTotal),
     paidBank: Math.min(bankPart(walkIn ? goodsTotal : paid, pay), walkIn ? goodsTotal : Math.min(paid, goodsTotal)),
     paidBankName: pay.mode !== "CASH" ? bankLabel(pay.bank) : undefined,
+    debtPaid: !walkIn && paid <= maxPay ? debtPaid : 0,
     notes: note.trim() || null,
   };
 

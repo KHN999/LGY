@@ -533,6 +533,8 @@ export interface SalePaymentRow {
 
 export interface SaleDetail extends Sale {
   payments: SalePaymentRow[];
+  /** Old debt paid together with this sale (money above the sale's total). */
+  debtPaid?: number;
 }
 
 /** A sale that includes a given item (dashboard items-sold drill-down). */

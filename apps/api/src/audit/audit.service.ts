@@ -98,13 +98,44 @@ export class AuditService {
       this.prisma.main.auditLog.count({ where }),
     ]);
 
-    return { data, page: q.page, limit: q.limit, total };
+    return { data: await Promise.all(data.map((r) => this.fixSummary(r))), page: q.page, limit: q.limit, total };
   }
 
   async getOne(id: number): Promise<AuditLog> {
     const row = await this.prisma.main.auditLog.findUnique({ where: { id } });
     if (!row) throw new NotFoundException(`AuditLog ${id} not found`);
-    return row;
+    return this.fixSummary(row);
+  }
+
+  /**
+   * Rows written before 27/11/2026 described a cash ↔ bank switch as a brand-new
+   * "Received 0 Ks …" / "Expense 0 Ks" entry. The stored row is never edited;
+   * the line is corrected here, when it is read, from the row's own path + body.
+   */
+  private async fixSummary(row: AuditLog): Promise<AuditLog> {
+    const m = /\/(customer-payments|expenses)\/(\d+)\/method$/.exec(row.path);
+    if (!m || !row.summary || row.summary.startsWith("Changed ")) return row;
+    const body = (row.payload && typeof row.payload === "object" ? row.payload : {}) as Record<string, unknown>;
+    const to =
+      body.method === "CASH" ? "cash" : `bank transfer${typeof body.bank === "string" ? ` (${body.bank})` : ""}`;
+    const id = Number(m[2]);
+    let what = `${m[1] === "expenses" ? "expense" : "payment"} #${id}`;
+    try {
+      const db = this.prisma.clientForShop(isShopId(row.shop) ? row.shop : "main");
+      if (m[1] === "expenses") {
+        const e = await db.expense.findUnique({ where: { id }, select: { amount: true } });
+        if (e) what = `expense ${e.amount.toLocaleString("en-US")} Ks`;
+      } else {
+        const p = await db.customerPayment.findUnique({
+          where: { id },
+          select: { amount: true, customer: { select: { name: true } } },
+        });
+        if (p) what = `payment ${p.amount.toLocaleString("en-US")} Ks${p.customer ? ` from ${p.customer.name}` : ""}`;
+      }
+    } catch {
+      // keep the id-only wording
+    }
+    return { ...row, summary: `Changed ${what} to ${to}` };
   }
 
   /**

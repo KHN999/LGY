@@ -77,6 +77,8 @@ type SaleDetailSqlRow = Omit<SaleListSqlRow, "total"> & {
   createdBy: unknown;
   voidedBy: unknown;
   payments: unknown;
+  /** Old debt paid together with this sale (money above the sale's total). */
+  debtPaid: number;
 };
 
 function cleanText(value: string | undefined): string | null {
@@ -430,6 +432,7 @@ export class SalesService {
           INSERT INTO "CustomerPayment" (
             "customerId",
             "saleId",
+            "viaSaleId",
             amount,
             method,
             bank,
@@ -439,6 +442,7 @@ export class SalesService {
           SELECT
             s."customerId",
             CASE WHEN COALESCE(p.debt, FALSE) THEN NULL ELSE s.id END,
+            CASE WHEN COALESCE(p.debt, FALSE) THEN s.id ELSE NULL END,
             p.amount,
             p.method::"PaymentMethod",
             p.bank,
@@ -748,6 +752,15 @@ export class SalesService {
           ),
           '[]'::jsonb
         ) AS payments,
+        COALESCE(
+          (
+            SELECT SUM(p.amount)
+            FROM "CustomerPayment" p
+            WHERE p."viaSaleId" = s.id
+              AND p."voidedAt" IS NULL
+          ),
+          0
+        )::int AS "debtPaid",
         jsonb_build_object(
           'id', cb.id,
           'username', cb.username,

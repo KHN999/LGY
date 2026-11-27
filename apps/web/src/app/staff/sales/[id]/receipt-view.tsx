@@ -91,6 +91,7 @@ export function ReceiptView({
     })),
     grandTotal: sale.grandTotal,
     paid: sale.paidAmount,
+    debtPaid: sale.debtPaid ?? 0,
     notes: sale.notes,
     paidBank: sale.payments
       .filter((pm) => pm.method === "BANK_TRANSFER")

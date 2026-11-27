@@ -962,6 +962,7 @@ export const my: DeepPartial<Labels> = {
     thanks: "ကျေးဇူးတင်ပါသည်",
     returned: "ပြန်အမ်း",
     refunded: "ငွေပြန်အမ်း",
+    debtPaid: "ကြွေးဟောင်း ဆပ်ငွေ",
     netTotal: "အသားတင်",
     credit: "ဆိုင်လက်ကျန်",
     returnsHeading: "ပြန်အမ်းပစ္စည်း",
