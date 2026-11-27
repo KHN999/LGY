@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@lgy/db";
 import { PrismaService } from "../prisma/prisma.service";
 import { CustomersService } from "../customers/customers.service";
@@ -201,6 +201,24 @@ export class CustomerPaymentsService {
       }
 
       return tx.customerPayment.findUnique({ where: { id } });
+    });
+  }
+
+  /**
+   * Switch a payment between cash and bank transfer. Only where the money went
+   * changes — cash drawer vs. a bank account — so the money summary, the bank
+   * book and an OPEN day's close preview follow. A daily close that was already
+   * saved keeps its frozen figures; the caller warns about that.
+   */
+  async setMethod(id: number, method: "CASH" | "BANK_TRANSFER", bank?: string) {
+    const payment = await this.prisma.customerPayment.findUnique({ where: { id } });
+    if (!payment || payment.voidedAt) throw new NotFoundException(`Payment ${id} not found`);
+    if (method === "BANK_TRANSFER" && (!bank || bank === "UNKNOWN")) {
+      throw new BadRequestException("Choose which bank the transfer came through");
+    }
+    return this.prisma.customerPayment.update({
+      where: { id },
+      data: { method, bank: method === "BANK_TRANSFER" ? bank : null },
     });
   }
 }

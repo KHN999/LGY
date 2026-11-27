@@ -9,7 +9,8 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { Type } from "class-transformer";
-import { IsIn, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
+import { IsEnum, IsIn, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
+import { PaymentBank } from "../common/payment-parts";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -23,6 +24,16 @@ import {
 
 const PAYMENT_CHANNELS = ["CASH", "KPAY", "CB", "KBZ", "AYA", "MAB", "UNKNOWN", "NOBANK"] as const;
 export type PaymentChannel = (typeof PAYMENT_CHANNELS)[number];
+
+class PaymentMethodDto {
+  @IsIn(["CASH", "BANK_TRANSFER"])
+  method!: "CASH" | "BANK_TRANSFER";
+
+  /** Required for BANK_TRANSFER; ignored for cash. */
+  @IsOptional()
+  @IsEnum(PaymentBank)
+  bank?: PaymentBank;
+}
 
 class HistoryQueryDto {
   @IsOptional()
@@ -83,6 +94,15 @@ export class CustomerPaymentsController {
     @Query() q: HistoryQueryDto,
   ) {
     return this.service.listForCustomer(customerId, q.limit);
+  }
+
+  /** Correct how a payment was received (cash ↔ bank). The amount, the sale
+   *  and the customer's balance are untouched. */
+  @Post(":id/method")
+  @UseGuards(RolesGuard)
+  @Roles("admin")
+  setMethod(@Param("id", ParseIntPipe) id: number, @Body() dto: PaymentMethodDto) {
+    return this.service.setMethod(id, dto.method, dto.bank);
   }
 
   @Post(":id/void")

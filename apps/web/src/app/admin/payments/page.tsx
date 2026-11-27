@@ -2,11 +2,12 @@ import Link from "next/link";
 import { serverFetch } from "@/lib/auth-server";
 import { bankLabel } from "@/lib/banks";
 import { labels } from "@/lib/labels";
-import { formatKyat, formatDateTime } from "@/lib/utils";
+import { formatKyat, formatDateTime, yangonYmd } from "@/lib/utils";
 import type { PaymentHistory } from "@/lib/api-client";
 import { PageHeader, EmptyState } from "@/components/ui";
 import { DateFilter } from "@/components/admin/date-filter";
 import { VoidPaymentButton } from "./void-payment-button";
+import { SwitchMethodButton } from "./switch-method-button";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,12 @@ export default async function AdminPaymentsPage({
   if (to) params.set("toDate", to);
   if (linked === "account" || linked === "sale") params.set("linked", linked);
   if (channel && /^[A-Z]+$/.test(channel)) params.set("channel", channel);
-  const data = await serverFetch<PaymentHistory>(`/api/customer-payments?${params.toString()}`);
+  const [data, closes] = await Promise.all([
+    serverFetch<PaymentHistory>(`/api/customer-payments?${params.toString()}`),
+    // Days whose cash is already closed — switching a payment on one gets a warning.
+    serverFetch<{ date: string }[]>(`/api/daily-close`),
+  ]);
+  const closedDays = new Set((closes ?? []).map((c) => c.date));
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0; // true total over the whole range, not just the shown rows
   const count = data?.count ?? rows.length;
@@ -160,6 +166,11 @@ export default async function AdminPaymentsPage({
                 <span className="shrink-0 font-bold tabular-nums text-emerald-700">
                   {formatKyat(p.amount)}
                 </span>
+                <SwitchMethodButton
+                  id={p.id}
+                  isBank={p.method !== "CASH"}
+                  dayClosed={closedDays.has(yangonYmd(p.paymentDate))}
+                />
                 <VoidPaymentButton id={p.id} />
               </li>
             );
