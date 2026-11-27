@@ -119,6 +119,11 @@ function summarize(method: string, path: string, params: Record<string, string>,
     }
     return `Sale · ${items.length} items = ${total.toLocaleString("en-US")} Ks · ${who}`;
   }
+  // Cash ↔ bank correction on an existing payment / expense — not a new one.
+  if (sub === "method") {
+    const to = str(b.method) === "CASH" ? "cash" : `bank transfer${str(b.bank) ? ` (${str(b.bank)})` : ""}`;
+    return `Changed ${noun.toLowerCase()} #${id} to ${to}`;
+  }
   if (entity === "customer-payments" && method === "POST") {
     const m = str(b.method);
     return `Received payment ${ks(b.amount)}${m ? ` (${m.toLowerCase().replace(/_/g, " ")})` : ""}`;
@@ -375,6 +380,18 @@ export class AuditInterceptor implements NestInterceptor {
     };
     const party = async (kind: "customers" | "suppliers", idVal: unknown): Promise<string | null> =>
       Number.isInteger(Number(idVal)) ? this.lookupName(db, kind, Number(idVal)) : null;
+
+    // Cash ↔ bank correction: say which payment (amount + customer), not "0 Ks".
+    if (sub === "method") {
+      if (entity !== "customer-payments" || !Number.isInteger(Number(id))) return null;
+      const pay = await db.customerPayment.findUnique({
+        where: { id: Number(id) },
+        select: { amount: true, customer: { select: { name: true } } },
+      });
+      if (!pay) return null;
+      const to = str(body.method) === "CASH" ? "cash" : `bank transfer${str(body.bank) ? ` (${str(body.bank)})` : ""}`;
+      return `Changed payment ${ks(pay.amount)}${pay.customer ? ` from ${pay.customer.name}` : ""} to ${to}`;
+    }
 
     if (entity === "sales" && method === "POST" && !sub) {
       const names = await itemNames();
