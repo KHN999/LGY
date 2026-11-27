@@ -49,33 +49,37 @@ const ROW_LIMIT = 300;
 
 /**
  * Every non-cash movement, one row each: bank, when, signed amount.
+ * "When" is the moment it was ENTERED if it is dated the same Yangon day —
+ * many records carry a date only (stored as that day's start), which would
+ * otherwise sort before a balance set earlier the same day and be skipped.
+ * A record dated on another day keeps its own date.
  * A missing bank falls into 'UNKNOWN'. SET_BALANCE rows carry signed = 0.
  */
 const MOVEMENTS = Prisma.sql`
   SELECT 'CUST-' || p.id AS key, NULL::int AS "txnId", COALESCE(p.bank, 'UNKNOWN') AS bank, 'CUSTOMER' AS kind,
-         p."paymentDate" AS ts, p.amount AS signed, p.amount AS amount, NULL::boolean AS "cashSide",
+         CASE WHEN (p."paymentDate" + interval '390 minutes')::date = (p."createdAt" + interval '390 minutes')::date THEN p."createdAt" ELSE p."paymentDate" END AS ts, p.amount AS signed, p.amount AS amount, NULL::boolean AS "cashSide",
          c.name AS who, p.notes AS notes
   FROM "CustomerPayment" p
   LEFT JOIN "Sale" sl ON sl.id = p."saleId"
   LEFT JOIN "Customer" c ON c.id = COALESCE(p."customerId", sl."customerId")
   WHERE p."voidedAt" IS NULL AND p.method::text <> 'CASH'
   UNION ALL
-  SELECT 'SUPP-' || p.id, NULL, COALESCE(p.bank, 'UNKNOWN'), 'SUPPLIER', p."paymentDate", -p.amount, p.amount, NULL,
+  SELECT 'SUPP-' || p.id, NULL, COALESCE(p.bank, 'UNKNOWN'), 'SUPPLIER', CASE WHEN (p."paymentDate" + interval '390 minutes')::date = (p."createdAt" + interval '390 minutes')::date THEN p."createdAt" ELSE p."paymentDate" END, -p.amount, p.amount, NULL,
          s.name, p.notes
   FROM "SupplierPayment" p LEFT JOIN "Supplier" s ON s.id = p."supplierId"
   WHERE p."voidedAt" IS NULL AND p.method::text <> 'CASH'
   UNION ALL
-  SELECT 'TAIL-' || p.id, NULL, COALESCE(p.bank, 'UNKNOWN'), 'TAILOR', p."paymentDate", -p.amount, p.amount, NULL,
+  SELECT 'TAIL-' || p.id, NULL, COALESCE(p.bank, 'UNKNOWN'), 'TAILOR', CASE WHEN (p."paymentDate" + interval '390 minutes')::date = (p."createdAt" + interval '390 minutes')::date THEN p."createdAt" ELSE p."paymentDate" END, -p.amount, p.amount, NULL,
          t.name, p.notes
   FROM "TailorPayment" p LEFT JOIN "Tailor" t ON t.id = p."tailorId"
   WHERE p."voidedAt" IS NULL AND p.method::text <> 'CASH'
   UNION ALL
-  SELECT 'EXP-' || e.id, NULL, COALESCE(e.bank, 'UNKNOWN'), 'EXPENSE', e."expenseDate", -e.amount, e.amount, NULL,
+  SELECT 'EXP-' || e.id, NULL, COALESCE(e.bank, 'UNKNOWN'), 'EXPENSE', CASE WHEN (e."expenseDate" + interval '390 minutes')::date = (e."createdAt" + interval '390 minutes')::date THEN e."createdAt" ELSE e."expenseDate" END, -e.amount, e.amount, NULL,
          ec."labelMy", e.notes
   FROM "Expense" e LEFT JOIN "ExpenseCategory" ec ON ec.id = e."categoryId"
   WHERE e."voidedAt" IS NULL AND e.method::text <> 'CASH'
   UNION ALL
-  SELECT 'TXN-' || b.id, b.id, b.bank, b.type, b."txnDate",
+  SELECT 'TXN-' || b.id, b.id, b.bank, b.type, CASE WHEN (b."txnDate" + interval '390 minutes')::date = (b."createdAt" + interval '390 minutes')::date THEN b."createdAt" ELSE b."txnDate" END,
          CASE b.type WHEN 'DEPOSIT' THEN b.amount WHEN 'WITHDRAW' THEN -b.amount ELSE 0 END,
          b.amount, b."cashSide", NULL, b.notes
   FROM "BankTxn" b WHERE b."voidedAt" IS NULL
